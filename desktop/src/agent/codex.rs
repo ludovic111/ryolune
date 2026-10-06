@@ -445,7 +445,7 @@ mod tests {
     fn steering_joins_the_running_turn_or_starts_the_next_one() {
         let (input, rx) = mpsc::sync_channel(16);
         let (events, output) = mpsc::sync_channel(16);
-        let (frames_tx, frames) = mpsc::channel();
+        let (frames_tx, frames) = mpsc::channel::<Value>();
         let turn = Turn::test("Make a beat", Default::default(), events);
         let steer = turn.steer.clone();
         // The interface answers the tool call and steers while it runs.

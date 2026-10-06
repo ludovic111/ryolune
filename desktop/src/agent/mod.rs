@@ -212,8 +212,7 @@ pub(crate) enum Part {
         is_error: bool,
     },
 }
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(from = "SavedMessage")]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub(crate) struct Message {
     pub role: &'static str,
     pub parts: Vec<Part>,
@@ -224,6 +223,11 @@ pub(crate) struct Message {
 struct SavedMessage {
     role: String,
     parts: Vec<Part>,
+}
+impl<'de> Deserialize<'de> for Message {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        SavedMessage::deserialize(d).map(Message::from)
+    }
 }
 impl From<SavedMessage> for Message {
     fn from(saved: SavedMessage) -> Self {
