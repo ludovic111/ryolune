@@ -1,7 +1,8 @@
 # ryolune
 
 Part of [lsuite](https://lsuite.xyz), the free, open-source creative suite your AI can drive.
-Website: **[lsuite.xyz/ryolune](https://lsuite.xyz/ryolune)**.
+Downloads are on [GitHub](https://github.com/ludovic111/ryolune/releases/latest); ryolune's page on
+lsuite.xyz says "coming soon" for now.
 
 **The open-source DAW your AI can drive.** A complete digital audio workstation for macOS,
 Windows and Linux in which every action, from adding a track to mixing a plugin's parameters, is
@@ -22,19 +23,29 @@ same song, and every edit it makes is one undo away.
 - **The lsuite look** (design system v2, shared with kimchi): black and white, square corners,
   film grain and dithered light behind the chrome, solid work surfaces, every area titled and
   its tools boxed together, in dark and light, with text contrast tested on every surface.
+- **Coming from another app**: a first-run setup asks which app you made music in, connects an
+  agent and checks the sound, then starts you on the demo, an empty song or your old song.
+  DAWproject import and export (Bitwig Studio, Studio One, Cubase and others) carries tracks,
+  sends, MIDI and audio clips, markers, tempo, automation and plugins; MIDI and stems cover the
+  apps without it. File > Open Recent lists the songs you opened lately.
 - **Works with the rest of lsuite**: send a mix or stems onto a kimchi video project, score a
-  cut that comes back from kimchi, and find the other apps through `~/.lsuite`.
+  cut that comes back from kimchi, use zenith's agents as ryolune's agent, and find the other
+  apps through `~/.lsuite`.
 - **Built for AI control**: everything a person can do in the window is a command that the
   built-in agent, `ryolune-cli` and any MCP client can call, with a one-call overview of the whole
   song and full access to external plugins' parameters and state. The built-in agent runs on
   Codex, Claude Code, Anthropic, OpenAI, Gemini, OpenRouter, Mistral, Groq, DeepSeek, xAI, Ollama,
-  LM Studio or any compatible server; Settings shows a ready setup for Claude Code, Codex,
+  LM Studio, zenith or any compatible server; Settings shows a ready setup for Claude Code, Codex,
   Cursor, VS Code, Claude Desktop, Gemini CLI and other MCP apps.
+- **Conversations that stay with the song**: each song keeps its agent conversations and a
+  project memory (the key, the style, what to leave alone) that every request reads. Type while
+  the agent works to steer it without losing what it has done.
 - **Sounds from a description**: loops that fit your bars and key, song ideas, one-shots and
   playable instruments, made with ElevenLabs, Stable Audio, fal.ai or your own endpoint and placed
   in one undo step. Any sound can become a Sample Keys instrument.
 - **Offline and private**: no account, no subscription, no telemetry. Songs are single `.ryolune`
-  files with the audio inside.
+  files with the audio inside. Logs and crash reports stay on your computer (Settings >
+  Diagnostics); Help > Report a Problem opens a GitHub issue for you to read before sending.
 
 ## Install
 
@@ -51,21 +62,27 @@ Download the file for your computer from the
 **macOS**: unzip and drag `ryolune.app` to Applications. The app is signed with a Developer ID
 and notarized by Apple, so it opens like any other app (from 0.11.0).
 **Windows and Linux**: extract all three executables (`ryolune`, `ryolune-cli`, `ryolune-mcp`) into
-one folder. Windows needs the Microsoft Edge WebView2 runtime.
+one folder. The demo song is `ryolune-Afterglow-demo.zip` on the same page.
 
-ryolune checks for updates when it starts (Help > Check for updates…). An update is installed
-only after its Ed25519 signature, download host, checksum and binary versions are verified; the
-previous copy is kept until the new one starts. `RYOLUNE_NO_UPDATE=1` turns the check off.
+ryolune checks for updates when it starts and every six hours while it stays open (Help > Check
+for Updates…). An update is installed only after its Ed25519 signature, download host, checksum
+and binary versions are verified; the previous copy is kept until the new one starts, and
+**Restart now** starts it. The first time a new version opens, What's New lists what changed
+since the one you had. `RYOLUNE_NO_UPDATE=1` turns the check off.
 
 ## Start
 
-1. File > New session: Drums, Bass and an audio track are ready.
+The first time it opens, ryolune's setup offers the demo song, an empty song or a song from your
+old app (Help > Set Up ryolune… shows it again). Then:
+
+1. File > New Session: Drums, Bass and an audio track are ready.
 2. Double-click a loop in the browser, or draw a region with the Pencil tool (`2`) and click in
    the piano roll to add notes. Space plays.
 3. Mix in the inspector or the mixer (`X`), save with `⌘S`, export with `⌘B`.
 
-Or open File > Open demo to explore a finished song. The [user guide](docs/USER_GUIDE.md) walks
-through everything.
+Or open File > Open Demo to explore a finished song, or File > Import from Another App… to bring
+in a DAWproject, a MIDI file or stems. The [user guide](docs/USER_GUIDE.md) walks through
+everything.
 
 ## Control ryolune from scripts and AI
 
@@ -93,6 +110,8 @@ See [AI_CONTROL.md](docs/AI_CONTROL.md) for the agent, the CLI, MCP, permissions
 
 ## Documentation
 
+Every document is listed in [docs/README.md](docs/README.md).
+
 | Document | What it covers |
 | --- | --- |
 | [User guide](docs/USER_GUIDE.md) | The window, tracks, recording, editing, mixing, automation, files, appearance, settings |
@@ -102,6 +121,9 @@ See [AI_CONTROL.md](docs/AI_CONTROL.md) for the agent, the CLI, MCP, permissions
 | [The agent panel](docs/AGENT.md) | Providers, outside agents, the conversation, Generate, Changes and Takes |
 | [Plugins](docs/PLUGINS.md) | CLAP, VST3 and Audio Unit hosting |
 | [Native plugins](docs/NATIVE_PLUGINS.md) | Writing plugins in Rust with the ryolune SDK |
+| [Configuration](docs/CONFIGURATION.md) | Every setting, the data folder, environment variables and flags |
+| [Session format](docs/SESSION_FORMAT.md) | The `.ryolune` file, field by field |
+| [Architecture](docs/ARCHITECTURE.md) | How the crates, registry, audio engine, plugin hosts and window fit together |
 | [Development](docs/DEVELOPMENT.md) | Code layout, building, checks, releases |
 | [Release notes](docs/releases/) | What changed in each version |
 | [Verification](docs/VERIFICATION.md) | What has been tested and how |
@@ -120,7 +142,9 @@ in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 No time stretching, comping or time signature changes inside a song yet, and buses do not feed
 other buses. Recording latency is not compensated automatically. External plugin windows open on macOS; elsewhere
 external plugins show their parameter list. VST2 and AAX are not supported. There is no MP3
-export. Windows builds are not code-signed.
+export. Windows builds are not code-signed. DAWproject does not carry clip gain, fade curves,
+plugin automation or meter changes, and Ableton Live, Logic Pro, FL Studio, REAPER, Pro Tools
+and GarageBand exchange songs through MIDI and stems, not their own project files.
 
 ## Support ryolune
 
