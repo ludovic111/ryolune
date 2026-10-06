@@ -69,7 +69,8 @@ pub(crate) fn layer(id: &'static str, focus: &FocusHandle, cx: &App) -> gpui::St
         })
 }
 
-/// A modal sheet: glass tier 3, a title bar with the close key, then the caller's children.
+/// A modal sheet: glass tier 3 inside viewfinder brackets, a title bar with the close key,
+/// then the caller's children.
 /// `on_close` runs for the close key (the layer handles Escape).
 pub(crate) fn sheet(
     id: &'static str,
@@ -85,11 +86,13 @@ pub(crate) fn sheet(
         .w(px(width))
         .max_w(relative(0.92))
         .max_h(relative(0.88))
+        .relative()
         .flex()
         .flex_col()
-        .overflow_hidden()
         // A click on the sheet is not a click on the scrim.
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        // Framed like a viewfinder, the marks just outside the sheet.
+        .child(crate::ui::grain::brackets(14.0, -9.0, theme.text_3))
         .child(
             div()
                 .flex()

@@ -1443,7 +1443,6 @@ fn paint_graph(
                 Bounds::centered_at(c, gpui::size(r * 2.0, r * 2.0)),
                 if on { color } else { theme.display },
             )
-            .corner_radii(r)
             .border_widths(px(1.5))
             .border_color(if on { theme.text_display } else { color }),
         );

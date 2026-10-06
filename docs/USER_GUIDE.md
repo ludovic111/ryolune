@@ -271,16 +271,26 @@ Scripts and external AI tools control ryolune through the same commands: see
 ## Appearance
 
 ryolune has one theme, in a dark and a light mode. Settings > Interface shows each as a live
-miniature: **Dark** (graphite, for long sessions), **Light** (porcelain, for daylight) and
-**Auto**, which follows the system while the window is open.
+miniature: **Dark** (white ink on black, for long sessions), **Light** (black ink on paper, for
+daylight) and **Auto**, which follows the system while the window is open.
 
-ryolune wears the lsuite design system, shared with kimchi and zenith: frosted glass for the
-chrome (title bar, transport, browser, inspector, agent panel, menus and dialogs) over a window
-that blurs your desktop behind it, and solid surfaces for the work (arrangement, editors, mixer
-strips). One accent, ryolune teal, marks the playhead, selection, focus, lit keys and what the
-agent touched. Channel keys light in their own colours: mute blue, solo yellow, record arm red,
-and meters keep mint and amber. Knobs show their value as a ring; a centred knob such as pan
-fills from the top. With macOS's Reduce transparency setting on, the glass turns opaque.
+ryolune wears the lsuite design system (v2), shared with kimchi and zenith: black and white,
+cut square, with grain. The chrome (title bar, transport, browser, inspector, agent panel) sits
+on a page of film grain and dithered light; the work (arrangement, editors, mixer strips) stays
+solid. The accent is the ink of the mode, white in the dark and black in the light: it marks the
+playhead, selection and focus, and whatever you choose is inverted (the open tab, the lit
+switch, the selected tool, the menu item under the pointer). Red is kept for recording, record
+arm and errors. Menus, popovers and dialogs cast a hard shadow, and dialogs sit inside corner
+brackets like a viewfinder. Your track colours stay on your clips and notes, and the logos of
+other services keep their own colours.
+
+Every area has a title bar with its name, what it shows and its tools, boxed by kind: undo and
+redo, the views (mixer, automation, commands), the agent and the app in the title bar; the edit
+tools, follow and cycle, the tempo track and markers, and zoom over the arrangement. In a narrow
+window the tools keep their icons and drop their labels (the tooltip still names them). Track
+headers show the track's number and its whole name, on two lines if needed, with the mute, solo,
+arm and monitoring keys always in view. Knobs show their value as a ring; a centred knob such
+as pan fills from the top. With macOS's Reduce transparency setting on, the chrome turns opaque.
 
 Scripts and the agent switch the mode too (`settings.set` with `interface.mode` set to `dark`,
 `light` or `auto`). Themes chosen in earlier versions (Modern, Skeuomorphic, Frutiger Aero,
