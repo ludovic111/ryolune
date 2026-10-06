@@ -313,7 +313,11 @@ impl Writer<'_> {
         );
         self.xml.close();
         self.xml.open("Structure", &[]);
-        let fed: HashSet<&str> = s.tracks.iter().filter_map(|t| t.output.as_deref()).collect();
+        let fed: HashSet<&str> = s
+            .tracks
+            .iter()
+            .filter_map(|t| t.output.as_deref())
+            .collect();
         for t in &s.tracks {
             let role = if !t.is_bus() {
                 "regular"
@@ -328,7 +332,15 @@ impl Writer<'_> {
                 .as_deref()
                 .filter(|o| self.ids.contains_key(*o))
                 .unwrap_or(MASTER);
-            self.track(&t.id, &t.name, Some(&t.color), content, role, destination, t)?;
+            self.track(
+                &t.id,
+                &t.name,
+                Some(&t.color),
+                content,
+                role,
+                destination,
+                t,
+            )?;
         }
         for (bus, _) in AUX_IDS {
             let track = Track {
@@ -644,7 +656,11 @@ impl Writer<'_> {
             }
             self.xml.close();
         }
-        for lane in s.automation.iter().filter(|l| l.target.track_id() == Some(&t.id)) {
+        for lane in s
+            .automation
+            .iter()
+            .filter(|l| l.target.track_id() == Some(&t.id))
+        {
             match &lane.target {
                 AutomationTarget::TrackVolume { .. } => {
                     self.points(lane, &ids.volume, "linear", |v| fader_gain(v as f32) as f64)
@@ -685,10 +701,8 @@ impl Writer<'_> {
     ) {
         if !lane.enabled || lane.points.is_empty() {
             if !lane.enabled {
-                self.report.dropped(format!(
-                    "The switched-off automation lane “{}”",
-                    lane.name
-                ));
+                self.report
+                    .dropped(format!("The switched-off automation lane “{}”", lane.name));
             }
             return;
         }
@@ -772,9 +786,7 @@ impl Writer<'_> {
                     ];
                     match kind {
                         ControllerKind::Cc => target.push(a("controller", number.unwrap_or(0))),
-                        ControllerKind::PolyPressure => {
-                            target.push(a("key", number.unwrap_or(0)))
-                        }
+                        ControllerKind::PolyPressure => target.push(a("key", number.unwrap_or(0))),
                         _ => {}
                     }
                     self.xml.empty("Target", &target);
@@ -954,12 +966,15 @@ impl Writer<'_> {
             .filter(|c| matches!(c.data, ClipData::Midi { .. }))
             .collect();
         if !midi_clips.is_empty() {
-            let (notes, controllers) = midi_clips.iter().fold((0, 0), |(n, c), clip| match &clip
-                .data
-            {
-                ClipData::Midi { notes, controllers } => (n + notes.len(), c + controllers.len()),
-                _ => (n, c),
-            });
+            let (notes, controllers) =
+                midi_clips
+                    .iter()
+                    .fold((0, 0), |(n, c), clip| match &clip.data {
+                        ClipData::Midi { notes, controllers } => {
+                            (n + notes.len(), c + controllers.len())
+                        }
+                        _ => (n, c),
+                    });
             let mut line = format!(
                 "{} with {}",
                 count(midi_clips.len(), "MIDI clip", "MIDI clips"),
@@ -1016,8 +1031,11 @@ impl Writer<'_> {
             })
             .count();
         if lanes > 0 {
-            self.report
-                .kept(count(lanes, "volume or pan automation lane", "volume and pan automation lanes"));
+            self.report.kept(count(
+                lanes,
+                "volume or pan automation lane",
+                "volume and pan automation lanes",
+            ));
         }
         let plugin_lanes = s
             .automation
@@ -1033,7 +1051,11 @@ impl Writer<'_> {
         if self.plugins > 0 {
             self.report.kept(format!(
                 "{} by id, {} with their settings",
-                count(self.plugins, "CLAP, VST3 or AU plugin", "CLAP, VST3 and AU plugins"),
+                count(
+                    self.plugins,
+                    "CLAP, VST3 or AU plugin",
+                    "CLAP, VST3 and AU plugins"
+                ),
                 count(self.states, "state", "states")
             ));
         }
@@ -1117,7 +1139,9 @@ fn from_vstpreset(bytes: &[u8]) -> Option<(String, Vec<u8>)> {
     if bytes.get(0..4)? != b"VST3" {
         return None;
     }
-    let class = std::str::from_utf8(bytes.get(8..40)?).ok()?.to_ascii_lowercase();
+    let class = std::str::from_utf8(bytes.get(8..40)?)
+        .ok()?
+        .to_ascii_lowercase();
     let list = i64::from_le_bytes(bytes.get(40..48)?.try_into().ok()?);
     let list = usize::try_from(list).ok()?;
     if bytes.get(list..list + 4)? != b"List" {
@@ -1128,8 +1152,14 @@ fn from_vstpreset(bytes: &[u8]) -> Option<(String, Vec<u8>)> {
     for i in 0..usize::try_from(entries).ok()?.min(64) {
         let at = list + 8 + i * 20;
         let id = bytes.get(at..at + 4)?;
-        let offset = usize::try_from(i64::from_le_bytes(bytes.get(at + 4..at + 12)?.try_into().ok()?)).ok()?;
-        let size = usize::try_from(i64::from_le_bytes(bytes.get(at + 12..at + 20)?.try_into().ok()?)).ok()?;
+        let offset = usize::try_from(i64::from_le_bytes(
+            bytes.get(at + 4..at + 12)?.try_into().ok()?,
+        ))
+        .ok()?;
+        let size = usize::try_from(i64::from_le_bytes(
+            bytes.get(at + 12..at + 20)?.try_into().ok()?,
+        ))
+        .ok()?;
         let data = bytes.get(offset..offset.checked_add(size)?)?;
         match id {
             b"Comp" => component = data,
@@ -1254,7 +1284,10 @@ fn entry<R: Read + Seek>(
         Err(e) => return Err(format!("{name}: {e}")),
     };
     if file.size() > limit {
-        return Err(format!("{name} is larger than ryolune reads ({} MiB)", limit >> 20));
+        return Err(format!(
+            "{name} is larger than ryolune reads ({} MiB)",
+            limit >> 20
+        ));
     }
     let mut bytes = Vec::with_capacity(file.size() as usize);
     (&mut file)
@@ -1398,7 +1431,10 @@ fn gain_of(node: Node) -> Option<f64> {
     Some(match node.attribute("unit") {
         Some("decibel") => 10f64.powf(value / 20.0),
         Some("normalized") => {
-            let (min, max) = (number(node, "min").unwrap_or(0.0), number(node, "max").unwrap_or(1.0));
+            let (min, max) = (
+                number(node, "min").unwrap_or(0.0),
+                number(node, "max").unwrap_or(1.0),
+            );
             min + value * (max - min)
         }
         Some("percent") => value / 100.0,
@@ -1408,9 +1444,18 @@ fn gain_of(node: Node) -> Option<f64> {
 /// A pan parameter's value as ryolune's -100 to 100.
 fn pan_of(node: Node, value: f64) -> f64 {
     let (min, max) = match node.attribute("unit") {
-        Some("normalized") | None => (number(node, "min").unwrap_or(0.0), number(node, "max").unwrap_or(1.0)),
-        Some("percent") => (number(node, "min").unwrap_or(-100.0), number(node, "max").unwrap_or(100.0)),
-        _ => (number(node, "min").unwrap_or(-1.0), number(node, "max").unwrap_or(1.0)),
+        Some("normalized") | None => (
+            number(node, "min").unwrap_or(0.0),
+            number(node, "max").unwrap_or(1.0),
+        ),
+        Some("percent") => (
+            number(node, "min").unwrap_or(-100.0),
+            number(node, "max").unwrap_or(100.0),
+        ),
+        _ => (
+            number(node, "min").unwrap_or(-1.0),
+            number(node, "max").unwrap_or(1.0),
+        ),
     };
     if max <= min {
         return 0.0;
@@ -1465,7 +1510,11 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
 
     // --- Tempo and meter -----------------------------------------------------------
 
-    fn transport(&mut self, root: Node<'a, 'input>, arrangement: Option<Node<'a, 'input>>) -> Result<()> {
+    fn transport(
+        &mut self,
+        root: Node<'a, 'input>,
+        arrangement: Option<Node<'a, 'input>>,
+    ) -> Result<()> {
         let transport = el(root, "Transport");
         let mut tempo = 120.0;
         if let Some(node) = transport.and_then(|t| el(t, "Tempo")) {
@@ -1641,7 +1690,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
     ) -> Result<()> {
         let name = node.attribute("name").unwrap_or("").to_string();
         let channel = el(node, "Channel");
-        let role = channel.and_then(|c| c.attribute("role")).unwrap_or("regular");
+        let role = channel
+            .and_then(|c| c.attribute("role"))
+            .unwrap_or("regular");
         let content: Vec<&str> = node
             .attribute("contentType")
             .unwrap_or("")
@@ -1668,15 +1719,23 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 ));
             }
             None
-        } else if role == "effect" || role == "submix" || content.contains(&"tracks") || !children.is_empty() {
+        } else if role == "effect"
+            || role == "submix"
+            || content.contains(&"tracks")
+            || !children.is_empty()
+        {
             if self.session.tracks.iter().filter(|t| t.is_bus()).count() >= MAX_BUS_TRACKS {
-                self.report.dropped(format!("The bus “{name}”: a song holds at most {MAX_BUS_TRACKS} buses"));
+                self.report.dropped(format!(
+                    "The bus “{name}”: a song holds at most {MAX_BUS_TRACKS} buses"
+                ));
                 None
             } else {
                 Some(Dest::Track(self.new_track(node, "bus", &name)))
             }
         } else if self.session.tracks.len() >= 120 {
-            self.report.dropped(format!("The track “{name}”: ryolune holds up to 128 tracks"));
+            self.report.dropped(format!(
+                "The track “{name}”: ryolune holds up to 128 tracks"
+            ));
             None
         } else {
             let midi = content.contains(&"notes")
@@ -1699,11 +1758,22 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 if let Some(id) = channel_id {
                     self.channels.insert(id.into(), strip.clone());
                 }
-                pending.push((strip.clone(), channel, parent.map(String::from), name.clone()));
+                pending.push((
+                    strip.clone(),
+                    channel,
+                    parent.map(String::from),
+                    name.clone(),
+                ));
             }
         }
         let group = match &strip {
-            Some(Dest::Track(id)) if self.session.tracks.iter().any(|t| &t.id == id && t.is_bus()) => {
+            Some(Dest::Track(id))
+                if self
+                    .session
+                    .tracks
+                    .iter()
+                    .any(|t| &t.id == id && t.is_bus()) =>
+            {
                 Some(id.clone())
             }
             _ => parent.map(String::from),
@@ -1726,7 +1796,11 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             _ if id.is_some_and(|id| AUX_IDS.iter().any(|(_, f)| *f == id)) => {
                 Dest::Aux(AUX_IDS.iter().find(|(_, f)| Some(*f) == id).unwrap().0)
             }
-            _ => Dest::Track(self.new_track(channel, "bus", if name.is_empty() { "Bus" } else { &name })),
+            _ => Dest::Track(self.new_track(
+                channel,
+                "bus",
+                if name.is_empty() { "Bus" } else { &name },
+            )),
         };
         if let Some(id) = id {
             self.channels.insert(id.into(), strip.clone());
@@ -1734,7 +1808,13 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         pending.push((strip, channel, None, name));
     }
 
-    fn mix(&mut self, strip: &Dest, channel: Node<'a, 'input>, parent: Option<&str>, name: &str) -> Result<()> {
+    fn mix(
+        &mut self,
+        strip: &Dest,
+        channel: Node<'a, 'input>,
+        parent: Option<&str>,
+        name: &str,
+    ) -> Result<()> {
         let volume = el(channel, "Volume");
         let pan = el(channel, "Pan");
         let mute = el(channel, "Mute");
@@ -1763,18 +1843,35 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                     self.session.master_volume = fader;
                 }
                 if mute {
-                    self.report.dropped("The Stereo Out's mute: ryolune's Stereo Out cannot be muted");
+                    self.report
+                        .dropped("The Stereo Out's mute: ryolune's Stereo Out cannot be muted");
                 }
                 let (_, inserts) = self.devices(channel, MASTER, "the Stereo Out", false)?;
-                self.session.strips.entry(MASTER.into()).or_default().inserts = inserts;
+                self.session
+                    .strips
+                    .entry(MASTER.into())
+                    .or_default()
+                    .inserts = inserts;
             }
             Dest::Aux(bus) => {
                 let (_, inserts) = self.devices(channel, bus, bus_name(bus), false)?;
-                self.session.strips.entry((*bus).into()).or_default().inserts = inserts;
+                self.session
+                    .strips
+                    .entry((*bus).into())
+                    .or_default()
+                    .inserts = inserts;
             }
             Dest::Track(id) => {
-                let is_bus = self.session.tracks.iter().any(|t| &t.id == id && t.is_bus());
-                let midi = self.session.tracks.iter().any(|t| &t.id == id && t.kind == "midi");
+                let is_bus = self
+                    .session
+                    .tracks
+                    .iter()
+                    .any(|t| &t.id == id && t.is_bus());
+                let midi = self
+                    .session
+                    .tracks
+                    .iter()
+                    .any(|t| &t.id == id && t.kind == "midi");
                 let output = match channel.attribute("destination") {
                     Some(dest) => match self.channels.get(dest).cloned() {
                         None | Some(Dest::Master) => None,
@@ -1845,7 +1942,8 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             let bus = match target {
                 Some(Dest::Aux(bus)) => bus.to_string(),
                 Some(Dest::Track(id))
-                    if !from_bus && self.session.tracks.iter().any(|t| t.id == id && t.is_bus()) =>
+                    if !from_bus
+                        && self.session.tracks.iter().any(|t| t.id == id && t.is_bus()) =>
                 {
                     id
                 }
@@ -1858,7 +1956,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 self.tally.sends_dropped += 1;
                 continue;
             }
-            let enabled = el(send, "Enable").and_then(|e| boolean(e, "value")).unwrap_or(true);
+            let enabled = el(send, "Enable")
+                .and_then(|e| boolean(e, "value"))
+                .unwrap_or(true);
             let gain = el(send, "Volume").and_then(gain_of).unwrap_or(0.0);
             let level_db = (enabled && gain > 0.0).then(|| {
                 let db = 20.0 * gain.log10();
@@ -1870,7 +1970,8 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 db.clamp(-100.0, 0.0) as f32
             });
             if send.attribute("type") == Some("pre") {
-                self.report.approximated("Pre-fader sends are post-fader in ryolune");
+                self.report
+                    .approximated("Pre-fader sends are post-fader in ryolune");
             }
             out.push(Send {
                 level_db,
@@ -1917,9 +2018,8 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             }
             if role == "instrument" && !instrument_track {
                 if !matches!(key, MASTER | BUS_A | BUS_B) {
-                    self.report.dropped(format!(
-                        "The instrument {label} on the audio track {name}"
-                    ));
+                    self.report
+                        .dropped(format!("The instrument {label} on the audio track {name}"));
                 }
                 continue;
             }
@@ -1943,7 +2043,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                     .filter(|n| INSTRUMENTS.contains(n))
                     .map(String::from);
                 instrument = Some(match stock {
-                    Some(stock) if insert.params.is_empty() && insert.blob.is_empty() && enabled => {
+                    Some(stock)
+                        if insert.params.is_empty() && insert.blob.is_empty() && enabled =>
+                    {
                         Instrument::Stock(stock)
                     }
                     _ => Instrument::Plugin(insert),
@@ -1958,7 +2060,13 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
     }
 
     /// One device as a ryolune insert, or `None` when it cannot be here.
-    fn plugin(&mut self, device: Node, label: &str, track: &str, key: &str) -> Result<Option<Insert>> {
+    fn plugin(
+        &mut self,
+        device: Node,
+        label: &str,
+        track: &str,
+        key: &str,
+    ) -> Result<Option<Insert>> {
         let tag = device.tag_name().name();
         let device_id = device.attribute("deviceID").unwrap_or("").trim();
         let builtin = match tag {
@@ -1972,17 +2080,25 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             self.report.approximated(format!(
                 "{label} on {track} became ryolune's {stock} at its own settings"
             ));
-            return Ok(Some(Insert::new(String::new(), &format!("stock:{stock}"), stock)));
+            return Ok(Some(Insert::new(
+                String::new(),
+                &format!("stock:{stock}"),
+                stock,
+            )));
         }
         let (plugin, format) = match tag {
             "ClapPlugin" => (Some(format!("clap:{device_id}")), "CLAP"),
-            "Vst3Plugin" => (hex_from_uuid(device_id).map(|h| format!("vst3:{h}")), "VST3"),
+            "Vst3Plugin" => (
+                hex_from_uuid(device_id).map(|h| format!("vst3:{h}")),
+                "VST3",
+            ),
             "AuPlugin" => (
                 self.catalog
                     .iter()
                     .find(|d| {
                         d.format == PluginFormat::AudioUnit
-                            && ((d.id.ends_with(device_id) && !device_id.is_empty()) || d.name == label)
+                            && ((d.id.ends_with(device_id) && !device_id.is_empty())
+                                || d.name == label)
                     })
                     .map(|d| d.id.clone()),
                 "Audio Unit",
@@ -2003,7 +2119,11 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 (_, "VST2") => "ryolune does not load VST2".to_string(),
                 (_, "built-in") => format!(
                     "a device of {} that only it has",
-                    if tag == "Device" { "the other app" } else { "that app" }
+                    if tag == "Device" {
+                        "the other app"
+                    } else {
+                        "that app"
+                    }
                 ),
                 _ => "not installed here".to_string(),
             };
@@ -2021,7 +2141,8 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         let mut insert = Insert::new(String::new(), &descriptor.id, &descriptor.name);
         for p in els(device, "Parameters").flat_map(|ps| ps.children().filter(Node::is_element)) {
             if let (Some(id), Some(value)) = (
-                p.attribute("parameterID").and_then(|v| v.trim().parse::<i64>().ok()),
+                p.attribute("parameterID")
+                    .and_then(|v| v.trim().parse::<i64>().ok()),
                 number(p, "value"),
             ) {
                 insert.params.insert(id as i32 as u32, value);
@@ -2039,7 +2160,8 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                         None => self.tally.states_failed += 1,
                     },
                     "ryolune" => {
-                        let state: serde_json::Value = serde_json::from_slice(&bytes).unwrap_or_default();
+                        let state: serde_json::Value =
+                            serde_json::from_slice(&bytes).unwrap_or_default();
                         if let Some(params) = state["params"].as_object() {
                             for (id, value) in params {
                                 if let (Ok(id), Some(value)) = (id.parse::<u32>(), value.as_f64()) {
@@ -2087,7 +2209,12 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
 
     // --- The arrangement -----------------------------------------------------------
 
-    fn timeline(&mut self, node: Node<'a, 'input>, track: Option<Dest>, frame: Frame) -> Result<()> {
+    fn timeline(
+        &mut self,
+        node: Node<'a, 'input>,
+        track: Option<Dest>,
+        frame: Frame,
+    ) -> Result<()> {
         let track = node
             .attribute("track")
             .map(|id| self.tracks.get(id).cloned())
@@ -2130,9 +2257,7 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         match frame.unit {
             Unit::Beats => frame.origin + (time - frame.zero),
             Unit::Seconds if frame.root => self.map.beat(time.max(0.0)),
-            Unit::Seconds => {
-                frame.origin + (time - frame.zero) * self.map.bpm(frame.origin) / 60.0
-            }
+            Unit::Seconds => frame.origin + (time - frame.zero) * self.map.bpm(frame.origin) / 60.0,
         }
     }
 
@@ -2144,10 +2269,10 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         let Some(time) = number(clip, "time") else {
             return Ok(());
         };
-        let content = clip
-            .children()
-            .find(|n| n.is_element())
-            .or_else(|| clip.attribute("reference").and_then(|r| self.by_id.get(r).copied()));
+        let content = clip.children().find(|n| n.is_element()).or_else(|| {
+            clip.attribute("reference")
+                .and_then(|r| self.by_id.get(r).copied())
+        });
         let Some(content) = content else {
             return Ok(());
         };
@@ -2224,8 +2349,16 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 root: false,
             };
             let fades = Fades {
-                fade_in: if index == 0 { number(clip, "fadeInTime") } else { None },
-                fade_out: if index == last { number(clip, "fadeOutTime") } else { None },
+                fade_in: if index == 0 {
+                    number(clip, "fadeInTime")
+                } else {
+                    None
+                },
+                fade_out: if index == last {
+                    number(clip, "fadeOutTime")
+                } else {
+                    None
+                },
                 seconds: fade_unit == Some("seconds"),
             };
             let mut gathered = Gathered::default();
@@ -2257,7 +2390,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             "Notes" => {
                 gathered.midi = true;
                 for note in els(node, "Note") {
-                    let (Some(time), Some(duration)) = (number(note, "time"), number(note, "duration")) else {
+                    let (Some(time), Some(duration)) =
+                        (number(note, "time"), number(note, "duration"))
+                    else {
                         continue;
                     };
                     let start = self.at(frame, time);
@@ -2321,10 +2456,11 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 warps.sort_by(|a, b| a.0.total_cmp(&b.0));
                 let content_seconds = node.attribute("contentTimeUnit") != Some("beats");
                 if let (Some(inner), true, true) = (inner, warps.len() >= 2, content_seconds) {
-                    let local = frame.zero + match frame.unit {
-                        Unit::Beats => frame.lo - frame.origin,
-                        Unit::Seconds => self.map.duration(frame.origin, frame.lo),
-                    };
+                    let local = frame.zero
+                        + match frame.unit {
+                            Unit::Beats => frame.lo - frame.origin,
+                            Unit::Seconds => self.map.duration(frame.origin, frame.lo),
+                        };
                     let offset = warp(&warps, local);
                     // Seconds of audio per beat the warp asks for, against the song's own.
                     let asked = (warp(&warps, local + 1.0) - offset).abs();
@@ -2366,10 +2502,10 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         let Some(time) = number(clip, "time") else {
             return Ok(());
         };
-        let content = clip
-            .children()
-            .find(|n| n.is_element())
-            .or_else(|| clip.attribute("reference").and_then(|r| self.by_id.get(r).copied()));
+        let content = clip.children().find(|n| n.is_element()).or_else(|| {
+            clip.attribute("reference")
+                .and_then(|r| self.by_id.get(r).copied())
+        });
         let Some(content) = content else {
             return Ok(());
         };
@@ -2402,7 +2538,13 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         self.content(content, frame, gathered, audio, Some(&fades))
     }
 
-    fn audio_clip(&mut self, node: Node<'a, 'input>, frame: Frame, offset: f64, fades: Option<&Fades>) -> Result<Option<Clip>> {
+    fn audio_clip(
+        &mut self,
+        node: Node<'a, 'input>,
+        frame: Frame,
+        offset: f64,
+        fades: Option<&Fades>,
+    ) -> Result<Option<Clip>> {
         let Some(file) = el(node, "File") else {
             return Ok(None);
         };
@@ -2453,7 +2595,11 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         let bpb = self.bpb();
         Ok(Some(Clip {
             id: new_id("clip"),
-            name: if node.parent().is_some_and(|p| p.has_tag_name("Clip")) { String::new() } else { name },
+            name: if node.parent().is_some_and(|p| p.has_tag_name("Clip")) {
+                String::new()
+            } else {
+                name
+            },
             agent: false,
             track_id: String::new(),
             start_bar: frame.lo / bpb,
@@ -2475,7 +2621,10 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             self.report.missing(path);
             return Ok(None);
         };
-        let extension = Path::new(path).extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase);
+        let extension = Path::new(path)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(str::to_ascii_lowercase);
         let buffer = match audio::decode(bytes, extension.as_deref()) {
             Ok(buffer) => buffer,
             Err(e) => {
@@ -2483,7 +2632,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 return Ok(None);
             }
         };
-        if audio::library_bytes(&self.library).saturating_add(buffer.frames.len() * 8) > audio::MAX_LIBRARY_BYTES {
+        if audio::library_bytes(&self.library).saturating_add(buffer.frames.len() * 8)
+            > audio::MAX_LIBRARY_BYTES
+        {
             return Err("The project's audio exceeds ryolune's 1 GiB of decoded audio".into());
         }
         let name: String = Path::new(path)
@@ -2498,7 +2649,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             name,
             sample_rate: buffer.sample_rate,
             channels: 2,
-            file_name: Path::new(path).file_name().map(|n| n.to_string_lossy().into_owned()),
+            file_name: Path::new(path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned()),
             duration_seconds: buffer.duration(),
             origin: "file".into(),
             seed: None,
@@ -2533,7 +2686,8 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         }
         .and_then(|n| n.trim().parse::<u8>().ok())
         .filter(|n| *n <= 127);
-        if matches!(kind, ControllerKind::Cc | ControllerKind::PolyPressure) && number_of.is_none() {
+        if matches!(kind, ControllerKind::Cc | ControllerKind::PolyPressure) && number_of.is_none()
+        {
             self.tally.expressions += 1;
             return;
         }
@@ -2547,7 +2701,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             match kind {
                 ControllerKind::Bend => {
                     if normalized {
-                        (v.clamp(0.0, 1.0) * 16383.0 - 8192.0).round().clamp(-8192.0, 8191.0) as i16
+                        (v.clamp(0.0, 1.0) * 16383.0 - 8192.0)
+                            .round()
+                            .clamp(-8192.0, 8191.0) as i16
                     } else {
                         v.round().clamp(-8192.0, 8191.0) as i16
                     }
@@ -2564,7 +2720,13 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         let mut points: Vec<(f64, f64, bool)> = node
             .children()
             .filter(|n| n.has_tag_name("RealPoint") || n.has_tag_name("IntegerPoint"))
-            .filter_map(|p| Some((number(p, "time")?, number(p, "value")?, p.attribute("interpolation") == Some("linear"))))
+            .filter_map(|p| {
+                Some((
+                    number(p, "time")?,
+                    number(p, "value")?,
+                    p.attribute("interpolation") == Some("linear"),
+                ))
+            })
             .collect();
         points.sort_by(|a, b| a.0.total_cmp(&b.0));
         let push = |reader: &Self, gathered: &mut Gathered, time: f64, value: f64| {
@@ -2599,7 +2761,14 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
     }
 
     /// Put a clip's notes, controllers and audio on the track.
-    fn place(&mut self, track: Option<&Dest>, gathered: Gathered, audio: Vec<Clip>, frame: Frame, name: &str) {
+    fn place(
+        &mut self,
+        track: Option<&Dest>,
+        gathered: Gathered,
+        audio: Vec<Clip>,
+        frame: Frame,
+        name: &str,
+    ) {
         let track_id = match track {
             Some(Dest::Track(id)) => id.clone(),
             _ => {
@@ -2609,7 +2778,12 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 return;
             }
         };
-        if self.session.tracks.iter().any(|t| t.id == track_id && t.is_bus()) {
+        if self
+            .session
+            .tracks
+            .iter()
+            .any(|t| t.id == track_id && t.is_bus())
+        {
             if gathered.midi || !audio.is_empty() {
                 self.tally.clips_on_bus += 1;
             }
@@ -2651,7 +2825,11 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             crate::controllers::sort(&mut controllers);
             self.session.clips.push(Clip {
                 id: new_id("clip"),
-                name: if name.is_empty() { "Clip".into() } else { name.to_string() },
+                name: if name.is_empty() {
+                    "Clip".into()
+                } else {
+                    name.to_string()
+                },
                 agent: false,
                 track_id: track_id.clone(),
                 start_bar: lo / bpb,
@@ -2663,7 +2841,11 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         for mut clip in audio {
             clip.track_id = track_id.clone();
             if clip.name.is_empty() {
-                clip.name = if name.is_empty() { "Audio".into() } else { name.to_string() };
+                clip.name = if name.is_empty() {
+                    "Audio".into()
+                } else {
+                    name.to_string()
+                };
             }
             self.session.clips.push(clip);
             self.kinds.entry(track_id.clone()).or_default().1 = true;
@@ -2702,16 +2884,25 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         let mut points: Vec<(f64, f64, bool)> = node
             .children()
             .filter(|n| n.has_tag_name("RealPoint"))
-            .filter_map(|p| Some((number(p, "time")?, number(p, "value")?, p.attribute("interpolation") != Some("hold"))))
+            .filter_map(|p| {
+                Some((
+                    number(p, "time")?,
+                    number(p, "value")?,
+                    p.attribute("interpolation") != Some("hold"),
+                ))
+            })
             .collect();
         if points.is_empty() {
             return;
         }
         points.sort_by(|a, b| a.0.total_cmp(&b.0));
-        let unit = node.attribute("unit").or_else(|| target_node.and_then(|t| t.attribute("unit")));
+        let unit = node
+            .attribute("unit")
+            .or_else(|| target_node.and_then(|t| t.attribute("unit")));
         let linear = points.iter().filter(|p| p.2).count();
         if linear > 0 && linear < points.len() {
-            self.report.approximated("Automation that mixed held and gliding points glides throughout");
+            self.report
+                .approximated("Automation that mixed held and gliding points glides throughout");
         }
         let value_of = |v: f64| -> f64 {
             if volume {
@@ -2735,7 +2926,10 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         let mut lane_points: Vec<AutomationPoint> = vec![];
         for (time, value, _) in &points {
             let beat = self.at(frame, *time).max(0.0);
-            if lane_points.last().is_some_and(|p| (p.beat - beat).abs() < 1e-9) {
+            if lane_points
+                .last()
+                .is_some_and(|p| (p.beat - beat).abs() < 1e-9)
+            {
                 lane_points.pop();
             }
             lane_points.push(AutomationPoint {
@@ -2776,7 +2970,11 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 min,
                 max,
                 manual_value,
-                interpolation: if linear == 0 { Interpolation::Step } else { Interpolation::Linear },
+                interpolation: if linear == 0 {
+                    Interpolation::Step
+                } else {
+                    Interpolation::Linear
+                },
                 enabled: true,
                 points: lane_points,
             });
@@ -2797,7 +2995,12 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 break;
             }
             let bar = self.at(frame, time).max(0.0) / bpb;
-            let name: String = marker.attribute("name").unwrap_or("Marker").chars().take(120).collect();
+            let name: String = marker
+                .attribute("name")
+                .unwrap_or("Marker")
+                .chars()
+                .take(120)
+                .collect();
             self.session.markers.push(Marker {
                 id: new_id("marker"),
                 bar,
@@ -2863,7 +3066,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         }
         for (key, notes) in std::mem::take(&mut self.notes) {
             if let Some(track) = self.session.tracks.iter_mut().find(|t| t.id == key) {
-                track.extra.insert("importNotes".into(), serde_json::json!(notes));
+                track
+                    .extra
+                    .insert("importNotes".into(), serde_json::json!(notes));
             }
         }
         if self.session.tracks.len() > 128 {
@@ -2872,7 +3077,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             self.session.clips.retain(|c| kept.contains(&c.track_id));
         }
         let kept: HashSet<String> = self.session.tracks.iter().map(|t| t.id.clone()).collect();
-        self.session.automation.retain(|l| l.target.track_id().is_none_or(|t| kept.contains(t)));
+        self.session
+            .automation
+            .retain(|l| l.target.track_id().is_none_or(|t| kept.contains(t)));
         self.session.markers.sort_by(|a, b| a.bar.total_cmp(&b.bar));
         for lane in &mut self.session.automation {
             lane.points.sort_by(|a, b| a.beat.total_cmp(&b.beat));
@@ -2882,7 +3089,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         self.session.view.scroll_bars = 0.0;
         self.tell();
         self.session.normalize();
-        self.session.validate().map_err(|e| format!("The project could not become a ryolune song: {e}"))?;
+        self.session
+            .validate()
+            .map_err(|e| format!("The project could not become a ryolune song: {e}"))?;
         Ok(())
     }
 
@@ -2904,12 +3113,18 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         }
         let mut kept = vec![];
         if !tracks.is_empty() {
-            kept.push(format!("{}, with volume, pan, mute, solo, routing and sends", tracks.join(", ")));
+            kept.push(format!(
+                "{}, with volume, pan, mute, solo, routing and sends",
+                tracks.join(", ")
+            ));
         }
         let (mut midi_clips, mut notes, mut controllers, mut audio_clips) = (0, 0, 0, 0);
         for clip in &s.clips {
             match &clip.data {
-                ClipData::Midi { notes: n, controllers: c } => {
+                ClipData::Midi {
+                    notes: n,
+                    controllers: c,
+                } => {
                     midi_clips += 1;
                     notes += n.len();
                     controllers += c.len();
@@ -2918,9 +3133,17 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             }
         }
         if midi_clips > 0 {
-            let mut line = format!("{} with {}", count(midi_clips, "MIDI clip", "MIDI clips"), count(notes, "note", "notes"));
+            let mut line = format!(
+                "{} with {}",
+                count(midi_clips, "MIDI clip", "MIDI clips"),
+                count(notes, "note", "notes")
+            );
             if controllers > 0 {
-                let _ = write!(line, " and {}", count(controllers, "controller point", "controller points"));
+                let _ = write!(
+                    line,
+                    " and {}",
+                    count(controllers, "controller point", "controller points")
+                );
             }
             kept.push(line);
         }
@@ -2937,7 +3160,9 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         kept.push(if s.tempo_changes.is_empty() {
             format!(
                 "Tempo {} BPM in {}/{}",
-                s.transport.tempo, s.transport.time_signature.numerator, s.transport.time_signature.denominator
+                s.transport.tempo,
+                s.transport.time_signature.numerator,
+                s.transport.time_signature.denominator
             )
         } else {
             format!(
@@ -2949,10 +3174,17 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
             )
         });
         if !s.automation.is_empty() {
-            kept.push(count(s.automation.len(), "volume or pan automation lane", "volume and pan automation lanes"));
+            kept.push(count(
+                s.automation.len(),
+                "volume or pan automation lane",
+                "volume and pan automation lanes",
+            ));
         }
         if self.tally.plugins > 0 {
-            kept.push(format!("{} with their settings", count(self.tally.plugins, "plugin", "plugins")));
+            kept.push(format!(
+                "{} with their settings",
+                count(self.tally.plugins, "plugin", "plugins")
+            ));
         }
         for line in kept {
             self.report.kept(line);
@@ -2961,49 +3193,90 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
         let mut approximated = vec![];
         let mut dropped = vec![];
         if t.loops > 0 {
-            approximated.push(format!("{} were written out repeat by repeat: ryolune clips do not loop", count(t.loops, "looped clip", "looped clips")));
+            approximated.push(format!(
+                "{} were written out repeat by repeat: ryolune clips do not loop",
+                count(t.loops, "looped clip", "looped clips")
+            ));
         }
         if t.stretched > 0 {
             approximated.push(format!("{} time-stretched in the other app: ryolune plays audio at its own speed, so check they still line up", count(t.stretched, "audio clip was", "audio clips were")));
         }
         if t.ramps > 0 {
-            approximated.push("Gliding controller changes became steps every 32nd note".to_string());
+            approximated
+                .push("Gliding controller changes became steps every 32nd note".to_string());
         }
         if t.negative_offset > 0 {
-            approximated.push(format!("{} started before their audio file: they start with the file", count(t.negative_offset, "audio clip", "audio clips")));
+            approximated.push(format!(
+                "{} started before their audio file: they start with the file",
+                count(t.negative_offset, "audio clip", "audio clips")
+            ));
         }
         if t.crossfades > 0 {
             approximated.push("Crossfades became a fade-in on the later clip".to_string());
         }
         if t.states_failed > 0 {
-            approximated.push(format!("{} could not be read: those plugins open at their defaults", count(t.states_failed, "plugin's settings", "plugins' settings")));
+            approximated.push(format!(
+                "{} could not be read: those plugins open at their defaults",
+                count(t.states_failed, "plugin's settings", "plugins' settings")
+            ));
         }
         if t.disabled_clips > 0 {
-            dropped.push(format!("{} switched off in the other app", count(t.disabled_clips, "clip", "clips")));
+            dropped.push(format!(
+                "{} switched off in the other app",
+                count(t.disabled_clips, "clip", "clips")
+            ));
         }
         if t.clips_off_track > 0 {
-            dropped.push(format!("{} not on any track", count(t.clips_off_track, "clip", "clips")));
+            dropped.push(format!(
+                "{} not on any track",
+                count(t.clips_off_track, "clip", "clips")
+            ));
         }
         if t.clips_on_bus > 0 {
-            dropped.push(format!("{} on group or effect tracks: ryolune buses hold no clips", count(t.clips_on_bus, "clip", "clips")));
+            dropped.push(format!(
+                "{} on group or effect tracks: ryolune buses hold no clips",
+                count(t.clips_on_bus, "clip", "clips")
+            ));
         }
         if t.expressions > 0 {
-            dropped.push(format!("{} (timbre, per-note gain or pan, program changes…)", count(t.expressions, "expression lane MIDI cannot carry", "expression lanes MIDI cannot carry")));
+            dropped.push(format!(
+                "{} (timbre, per-note gain or pan, program changes…)",
+                count(
+                    t.expressions,
+                    "expression lane MIDI cannot carry",
+                    "expression lanes MIDI cannot carry"
+                )
+            ));
         }
         if t.note_expressions > 0 {
-            dropped.push(format!("Per-note expression on {}", count(t.note_expressions, "note", "notes")));
+            dropped.push(format!(
+                "Per-note expression on {}",
+                count(t.note_expressions, "note", "notes")
+            ));
         }
         for (what, n) in &t.automation {
-            dropped.push(format!("{} {what}", count(*n, "automation lane", "automation lanes")));
+            dropped.push(format!(
+                "{} {what}",
+                count(*n, "automation lane", "automation lanes")
+            ));
         }
         if t.sends_dropped > 0 {
-            dropped.push(format!("{} to places ryolune cannot send (another track, or a fifth send)", count(t.sends_dropped, "send", "sends")));
+            dropped.push(format!(
+                "{} to places ryolune cannot send (another track, or a fifth send)",
+                count(t.sends_dropped, "send", "sends")
+            ));
         }
         if t.inserts_dropped > 0 {
-            dropped.push(format!("{} past the eighth slot of a channel", count(t.inserts_dropped, "effect", "effects")));
+            dropped.push(format!(
+                "{} past the eighth slot of a channel",
+                count(t.inserts_dropped, "effect", "effects")
+            ));
         }
         if t.launcher > 0 {
-            dropped.push(format!("{} of the clip launcher: ryolune has the arrangement only", count(t.launcher, "clip", "clips")));
+            dropped.push(format!(
+                "{} of the clip launcher: ryolune has the arrangement only",
+                count(t.launcher, "clip", "clips")
+            ));
         }
         if t.video > 0 {
             dropped.push("Video: ryolune is for sound (kimchi edits video)".to_string());

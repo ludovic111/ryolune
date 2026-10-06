@@ -74,12 +74,8 @@ impl Ryolune {
             Intent::ImportFrom => {
                 if let Some(params) = self.interop.pending_import.take() {
                     self.export.awaiting = Some("session.importFrom".into());
-                    let result = self.run_control_command(
-                        "session.importFrom",
-                        &params,
-                        false,
-                        "File menu",
-                    );
+                    let result =
+                        self.run_control_command("session.importFrom", &params, false, "File menu");
                     if !result
                         .as_ref()
                         .is_ok_and(|value| value["status"] == "running")

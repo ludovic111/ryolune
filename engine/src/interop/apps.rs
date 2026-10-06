@@ -40,7 +40,10 @@ const fn mac(path: &'static str) -> Place {
     Place { os: Os::Mac, path }
 }
 const fn win(path: &'static str) -> Place {
-    Place { os: Os::Windows, path }
+    Place {
+        os: Os::Windows,
+        path,
+    }
 }
 const fn linux(path: &'static str) -> Place {
     Place {
@@ -245,10 +248,9 @@ fn exists(pattern: &str) -> bool {
         None => expanded.exists(),
         Some(prefix) => {
             let prefix = Path::new(prefix);
-            let (Some(parent), Some(start)) = (
-                prefix.parent(),
-                prefix.file_name().and_then(|s| s.to_str()),
-            ) else {
+            let (Some(parent), Some(start)) =
+                (prefix.parent(), prefix.file_name().and_then(|s| s.to_str()))
+            else {
                 return false;
             };
             std::fs::read_dir(parent).is_ok_and(|entries| {

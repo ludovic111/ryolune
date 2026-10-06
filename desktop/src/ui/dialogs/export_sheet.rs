@@ -562,8 +562,7 @@ impl ExportForm {
                 .iter()
                 .enumerate()
                 .map(|(i, (_, name))| {
-                    MenuItem::new(*name, pick(daw, move |d| d.app_format = i))
-                        .checked(i == format)
+                    MenuItem::new(*name, pick(daw, move |d| d.app_format = i)).checked(i == format)
                 })
                 .collect();
             let carries = ryolune_engine::interop::format(APP_FORMATS[format].0)

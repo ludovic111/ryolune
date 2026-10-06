@@ -222,7 +222,11 @@ fn import_midi(path: &Path) -> Result<Imported> {
     let mut session = store.session().clone();
     session.view.selected_track_id = session.tracks.first().map(|t| t.id.clone());
     let mut report = Report::new("midi");
-    report.kept(count(midi.track_ids.len(), "instrument track", "instrument tracks"));
+    report.kept(count(
+        midi.track_ids.len(),
+        "instrument track",
+        "instrument tracks",
+    ));
     report.kept(format!(
         "{} with {} and {}",
         count(midi.clip_ids.len(), "MIDI clip", "MIDI clips"),
@@ -233,7 +237,10 @@ fn import_midi(path: &Path) -> Result<Imported> {
         "Tempo {} BPM{}",
         session.transport.tempo,
         if midi.tempo_changes > 0 {
-            format!(" and {}", count(midi.tempo_changes, "tempo change", "tempo changes"))
+            format!(
+                " and {}",
+                count(midi.tempo_changes, "tempo change", "tempo changes")
+            )
         } else {
             String::new()
         }

@@ -1127,7 +1127,11 @@ impl Host for Ryolune {
         let (session, library) = document::load(&path)?;
         self.guarded(|app| app.loaded(session, library, path, Some(ownership)))
     }
-    fn adopt_session(&mut self, session: ryolune_engine::model::Session, library: Library) -> Result<()> {
+    fn adopt_session(
+        &mut self,
+        session: ryolune_engine::model::Session,
+        library: Library,
+    ) -> Result<()> {
         self.available()?;
         self.can_replace_document()?;
         Ryolune::stop(self);

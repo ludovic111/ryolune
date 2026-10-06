@@ -293,7 +293,11 @@ mod tests {
         assert_eq!(settings.agent.provider, Provider::Anthropic);
         let mut other = settings::Settings::default();
         finish(&mut other, "none", false, Some("openai")).unwrap();
-        assert_eq!(other.agent.provider, Provider::Codex, "no AI, no provider change");
+        assert_eq!(
+            other.agent.provider,
+            Provider::Codex,
+            "no AI, no provider change"
+        );
         assert!(finish(&mut other, "protools2", false, None).is_err());
         assert!(finish(&mut other, "logic", true, Some("nobody")).is_err());
         let state = onboarding(&settings);

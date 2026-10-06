@@ -89,13 +89,15 @@ impl Dialogs {
         .child(body)
         .child(
             modal::footer(cx)
-                .child(Button::new("recent-other", "Open other…").on_click(move |_, _, cx| {
-                    daw.update(cx, |daw, cx| {
-                        daw.app.interop.show_recent = false;
-                        daw.app.request(crate::app::Intent::Open);
-                        cx.notify();
-                    })
-                }))
+                .child(
+                    Button::new("recent-other", "Open other…").on_click(move |_, _, cx| {
+                        daw.update(cx, |daw, cx| {
+                            daw.app.interop.show_recent = false;
+                            daw.app.request(crate::app::Intent::Open);
+                            cx.notify();
+                        })
+                    }),
+                )
                 .child(
                     Button::new("recent-done", "Done")
                         .primary()

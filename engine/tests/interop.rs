@@ -270,10 +270,12 @@ fn rich_song() -> (Session, Library) {
 }
 
 fn by_name<'a>(s: &'a Session, name: &str) -> &'a Track {
-    s.tracks
-        .iter()
-        .find(|t| t.name == name)
-        .unwrap_or_else(|| panic!("no track {name}: {:?}", s.tracks.iter().map(|t| &t.name).collect::<Vec<_>>()))
+    s.tracks.iter().find(|t| t.name == name).unwrap_or_else(|| {
+        panic!(
+            "no track {name}: {:?}",
+            s.tracks.iter().map(|t| &t.name).collect::<Vec<_>>()
+        )
+    })
 }
 fn close(a: f64, b: f64, tolerance: f64) -> bool {
     (a - b).abs() <= tolerance
@@ -286,15 +288,24 @@ fn a_ryolune_song_survives_the_round_trip_through_dawproject() {
     let path = dir.path().join("Round trip.dawproject");
     let report = dawproject::export(&song, &library, &path).unwrap();
     assert_eq!(report.format, "dawproject");
-    assert!(report.kept.iter().any(|l| l.contains("1 instrument track")), "{report:?}");
     assert!(
-        report.approximated.iter().any(|l| l.contains("named devices")),
+        report.kept.iter().any(|l| l.contains("1 instrument track")),
+        "{report:?}"
+    );
+    assert!(
+        report
+            .approximated
+            .iter()
+            .any(|l| l.contains("named devices")),
         "stock devices are said to be ryolune's: {report:?}"
     );
     let imported = interop::import(&[path.clone()], &scan::installed()).unwrap();
     let back = imported.session;
     let r = &imported.report;
-    assert!(r.kept.iter().any(|l| l.starts_with("Read from ryolune")), "{r:?}");
+    assert!(
+        r.kept.iter().any(|l| l.starts_with("Read from ryolune")),
+        "{r:?}"
+    );
     assert!(r.dropped.is_empty() && r.missing_media.is_empty(), "{r:?}");
 
     // Tempo map, meter and markers.
@@ -352,7 +363,10 @@ fn a_ryolune_song_survives_the_round_trip_through_dawproject() {
 
     // Clips, notes and controllers.
     let midi = back.clips.iter().find(|c| c.track_id == keys.id).unwrap();
-    assert_eq!((midi.name.as_str(), midi.start_bar, midi.length_bars), ("Chords", 1.0, 2.0));
+    assert_eq!(
+        (midi.name.as_str(), midi.start_bar, midi.length_bars),
+        ("Chords", 1.0, 2.0)
+    );
     let ClipData::Midi { notes, controllers } = &midi.data else {
         panic!("a MIDI clip")
     };
@@ -397,7 +411,12 @@ fn a_ryolune_song_survives_the_round_trip_through_dawproject() {
     let volume = back
         .automation
         .iter()
-        .find(|l| l.target == AutomationTarget::TrackVolume { track_id: keys.id.clone() })
+        .find(|l| {
+            l.target
+                == AutomationTarget::TrackVolume {
+                    track_id: keys.id.clone(),
+                }
+        })
         .unwrap();
     assert_eq!(volume.interpolation, Interpolation::Linear);
     let points: Vec<_> = volume.points.iter().map(|p| (p.beat, p.value)).collect();
@@ -406,7 +425,12 @@ fn a_ryolune_song_survives_the_round_trip_through_dawproject() {
     let pan = back
         .automation
         .iter()
-        .find(|l| l.target == AutomationTarget::TrackPan { track_id: drums.id.clone() })
+        .find(|l| {
+            l.target
+                == AutomationTarget::TrackPan {
+                    track_id: drums.id.clone(),
+                }
+        })
         .unwrap();
     assert_eq!(pan.interpolation, Interpolation::Step);
     assert!(close(pan.points[0].value, 50.0, 1e-6) && pan.points[0].beat == 3.0);
@@ -428,7 +452,11 @@ fn the_project_xml_follows_the_schema_order_and_names_plugins_by_id() {
     blob.extend_from_slice(b"cont");
     vst.blob = ryolune_engine::host::encode_blob(&blob);
     song.strips.get_mut("drums").unwrap().inserts.push(vst);
-    let mut clap = Insert::new("c1".into(), "clap:org.surge-synth-team.surge-xt", "Surge XT");
+    let mut clap = Insert::new(
+        "c1".into(),
+        "clap:org.surge-synth-team.surge-xt",
+        "Surge XT",
+    );
     clap.blob = ryolune_engine::host::encode_blob(b"raw clap state");
     clap.state = "bypassed".into();
     song.strips.get_mut("keys").unwrap().synth = Some(clap);
@@ -439,7 +467,10 @@ fn the_project_xml_follows_the_schema_order_and_names_plugins_by_id() {
     assert!(xml.contains("deviceID=\"01234567-89AB-CDEF-0123-456789ABCDEF\""));
     assert!(xml.contains("<ClapPlugin deviceID=\"org.surge-synth-team.surge-xt\""));
     assert!(xml.contains("role=\"submix\""), "the group is a submix");
-    assert!(xml.contains("role=\"effect\""), "the aux returns are effect channels");
+    assert!(
+        xml.contains("role=\"effect\""),
+        "the aux returns are effect channels"
+    );
     assert!(xml.contains("role=\"master\""));
     // Channel children in the schema's order: Devices, Mute, Pan, Sends, Volume.
     let channel = &xml[xml.find("<Channel").unwrap()..xml.find("</Channel>").unwrap()];
@@ -511,12 +542,20 @@ fn the_project_xml_follows_the_schema_order_and_names_plugins_by_id() {
     let imported = interop::import(&[path], &scan::installed()).unwrap();
     let r = &imported.report;
     assert!(
-        r.dropped.iter().any(|l| l.contains("Surge XT (CLAP) on Keys: not installed here")),
+        r.dropped
+            .iter()
+            .any(|l| l.contains("Surge XT (CLAP) on Keys: not installed here")),
         "{r:?}"
     );
     let keys = by_name(&imported.session, "Keys");
-    assert!(keys.extra["importNotes"][0].as_str().unwrap().contains("Surge XT"));
-    assert_eq!(imported.session.strips[&keys.id].instrument, "ryolune Synth");
+    assert!(keys.extra["importNotes"][0]
+        .as_str()
+        .unwrap()
+        .contains("Surge XT"));
+    assert_eq!(
+        imported.session.strips[&keys.id].instrument,
+        "ryolune Synth"
+    );
 }
 
 /// Parse with the same XML reader the import uses, so a malformed file fails here.
@@ -540,7 +579,8 @@ fn bitwig_fixture(dir: &Path) -> std::path::PathBuf {
         .unwrap();
     zip.start_file("project.xml", options).unwrap();
     zip.write_all(project.as_bytes()).unwrap();
-    zip.start_file("audio/Drumfunk3 170bpm.wav", options).unwrap();
+    zip.start_file("audio/Drumfunk3 170bpm.wav", options)
+        .unwrap();
     zip.write_all(&wav(2.823541666666667, 48000)).unwrap();
     zip.finish().unwrap();
     path
@@ -554,7 +594,10 @@ fn a_project_in_bitwig_shape_opens_with_a_report() {
     let s = &imported.session;
     let r = &imported.report;
     assert_eq!(s.name, "Night Drive", "the title comes from metadata.xml");
-    assert!(r.kept.contains(&"Read from Bitwig Studio 5.0".to_string()), "{r:?}");
+    assert!(
+        r.kept.contains(&"Read from Bitwig Studio 5.0".to_string()),
+        "{r:?}"
+    );
 
     // Tempo 149 gliding to 160 at beat 16 (bar 4), 4/4.
     assert_eq!(s.transport.tempo, 149.0);
@@ -579,11 +622,7 @@ fn a_project_in_bitwig_shape_opens_with_a_report() {
     let drums = by_name(s, "Drumloop");
     let reverb = by_name(s, "Reverb");
     assert_eq!(bass.color, "#a2eabf");
-    assert!(close(
-        fader_gain(bass.volume) as f64,
-        0.659140,
-        1e-4
-    ));
+    assert!(close(fader_gain(bass.volume) as f64, 0.659140, 1e-4));
     assert!(close(bass.pan as f64, -50.0, 1e-3));
     assert!(drums.mute && drums.solo);
     assert!(close(s.master_volume as f64, 0.75, 1e-5));
@@ -592,15 +631,31 @@ fn a_project_in_bitwig_shape_opens_with_a_report() {
     assert!(close(send.level_db.unwrap() as f64, -6.0206, 1e-3));
 
     // Surge XT is not installed: left out, said so, and the track plays ryolune Synth.
-    assert!(r.dropped.iter().any(|l| l.starts_with("Surge XT (CLAP, Surge Synth Team) on Bass")), "{r:?}");
+    assert!(
+        r.dropped
+            .iter()
+            .any(|l| l.starts_with("Surge XT (CLAP, Surge Synth Team) on Bass")),
+        "{r:?}"
+    );
     assert_eq!(s.strips[&bass.id].instrument, "ryolune Synth");
     // Bitwig's own compressor becomes ryolune's.
-    assert_eq!(s.strips[&drums.id].inserts[0].plugin_id(), "stock:ryolune Comp");
-    assert!(r.approximated.iter().any(|l| l.contains("became ryolune's ryolune Comp")), "{r:?}");
+    assert_eq!(
+        s.strips[&drums.id].inserts[0].plugin_id(),
+        "stock:ryolune Comp"
+    );
+    assert!(
+        r.approximated
+            .iter()
+            .any(|l| l.contains("became ryolune's ryolune Comp")),
+        "{r:?}"
+    );
 
     // The bass clip: nine notes at velocity 100 and its mod wheel.
     let clip = s.clips.iter().find(|c| c.track_id == bass.id).unwrap();
-    assert_eq!((clip.name.as_str(), clip.start_bar, clip.length_bars), ("Bassline", 0.0, 2.0));
+    assert_eq!(
+        (clip.name.as_str(), clip.start_bar, clip.length_bars),
+        ("Bassline", 0.0, 2.0)
+    );
     let ClipData::Midi { notes, controllers } = &clip.data else {
         panic!("MIDI")
     };
@@ -634,22 +689,36 @@ fn a_project_in_bitwig_shape_opens_with_a_report() {
     };
     assert_eq!(*offset_seconds, 0.0);
     assert!(close(imported.library[source_id].duration(), 2.8235, 1e-3));
-    assert!(r.approximated.iter().any(|l| l.contains("time-stretched")), "{r:?}");
+    assert!(
+        r.approximated.iter().any(|l| l.contains("time-stretched")),
+        "{r:?}"
+    );
 
     // Markers, volume automation; the launcher clip is named as left out.
     assert_eq!(
-        s.markers.iter().map(|m| (m.bar, m.name.as_str())).collect::<Vec<_>>(),
+        s.markers
+            .iter()
+            .map(|m| (m.bar, m.name.as_str()))
+            .collect::<Vec<_>>(),
         vec![(0.0, "Verse"), (2.0, "Chorus")]
     );
     assert_eq!(s.markers[1].color.as_deref(), Some("#ff8800"));
     let lane = s
         .automation
         .iter()
-        .find(|l| l.target == AutomationTarget::TrackVolume { track_id: bass.id.clone() })
+        .find(|l| {
+            l.target
+                == AutomationTarget::TrackVolume {
+                    track_id: bass.id.clone(),
+                }
+        })
         .unwrap();
     assert_eq!(lane.points.len(), 2);
     assert!(close(lane.points[1].value, 0.75, 1e-6), "gain 1.0 is unity");
-    assert!(r.dropped.iter().any(|l| l.contains("clip launcher")), "{r:?}");
+    assert!(
+        r.dropped.iter().any(|l| l.contains("clip launcher")),
+        "{r:?}"
+    );
     s.validate().unwrap();
 }
 
@@ -723,11 +792,18 @@ fn midi_files_and_stems_open_as_new_songs() {
     let mut host = Headless::new();
     host.store.load(store::demo()).unwrap();
     let midi = dir.path().join("Nightfall.mid");
-    run(&mut host, "session.exportMidi", json!({ "path": midi.to_string_lossy() }));
+    run(
+        &mut host,
+        "session.exportMidi",
+        json!({ "path": midi.to_string_lossy() }),
+    );
     let imported = interop::import(&[midi], &scan::installed()).unwrap();
     assert_eq!(imported.report.format, "midi");
     assert_eq!(imported.session.name, "Nightfall");
-    assert_eq!(imported.session.transport.tempo, store::demo().transport.tempo);
+    assert_eq!(
+        imported.session.transport.tempo,
+        store::demo().transport.tempo
+    );
     assert!(imported.session.tracks.iter().all(|t| t.kind == "midi"));
     assert!(!imported.session.clips.is_empty());
 
@@ -745,7 +821,10 @@ fn midi_files_and_stems_open_as_new_songs() {
     assert_eq!(reply["report"]["format"], "audio");
     let s = host.store.session();
     assert_eq!(
-        s.tracks.iter().map(|t| (t.name.as_str(), t.kind.as_str())).collect::<Vec<_>>(),
+        s.tracks
+            .iter()
+            .map(|t| (t.name.as_str(), t.kind.as_str()))
+            .collect::<Vec<_>>(),
         vec![("Drums", "audio"), ("Bass.flac", "audio")]
     );
     assert!(s.clips.iter().all(|c| c.start_bar == 0.0));
@@ -778,7 +857,17 @@ fn formats_list_every_app_and_the_aliases_reach_them() {
         .collect();
     assert_eq!(
         apps,
-        vec!["ableton", "logic", "fl", "bitwig", "reaper", "cubase", "studioone", "protools", "garageband"]
+        vec![
+            "ableton",
+            "logic",
+            "fl",
+            "bitwig",
+            "reaper",
+            "cubase",
+            "studioone",
+            "protools",
+            "garageband"
+        ]
     );
     assert!(reply["apps"][0]["installed"].is_boolean());
     let formats: Vec<&str> = reply["formats"]
@@ -787,11 +876,20 @@ fn formats_list_every_app_and_the_aliases_reach_them() {
         .iter()
         .map(|f| f["id"].as_str().unwrap())
         .collect();
-    assert_eq!(formats, vec!["dawproject", "midi", "audio", "stems", "package"]);
+    assert_eq!(
+        formats,
+        vec!["dawproject", "midi", "audio", "stems", "package"]
+    );
     let one = run(&mut host, "session.formats", json!({ "app": "bitwig" }));
     assert_eq!(one["apps"].as_array().unwrap().len(), 1);
     assert_eq!(one["apps"][0]["writes"][0], "dawproject");
-    assert!(control::call(&mut host, "session.formats", &json!({ "app": "nuendo" }), false).is_err());
+    assert!(control::call(
+        &mut host,
+        "session.formats",
+        &json!({ "app": "nuendo" }),
+        false
+    )
+    .is_err());
 }
 
 /// One test for both: they share the sandbox's settings file.
@@ -799,7 +897,10 @@ fn formats_list_every_app_and_the_aliases_reach_them() {
 fn the_first_run_setup_and_the_recent_songs_live_in_settings() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("settings.json");
-    assert!(!Settings::read(&path).unwrap().onboarding.is_done(), "a first start");
+    assert!(
+        !Settings::read(&path).unwrap().onboarding.is_done(),
+        "a first start"
+    );
     std::fs::write(&path, r#"{"general":{"checkUpdatesOnStart":false}}"#).unwrap();
     assert!(
         Settings::read(&path).unwrap().onboarding.is_done(),
@@ -832,13 +933,20 @@ fn the_first_run_setup_and_the_recent_songs_live_in_settings() {
     );
     assert_eq!(state["done"], true);
     assert_eq!(state["comingFrom"], "ableton");
-    assert!(state["bring"].as_str().unwrap().contains("All Individual Tracks"));
+    assert!(state["bring"]
+        .as_str()
+        .unwrap()
+        .contains("All Individual Tracks"));
     assert_eq!(host.settings().onboarding.ai, Some(false));
 
     // Recent songs.
     host.store.load(store::demo()).unwrap();
     let song = dir.path().join("Kept.ryolune");
-    run(&mut host, "session.save", json!({ "path": song.to_string_lossy() }));
+    run(
+        &mut host,
+        "session.save",
+        json!({ "path": song.to_string_lossy() }),
+    );
     let gone = dir.path().join("Gone.ryolune");
     let mut settings = host.settings();
     settings.general.recent_sessions = vec![
@@ -877,7 +985,9 @@ fn a_song_from_the_demo_survives_dawproject_whole() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("demo.dawproject");
     dawproject::export(&demo, &library, &path).unwrap();
-    let back = interop::import(&[path], &scan::installed()).unwrap().session;
+    let back = interop::import(&[path], &scan::installed())
+        .unwrap()
+        .session;
     assert_eq!(back.tracks.len(), demo.tracks.len());
     assert_eq!(back.clips.len(), demo.clips.len());
     let notes = |s: &Session| -> usize {
@@ -891,12 +1001,24 @@ fn a_song_from_the_demo_survives_dawproject_whole() {
     };
     assert_eq!(notes(&back), notes(&demo));
     for (a, b) in demo.tracks.iter().zip(&back.tracks) {
-        assert_eq!((a.name.as_str(), a.kind.as_str()), (b.name.as_str(), b.kind.as_str()));
+        assert_eq!(
+            (a.name.as_str(), a.kind.as_str()),
+            (b.name.as_str(), b.kind.as_str())
+        );
         if a.kind == "midi" {
             let instrument = |s: &Session, id: &str| {
-                s.strips.get(id).cloned().unwrap_or_default().instrument_name()
+                s.strips
+                    .get(id)
+                    .cloned()
+                    .unwrap_or_default()
+                    .instrument_name()
             };
-            assert_eq!(instrument(&demo, &a.id), instrument(&back, &b.id), "{}", a.name);
+            assert_eq!(
+                instrument(&demo, &a.id),
+                instrument(&back, &b.id),
+                "{}",
+                a.name
+            );
         }
     }
 }

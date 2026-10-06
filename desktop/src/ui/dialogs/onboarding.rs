@@ -139,11 +139,14 @@ impl Dialogs {
         if ai {
             body = body.child(modal::field_row(
                 "Agent provider",
-                Some(format!("Now: {provider}. Add a key, or use an installed Codex or Claude Code.").into()),
-                Button::new("onboarding-provider", "Connect…").on_click(click(
-                    &daw,
-                    Start::Settings("agent"),
-                )),
+                Some(
+                    format!(
+                        "Now: {provider}. Add a key, or use an installed Codex or Claude Code."
+                    )
+                    .into(),
+                ),
+                Button::new("onboarding-provider", "Connect…")
+                    .on_click(click(&daw, Start::Settings("agent"))),
                 cx,
             ));
         }
