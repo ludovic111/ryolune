@@ -274,7 +274,7 @@ struct Transcript {
 }
 
 /// Spawn the CLI, feed the prompt on stdin, stream its JSON lines into events and wait.
-#[cfg(test)]
+#[cfg(all(test, unix))]
 fn run_child(
     mut command: Command,
     prompt: String,
