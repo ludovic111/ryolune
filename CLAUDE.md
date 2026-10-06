@@ -14,7 +14,7 @@ GPUI 0.2 (gpui.rs, Zed's framework, direct upstream crate, `runtime_shaders` so 
 toolchain is needed) in `desktop/src/ui`; Tauri, the React `frontend/` and the egui painting code
 are gone. `desktop/src/ui/README.md` is the contract: the `Daw` entity (`ui/daw.rs`) owns the
 host (`crate::app::Ryolune`) and ticks it (per frame while busy, 10/s idle, at once when the
-bridge or a worker calls `Ryolune::wake`); views read `daw.read(cx).app` and change things only
+bridge or a worker calls the host's `wake` closure); views read `daw.read(cx).app` and change things only
 through registry commands (`daw.run`, `daw.request`), with `daw.gesture(true/false)` around
 drags. `ui/actions.rs` is the one table behind the title-bar menus, the macOS menu bar,
 shortcuts and the command palette (ids mapped in `docs/agent-parity.json`); the shortcut sheet
@@ -80,8 +80,8 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   every descriptor (`automatic_folder`, ordered `EFFECT_RULES`), favourites/recents/overrides live in
   `settings.plugins`, and the window colours a folder with `Theme::family`. Drags are never eased. The count-in
   lives in the renderer (`Renderer::count_in`), the capture callback drops frames while
-  `Telemetry::counting_in` is set, and `InputMeter` holds the input open only while an audio track
-  is armed. Native plugin calls are panic-guarded in `sdk/src/ffi.rs` (`Guarded`); test plugins with
+  `Telemetry::counting_in` is set, and `device::LiveInput` holds the input open only while an audio
+  track is armed (`audio.meterInputWhenArmed`). Native plugin calls are panic-guarded in `sdk/src/ffi.rs` (`Guarded`); test plugins with
   `ryolune_plugin::testing::Bench`. Continuous controls dispatch on every move inside one
   `Daw::gesture`, so a drag is one undo step.
 - 0.8 (released 2026-09-23; the owner delegated lossy export and MIDI CC scope): input monitoring
@@ -99,8 +99,8 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   time, and `plugins/abi1-fixture` (no SDK dependency, never "update" it) is loaded by
   `engine/tests/abi1_plugin.rs`. Native state is saved from a main-thread model instance and
   restored by swapping a freshly loaded instance in on the audio thread. The window's private
-  handlers are the allow-lists in `desktop/src/web.rs` tests (`PRIVATE_HANDLERS`, `PRIVATE_TAURI`);
-  anything else is a registry command, and work that waits on the network or renders offline is
+  handlers are gone: views call the registry through `Daw::run` / `Daw::request` and
+  `engine/tests/agent_parity.rs` checks them against `docs/agent-parity.json`; anything else is a registry command, and work that waits on the network or renders offline is
   a live job through `Ryolune::start_worker`. The clipboard and the lane width belong to the host
   (`Host::clipboard`, `Host::lane_width`). Browser rows fold channel layouts
   (`control_plugins::layout_of`); when extending `EFFECT_RULES`, diff every plugin's folder before
@@ -122,7 +122,7 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   chases only differences on locate and rests bend/pedal/pressure at stop. Live MIDI controllers
   are `Message::RoutedControl`. CLAP gets controllers as MIDI only when its note port speaks MIDI;
   VST3 through `IMidiMapping` (`Shared.midi_map`), one queue point per value; AU through
-  `Event::to_midi`. Lane UI: `canvas/controllerLane.ts`, `components/editor/ControllerLane.tsx`,
+  `Event::to_midi`. Lane UI: `desktop/src/ui/editor/controllers.rs` and `lane.rs`,
   `ui.showPanel panel=controllers`. Inserts hear a MIDI track's controllers (never its notes) when
   `Processor::accepts_events` says so (native ABI 2, CLAP note port, VST3 event bus, AU music
   effect); they ride the same per-track list, so chase and rest reach them. Channels: `Note` and
@@ -144,7 +144,7 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   extensions ryolune does not write. Plugin folders: `control_plugins::AutoFolders` decides per
   product (vendor, kind, name without layout): name first, then `PRODUCTS`/`PRIORITY_RULES`, then
   `EFFECT_RULES`, the category last. `Store` restores redo on `cancel_gesture`; background captures
-  skip over redo or an open gesture. `NativeStore.request()` is `run()` without the error dialog, for
+  skip over redo or an open gesture. `Daw::request` (`ui/daw.rs`) is `run` without the error dialog, for
   forms that show their own errors. `atomic_write` keeps the target's mode (0644 when new) and writes
   through symlinks. Engine regression tests live in `engine/tests/regressions.rs`. The agent's
   Changes list records only document edits that did not come from the window.
@@ -170,10 +170,10 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   sounding clip's envelope from the old graph (`glide_from`, 5 ms), never touching playback
   without a rebuild. `plugin.list` rows fold formats and layouts (vendor + name; CLAP, VST3, AU
   order, others under `formats`); search also matches `folder_words` and stock descriptions.
-  Side panels shrink to `size.*Min` floors so the arrangement keeps `arrangementMin` at the
-  1120 px minimum. `ui.screenshot` finishes running animations first (`settleMotion` in
-  `main.tsx`). Docs: `docs/COMMANDS.md` and `docs/SHORTCUTS.md` are generated and checked by
-  tests (`RYOLUNE_BLESS=1` regenerates); `USER_GUIDE.md`, `AI_CONTROL.md` and `DEVELOPMENT.md`
+  Side panels shrink to the `theme::layout` floors (`BROWSER_MIN`, `INSPECTOR_MIN`, `AGENT_MIN`)
+  so the arrangement keeps `ARRANGEMENT_MIN` at the 1120 px minimum (`WINDOW_MIN_W`).
+  `ui.screenshot` grabs the window through CoreGraphics (`ui/capture.rs`, macOS only).
+  Docs: `docs/COMMANDS.md` and `docs/SHORTCUTS.md` are generated and checked by tests (`RYOLUNE_BLESS=1` regenerates); `USER_GUIDE.md`, `AI_CONTROL.md` and `DEVELOPMENT.md`
   are written by hand, keep them true when behaviour changes.
 - 0.10 (2026-09-27, owner asked for the next update and delegated): tempo changes live in
   `Session.tempo_changes` (`TempoPoint { bar, bpm, ramp }`, bar order, after bar 0, absent when
@@ -233,7 +233,7 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   on workers, transfer through bounded queues, and reclaim old graphs outside the callback.
 - Plugins (`engine/src/plugin.rs`, `engine/src/host/`, `engine/src/stock.rs`): every insert and
   instrument is an `Instance` (main-thread `Editor` + audio-thread `Processor`). Processors live
-  in the callback's `Rack`, keyed by insert id, and survive renderer rebuilds; a new `Renderer`
+  in the callback's `Rack`, keyed by a numeric slot (`desktop/src/plugins.rs` maps insert keys to slots), and survive renderer rebuilds; a new `Renderer`
   must `adopt` the old one so held notes are released or chased. Create, activate, save state
   and destroy plugins on the UI thread only; unmount through the queue and wait for retirement
   before dropping an editor. Parameter values are document state (`Insert.params`) so they undo;
