@@ -64,7 +64,6 @@ fn marker_path(logs: &Path, pid: u32) -> PathBuf {
 }
 
 struct State {
-    data_dir: PathBuf,
     logs: PathBuf,
 }
 static STATE: OnceLock<State> = OnceLock::new();
@@ -118,7 +117,6 @@ pub fn init(data_dir: &Path) -> Started {
     }
     log::set_max_level(level.max(log::LevelFilter::Warn));
     let _ = STATE.set(State {
-        data_dir: data_dir.to_path_buf(),
         logs: logs.clone(),
     });
     install_panic_hook(data_dir.to_path_buf());
