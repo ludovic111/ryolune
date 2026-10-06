@@ -28,11 +28,24 @@ pub(crate) const OGG_QUALITIES: [(f64, &str); 5] = [
     (1.0, "Maximum (about 500 kbit/s)"),
 ];
 
+/// What "Export for Another App" can write: (format id, what the sheet calls it).
+pub(crate) const APP_FORMATS: [(&str, &str); 5] = [
+    ("dawproject", "DAWproject (.dawproject)"),
+    ("package", "MIDI and stems (a folder)"),
+    ("midi", "MIDI file (.mid)"),
+    ("audio", "The mix (.wav)"),
+    ("stems", "Stems (a folder)"),
+];
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Mode {
     Audio,
     MidiImport,
     MidiExport,
+    /// File › Import from Another App…: `session.importFrom`.
+    AppImport,
+    /// File › Export for Another App…: `session.exportTo`.
+    AppExport,
 }
 
 pub(crate) struct ExportDialog {
@@ -55,6 +68,10 @@ pub(crate) struct ExportDialog {
     pub(crate) tracks: BTreeSet<String>,
     pub(crate) folder_name: String,
     pub(crate) import_tempo: bool,
+    /// The app a song comes from or goes to (index in `interop::apps::APPS`).
+    pub(crate) app: Option<usize>,
+    /// Index in [`APP_FORMATS`]: what Export for Another App writes.
+    pub(crate) app_format: usize,
     pub(crate) chooser: Option<Chooser>,
     pub(crate) awaiting: Option<String>,
     pub(crate) report: Option<String>,
@@ -81,6 +98,8 @@ impl Default for ExportDialog {
             tracks: BTreeSet::new(),
             folder_name: "Song stems".into(),
             import_tempo: false,
+            app: None,
+            app_format: 0,
             chooser: None,
             awaiting: None,
             report: None,
@@ -90,14 +109,14 @@ impl Default for ExportDialog {
 }
 
 pub(crate) struct Chooser {
-    receiver: mpsc::Receiver<Option<PathBuf>>,
+    receiver: mpsc::Receiver<Option<Vec<PathBuf>>>,
     request: PreparedCommand,
     path_key: &'static str,
 }
 
 pub(crate) struct PreparedCommand {
-    method: &'static str,
-    params: Value,
+    pub(crate) method: &'static str,
+    pub(crate) params: Value,
 }
 
 impl ExportDialog {
@@ -152,6 +171,27 @@ impl ExportDialog {
             .map(|track| track.id.as_str())
             .collect();
         let request = match self.mode {
+            Mode::AppImport => PreparedCommand {
+                method: "session.importFrom",
+                params: json!({}),
+            },
+            Mode::AppExport => {
+                let format = APP_FORMATS[self.app_format.min(APP_FORMATS.len() - 1)].0;
+                if format == "midi" && !session.tracks.iter().any(|t| t.kind == "midi") {
+                    return Err("This song has no instrument tracks to write as MIDI.".into());
+                }
+                let mut params = json!({ "format": format });
+                if let Some(app) = self
+                    .app
+                    .and_then(|i| ryolune_engine::interop::apps::APPS.get(i))
+                {
+                    params["app"] = json!(app.id);
+                }
+                PreparedCommand {
+                    method: "session.exportTo",
+                    params,
+                }
+            }
             Mode::MidiImport => {
                 if !self.start_bar.is_finite() || self.start_bar < 1.0 {
                     return Err("The start bar must be at least 1.".into());
@@ -252,8 +292,60 @@ impl ExportDialog {
         let folder = self.folder_name.trim().to_string();
         let name = session.name.trim_end_matches(".ryolune").to_string();
         let extension = CONTAINERS[self.container.min(CONTAINERS.len() - 1)].0;
+        let app_format = APP_FORMATS[self.app_format.min(APP_FORMATS.len() - 1)].0;
+        let app_name = self
+            .app
+            .and_then(|i| ryolune_engine::interop::apps::APPS.get(i))
+            .map(|a| a.name);
         let (tx, receiver) = mpsc::sync_channel(1);
         std::thread::spawn(move || {
+            if mode == Mode::AppImport {
+                let mut extensions = vec!["dawproject", "mid", "midi"];
+                extensions.extend_from_slice(ryolune_engine::audio::IMPORT_EXTENSIONS);
+                let paths = rfd::FileDialog::new()
+                    .set_title("Import from another app: a .dawproject, a .mid, or audio files")
+                    .add_filter("Song from another app", &extensions)
+                    .add_filter("DAWproject", &["dawproject"])
+                    .add_filter("MIDI file", &["mid", "midi"])
+                    .add_filter(
+                        "Audio files (stems)",
+                        ryolune_engine::audio::IMPORT_EXTENSIONS,
+                    )
+                    .pick_files();
+                let _ = tx.send(paths.filter(|p| !p.is_empty()));
+                return;
+            }
+            if mode == Mode::AppExport {
+                let base = match app_name {
+                    Some(app) => format!("{name} for {app}"),
+                    None => name.clone(),
+                };
+                let path = match app_format {
+                    "package" | "stems" => rfd::FileDialog::new()
+                        .set_title("Choose where the new folder goes")
+                        .pick_folder()
+                        .map(|parent| parent.join(base)),
+                    format => {
+                        let ext = match format {
+                            "dawproject" => "dawproject",
+                            "midi" => "mid",
+                            _ => "wav",
+                        };
+                        rfd::FileDialog::new()
+                            .add_filter(ext, &[ext])
+                            .set_file_name(format!("{base}.{ext}"))
+                            .save_file()
+                            .map(|mut path| {
+                                if path.extension().is_none() {
+                                    path.set_extension(ext);
+                                }
+                                path
+                            })
+                    }
+                };
+                let _ = tx.send(path.map(|p| vec![p]));
+                return;
+            }
             let path = match mode {
                 Mode::MidiImport => rfd::FileDialog::new()
                     .add_filter("MIDI file", &["mid", "midi"])
@@ -304,8 +396,9 @@ impl ExportDialog {
                             path
                         })
                 }
+                Mode::AppImport | Mode::AppExport => None,
             };
-            let _ = tx.send(path);
+            let _ = tx.send(path.map(|p| vec![p]));
         });
         self.chooser = Some(Chooser {
             receiver,
@@ -322,10 +415,14 @@ impl ExportDialog {
             .as_ref()
             .map(|chooser| chooser.receiver.try_recv())?;
         match result {
-            Ok(path) => {
+            Ok(paths) => {
                 let mut chooser = self.chooser.take().unwrap();
-                let path = path?;
-                chooser.request.params[chooser.path_key] = json!(path);
+                let mut paths = paths?;
+                if paths.len() == 1 {
+                    chooser.request.params[chooser.path_key] = json!(paths.remove(0));
+                } else {
+                    chooser.request.params["paths"] = json!(paths);
+                }
                 Some(chooser.request)
             }
             Err(mpsc::TryRecvError::Empty) => None,
@@ -360,6 +457,25 @@ impl Ryolune {
             .show(Mode::MidiImport, self.store.session(), self.position);
     }
 
+    /// File › Import from Another App… and Export for Another App…: the sheet starts on
+    /// the app the person said they came from, and on that app's best format.
+    pub(crate) fn app_dialog(&mut self, import: bool) {
+        let mode = if import {
+            Mode::AppImport
+        } else {
+            Mode::AppExport
+        };
+        self.export.show(mode, self.store.session(), self.position);
+        if self.export.busy() {
+            return;
+        }
+        let apps = ryolune_engine::interop::apps::APPS;
+        self.export.app = apps
+            .iter()
+            .position(|a| a.id == self.settings.onboarding.coming_from);
+        self.export.app_format = best_format(self.export.app);
+    }
+
     pub(crate) fn export_midi_dialog(&mut self) {
         self.export
             .show(Mode::MidiExport, self.store.session(), self.position);
@@ -368,6 +484,11 @@ impl Ryolune {
     /// Run the export or import once its file chooser answers. Called every tick.
     pub(crate) fn poll_export(&mut self) {
         if let Some(command) = self.export.poll_chooser() {
+            if command.method == "session.importFrom" {
+                // It replaces the open song: ask about unsaved changes first.
+                self.import_from_app(command.params);
+                return;
+            }
             self.export.awaiting = Some(command.method.into());
             let result =
                 self.run_control_command(command.method, &command.params, false, "File menu");
@@ -390,12 +511,24 @@ impl Ryolune {
     }
 }
 
+/// What Export for Another App writes for an app by default: its best format.
+pub(crate) fn best_format(app: Option<usize>) -> usize {
+    let best = app
+        .and_then(|i| ryolune_engine::interop::apps::APPS.get(i))
+        .and_then(|a| a.writes.first().copied())
+        .unwrap_or("dawproject");
+    APP_FORMATS.iter().position(|f| f.0 == best).unwrap_or(0)
+}
+
 fn valid_folder_name(name: &str) -> bool {
     let name = name.trim();
     !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\\', ':'])
 }
 
 fn report(method: &str, value: &Value) -> String {
+    if let Some(report) = value.get("report").filter(|r| r.is_object()) {
+        return interop_report(method, value, report);
+    }
     let mut lines = vec![if method == "session.importMidi" {
         "MIDI import complete".into()
     } else {
@@ -438,10 +571,77 @@ fn report(method: &str, value: &Value) -> String {
     lines.join("\n")
 }
 
+/// What a trip to or from another app kept, changed and left out, as the sheet says it.
+fn interop_report(method: &str, value: &Value, report: &Value) -> String {
+    let mut lines = vec![if method == "session.importFrom" {
+        "Song imported as a new song. Save it to keep it.".to_string()
+    } else {
+        "Written for the other app.".to_string()
+    }];
+    for key in ["path", "directory"] {
+        if let Some(path) = value[key].as_str() {
+            lines.push(path.into());
+        }
+    }
+    let list = |key: &str| -> Vec<String> {
+        report[key]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(|line| format!("  · {line}"))
+            .collect()
+    };
+    for (key, title) in [
+        ("kept", "Came across:"),
+        ("approximated", "Changed on the way:"),
+        ("dropped", "Left out:"),
+        ("missingMedia", "Audio files not found:"),
+    ] {
+        let items = list(key);
+        if !items.is_empty() {
+            lines.push(title.into());
+            lines.extend(items);
+        }
+    }
+    lines.join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use ryolune_engine::store;
+
+    #[test]
+    fn app_modes_prepare_the_interop_commands() {
+        let session = store::demo();
+        let mut dialog = ExportDialog::default();
+        dialog.show(Mode::AppImport, &session, 0.0);
+        assert_eq!(
+            dialog.request(&session).unwrap().method,
+            "session.importFrom"
+        );
+        dialog.show(Mode::AppExport, &session, 0.0);
+        let bitwig = ryolune_engine::interop::apps::APPS
+            .iter()
+            .position(|a| a.id == "bitwig");
+        dialog.app = bitwig;
+        dialog.app_format = best_format(bitwig);
+        let request = dialog.request(&session).unwrap();
+        assert_eq!(request.method, "session.exportTo");
+        assert_eq!(request.params["format"], "dawproject");
+        assert_eq!(request.params["app"], "bitwig");
+        let logic = ryolune_engine::interop::apps::APPS
+            .iter()
+            .position(|a| a.id == "logic");
+        assert_eq!(APP_FORMATS[best_format(logic)].0, "package");
+        let text = report(
+            "session.importFrom",
+            &json!({"report": {"kept": ["4 tracks"], "approximated": [], "dropped": ["Serum"], "missingMedia": []}}),
+        );
+        assert!(text.contains("Came across:") && text.contains("4 tracks"));
+        assert!(text.contains("Left out:") && !text.contains("Changed on the way"));
+    }
 
     #[test]
     fn musical_bar_range_maps_to_shared_export_parameters() {

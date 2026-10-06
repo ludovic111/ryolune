@@ -183,6 +183,28 @@ apps it can drive and how.
   `app.version`, `project.overview`, `export.audio`, `export.stems` and `export.midi` work here
   too and run `app.info`, `session.overview` and `session.export*`.
 
+## Other music apps
+
+`session.formats` lists what ryolune opens and writes for other apps (DAWproject, MIDI, audio
+files, stems, and a package of MIDI plus stems), each with what survives the trip, and the apps
+people come from (Ableton Live, Logic Pro, FL Studio, Bitwig Studio, REAPER, Cubase, Studio
+One, Pro Tools, GarageBand) with their formats, the steps to bring a song over and take it back,
+and whether each is installed here (`app` narrows it to one).
+
+- `session.importFrom path=…` opens a `.dawproject`, a `.mid`, or audio files (`paths=[…]`, one
+  track each) as a new, unsaved song in place of the open one. It answers with a `report`:
+  `kept`, `approximated`, `dropped` and `missingMedia`, the same shape kimchi uses. Plugins are
+  matched by CLAP id, VST3 class id or Audio Unit name against the scanned plugins.
+- `session.exportTo path=… format=dawproject|midi|audio|stems|package` (or `app=bitwig`, which
+  picks the app's best format) writes the song for another app, with the same report.
+- `project.formats`, `project.importFrom` and `project.exportTo` are the lsuite names for them.
+- The first-run setup is `app.onboarding` (its state, steps, the apps found, the providers ready)
+  and `app.finishOnboarding comingFrom=… ai=…`, which only a person can answer: agents are
+  refused. Recent songs are `app.recent` and `app.openRecent index=…` (or `path`).
+
+Importing replaces the song, so agents need both `replaceSession` and `fileOperations`;
+exporting needs `fileOperations`; `app.openRecent` needs `replaceSession`.
+
 ## Recipes
 
 ### Write a part
@@ -289,8 +311,8 @@ settings, help, the command palette and more; `view.set` scrolls and zooms; `ui.
 
 ## What only a person does
 
-A few things deliberately have no command: signing in to an AI service and changing the agent's
-connection or permissions or the generation service, the menu bar itself, the agent panel's own composer, and pure layout
+A few things deliberately have no command for agents: signing in to an AI service and changing the agent's
+connection or permissions or the generation service, answering the first-run setup, the menu bar itself, the agent panel's own composer, and pure layout
 (vertical track scroll, folding a browser folder). The reasons are listed in
 [AGENT_PARITY.md](AGENT_PARITY.md).
 

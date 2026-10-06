@@ -124,6 +124,10 @@ Musical typing plays the letter keys while it is on (`note.hold`, `note.releaseA
 | `exportAudio` | File › Export audio… | `ui.showPanel` panel=export, then `session.exportAudio` or `session.exportStems` | covered |
 | `exportMidi` | File › Export MIDI… | `session.exportMidi` | covered |
 | `recoverSession` | File › Recover session… | `session.snapshots`, `session.restoreSnapshot` | covered |
+| `openRecent` | File › Open Recent… | `app.recent`, `app.openRecent` index or path | covered; the window asks about unsaved changes first |
+| `importFromApp` | File › Import from Another App… | `session.formats` (the apps and their steps), `session.importFrom` path or paths | covered; opens as a new unsaved song after the unsaved-changes question; the file chooser is window-only |
+| `exportForApp` | File › Export for Another App… | `session.formats`, `session.exportTo` path, format or app | covered |
+| `firstRunSetup` | Help › Set Up ryolune… (and the first start) | `app.onboarding`, `app.finishOnboarding` (refused to agents), then `session.new` (demo) or `session.importFrom` | covered; the answers are the person's, so agents read the state only |
 | `settings` | File › Settings… (⌘,) | `ui.showPanel` panel=settings section=… | covered |
 | `quit` | File › Quit | `app.quit` (discard) | covered |
 | `humanize` | Edit › Humanize | `clip.humanize` | covered |

@@ -5270,6 +5270,7 @@ dependencies = [
  "objc2-core-foundation",
  "objc2-foundation",
  "ondera-abi1-fixture",
+ "roxmltree",
  "rtrb",
  "ryolune-plugin",
  "ryolune-plugin-gain",
@@ -5279,6 +5280,7 @@ dependencies = [
  "tempfile",
  "vorbis_rs",
  "vst3",
+ "zip",
 ]
 
 [[package]]

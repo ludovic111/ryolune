@@ -195,8 +195,25 @@ impl Ryolune {
                     return Err(denied);
                 }
             }
-            if matches!(method, "session.new" | "session.open") {
+            if matches!(
+                method,
+                "session.new" | "session.open" | "session.importFrom" | "app.openRecent"
+            ) {
                 self.can_replace_document()?;
+            }
+            if method == "app.openRecent" {
+                // A recent song opens like any other: on a worker, with its file lock.
+                let path = ryolune_engine::control_interop::recent_path(
+                    &self.settings,
+                    params["index"].as_i64(),
+                    params["path"].as_str(),
+                )?;
+                return self.run_control_command(
+                    "session.open",
+                    &json!({ "path": path }),
+                    agent,
+                    source,
+                );
             }
             if let Some(job) = self.control_job.as_ref().filter(|_| {
                 control::COMMANDS
@@ -219,6 +236,8 @@ impl Ryolune {
                     | "session.exportAudio"
                     | "session.exportStems"
                     | "session.scoreCut"
+                    | "session.importFrom"
+                    | "session.exportTo"
                     | "export.toKimchi"
                     | "plugin.scan"
             ) {
@@ -232,6 +251,7 @@ impl Ryolune {
                         | "session.bounce"
                         | "session.exportAudio"
                         | "session.exportStems"
+                        | "session.exportTo"
                         | "export.toKimchi"
                 ) {
                     self.guarded(Ryolune::capture_plugin_states)?;
@@ -456,6 +476,11 @@ impl Ryolune {
                     }
                     self.try_dispatch(Command::Batch(commands))?;
                     self.library = host.library;
+                }
+                "session.importFrom" => {
+                    self.stop();
+                    self.adopt_imported(host.store.session().clone(), host.library);
+                    value["session"] = control::call(self, "session.info", &json!({}), false)?;
                 }
                 "plugin.scan" => {
                     self.catalog = ryolune_engine::host::scan::installed();
@@ -846,6 +871,8 @@ impl Ryolune {
                 crate::app::Intent::Demo => "demo",
                 crate::app::Intent::Quit => "quit",
                 crate::app::Intent::Relaunch => "relaunch",
+                crate::app::Intent::OpenRecent => "openRecent",
+                crate::app::Intent::ImportFrom => "importFrom",
             }),
             "recoveredTake": self.unplaced_recording.is_some(),
             "monitorBlocked": matches!(
@@ -931,6 +958,8 @@ impl Ryolune {
                 crate::app::Intent::Demo => "demo",
                 crate::app::Intent::Quit => "quit",
                 crate::app::Intent::Relaunch => "relaunch",
+                crate::app::Intent::OpenRecent => "openRecent",
+                crate::app::Intent::ImportFrom => "importFrom",
             }),
             "pluginWindows": windows,
             "editor": {
@@ -1097,6 +1126,12 @@ impl Host for Ryolune {
         Ryolune::stop(self);
         let (session, library) = document::load(&path)?;
         self.guarded(|app| app.loaded(session, library, path, Some(ownership)))
+    }
+    fn adopt_session(&mut self, session: ryolune_engine::model::Session, library: Library) -> Result<()> {
+        self.available()?;
+        self.can_replace_document()?;
+        Ryolune::stop(self);
+        self.guarded(|app| app.adopt_imported(session, library))
     }
     fn save(&mut self, path: Option<&Path>) -> Result<PathBuf> {
         self.available()?;
