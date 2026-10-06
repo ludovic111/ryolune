@@ -195,12 +195,7 @@ impl Render for PopupMenu {
             .bg(theme.glass(2))
             .border_1()
             .border_color(theme.glass_edge)
-            .shadow(vec![gpui::BoxShadow {
-                color: theme.glass_shadow,
-                offset: gpui::point(px(0.0), px(12.0)),
-                blur_radius: px(32.0),
-                spread_radius: px(0.0),
-            }])
+            .shadow(theme.float_shadow())
             .text_size(px(size::BASE))
             .children(self.items.iter().enumerate().map(|(i, item)| {
                 match item {
@@ -225,7 +220,13 @@ impl Render for PopupMenu {
                         swatch,
                         ..
                     } => {
+                        // The item under the pointer is inverted, paper on ink.
                         let on = hovered == Some(i) && !disabled;
+                        let ink = if on {
+                            theme.text_on_accent
+                        } else {
+                            theme.accent_text
+                        };
                         div()
                             .id(i)
                             .mx(px(4.0))
@@ -235,8 +236,14 @@ impl Render for PopupMenu {
                             .items_center()
                             .gap(px(8.0))
                             .rounded(px(radius::SM))
-                            .text_color(if *disabled { theme.text_3 } else { theme.text })
-                            .when(on, |d| d.bg(theme.accent_soft))
+                            .text_color(if *disabled {
+                                theme.text_3
+                            } else if on {
+                                theme.text_on_accent
+                            } else {
+                                theme.text
+                            })
+                            .when(on, |d| d.bg(theme.accent_fill))
                             .when(!disabled, |d| {
                                 d.cursor_pointer().on_click(
                                     cx.listener(move |this, _, window, cx| {
@@ -250,12 +257,14 @@ impl Render for PopupMenu {
                                     cx.notify();
                                 }
                             }))
-                            .child(div().w(px(12.0)).flex_none().when(
-                                checked == &Some(true),
-                                |d| {
-                                    d.child(super::controls::icon("check", 10.0, theme.accent_text))
-                                },
-                            ))
+                            .child(
+                                div()
+                                    .w(px(12.0))
+                                    .flex_none()
+                                    .when(checked == &Some(true), |d| {
+                                        d.child(super::controls::icon("check", 10.0, ink))
+                                    }),
+                            )
                             .when_some(*swatch, |d, c| d.child(super::controls::dot(c, 8.0)))
                             .child(div().flex_1().whitespace_nowrap().child(label.clone()))
                             .when_some(detail.clone(), |d, text| {
@@ -263,7 +272,7 @@ impl Render for PopupMenu {
                                     div()
                                         .pl(px(16.0))
                                         .text_size(px(size::SM))
-                                        .text_color(theme.text_3)
+                                        .text_color(if on { ink } else { theme.text_3 })
                                         .child(text),
                                 )
                             })

@@ -150,7 +150,8 @@ Project memory goes ahead of every request for every provider as `Project memory
 (user-maintained context):\n…\n\nCurrent request:\n…`, and is taken out again of the history
 the next request carries. Steering reaches API providers after the tool results of the step in
 progress (or as one more round when the answer was being written); Codex through `turn/steer`;
-zenith through `thread.send` to its thread; Claude Code, which reads its whole request at start,
+zenith through `thread.steer` (or, for an older zenith or a turn waiting on an approval,
+`thread.send` once the turn ends); Claude Code, which reads its whole request at start,
 by stopping the run and starting it again with the request, what it had answered and the
 steering. `agent.status` reports the open conversation and `steeringPending`.
 

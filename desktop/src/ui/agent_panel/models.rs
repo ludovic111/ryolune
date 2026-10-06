@@ -228,7 +228,6 @@ impl AgentPanel {
             .pl(px(3.0))
             .pr(px(8.0))
             .py(px(3.0))
-            .rounded_full()
             .text_size(px(size::SM))
             .when(self.models.open, |d| d.bg(theme.hover))
             .when(!busy, |d| d.cursor_pointer().hover(|s| s.bg(theme.hover)))
@@ -635,15 +634,12 @@ fn radio(on: bool, theme: &Theme) -> gpui::Div {
     div()
         .flex_none()
         .size(px(13.0))
-        .rounded_full()
         .border_1()
         .border_color(if on { theme.accent } else { theme.line_strong })
         .flex()
         .items_center()
         .justify_center()
-        .when(on, |d| {
-            d.child(div().size(px(7.0)).rounded_full().bg(theme.accent))
-        })
+        .when(on, |d| d.child(div().size(px(7.0)).bg(theme.accent)))
 }
 
 #[cfg(test)]

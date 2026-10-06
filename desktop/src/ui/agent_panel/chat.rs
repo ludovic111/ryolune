@@ -76,13 +76,15 @@ pub(super) fn welcome(title: &str, text: impl Into<SharedString>, cx: &gpui::App
         .flex()
         .flex_col()
         .gap(px(10.0))
-        .child(
-            div()
-                .text_size(px(size::BASE + 1.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(theme.text)
-                .child(title.to_string()),
-        )
+        .when(!title.is_empty(), |d| {
+            d.child(
+                div()
+                    .text_size(px(size::BASE + 1.0))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(theme.text)
+                    .child(title.to_string()),
+            )
+        })
         .child(
             div()
                 .text_size(px(size::BASE))
@@ -93,7 +95,7 @@ pub(super) fn welcome(title: &str, text: impl Into<SharedString>, cx: &gpui::App
 }
 
 impl AgentPanel {
-    pub(super) fn chat(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn chat(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::get(cx).clone();
         let daw = self.daw.clone();
         let app = &daw.read(cx).app;
@@ -188,9 +190,45 @@ impl AgentPanel {
             } else {
                 "A few ideas to get started"
             };
+            // The empty conversation is the panel's hero: a dithered fade of light behind it
+            // and one word set in negative.
+            let hero = if ready {
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .items_baseline()
+                    .gap(px(5.0))
+                    .text_size(px(size::XL))
+                    .line_height(px(28.0))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(theme.text)
+                    .child("What would you like to")
+                    .child(
+                        div()
+                            .px(px(5.0))
+                            .bg(theme.accent_fill)
+                            .text_color(theme.text_on_accent)
+                            .child("make?"),
+                    )
+                    .into_any_element()
+            } else {
+                div().into_any_element()
+            };
+            column = column.child(
+                div()
+                    .relative()
+                    .child(
+                        div()
+                            .absolute()
+                            .top_0()
+                            .left(px(-14.0))
+                            .child(crate::ui::grain::dither(380.0, 140.0, 0.2, window, cx)),
+                    )
+                    .when(ready, |d| d.child(div().pt(px(26.0)).child(hero))),
+            );
             column = column.child(
                 welcome(
-                    title,
+                    if ready { "" } else { title },
                     "Ask for a beat, a melody or help with your mix. You can write in your own language.",
                     cx,
                 )
@@ -325,11 +363,7 @@ impl AgentPanel {
                             .text_color(theme.text_2)
                             .hover(|s| s.text_color(theme.text))
                             .child(div().w(px(10.0)).flex_none().child(if pending {
-                                div()
-                                    .size(px(5.0))
-                                    .rounded_full()
-                                    .bg(theme.accent)
-                                    .into_any_element()
+                                div().size(px(5.0)).bg(theme.accent).into_any_element()
                             } else if ok {
                                 icon("check", 9.0, theme.accent).into_any_element()
                             } else {
@@ -462,7 +496,7 @@ fn agent_message(
                 div()
                     .w(px(6.0))
                     .h(px(13.0))
-                    .rounded(px(3.0))
+                    .rounded(px(radius::XS))
                     .bg(theme.accent),
             )
         })

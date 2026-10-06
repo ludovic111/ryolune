@@ -1,13 +1,14 @@
 //! zenith, lsuite's agent hub, as a provider ("Zenith · lsuite"). The agents and their
 //! sign-ins live in zenith; ryolune drives it through `zenith-cli` (`project.list`,
-//! `project.add`, `thread.new`, `thread.send`, `thread.get`, `thread.interrupt`,
+//! `project.add`, `thread.new`, `thread.send`, `thread.steer`, `thread.get`, `thread.interrupt`,
 //! `provider.list`) and zenith's agent edits the song through ryolune's MCP server, so its
 //! edits arrive like any MCP client's: undo steps, in the Changes list and in the chat.
 //!
 //! Each song has its own folder, `<data dir>/agent-workspaces/<song id>`, registered as a
 //! zenith project and holding ryolune's MCP recipe (`.mcp.json`); a conversation's first
 //! turn starts a zenith thread whose id ryolune chooses first (so Stop can always interrupt
-//! it), and follow-ups and steering go to that thread with `thread.send`.
+//! it); follow-ups go to that thread with `thread.send`, steering with `thread.steer` (or
+//! `thread.send` once the turn ends, for an older zenith or a turn waiting on the person).
 
 use super::{bounded, take_steering, Event, Message, Part, Remote, Turn, TEXT_LIMIT};
 use ryolune_engine::Result;
@@ -269,7 +270,10 @@ fn run_at(turn: &Turn, exe: &Path, folder: &Path) -> Result<()> {
             (id, prompt)
         }
     };
-    let mut expected = prompt.clone();
+    // The messages of this turn the thread may show last: the request, then steering.
+    let mut known = vec![prompt.clone()];
+    // Steering zenith could not take into the running turn: sent when the turn ends.
+    let mut later: Vec<String> = vec![];
     let mut sent = Instant::now();
     let mut reply = String::new();
     let mut replies: Vec<String> = vec![];
@@ -287,20 +291,36 @@ fn run_at(turn: &Turn, exe: &Path, folder: &Path) -> Result<()> {
             return done(turn, &prompt, &steering, replies, reply, error, true);
         }
         if let Some(text) = take_steering(&turn.steer) {
-            // zenith steers its running turn, or starts the next one when it has finished.
-            call(
+            // `thread.steer` joins zenith's running turn. An older zenith does not know it,
+            // and a turn that waits on an approval or a question, or has just ended, refuses
+            // it: then the steering goes with `thread.send` once the turn ends.
+            match call(
                 exe,
-                "thread.send",
+                "thread.steer",
                 &json!({"threadId": thread, "prompt": text}),
-            )?;
-            let _ = turn.events.send(Event::Steered);
-            if !reply.is_empty() {
-                let _ = turn.events.send(Event::TextEnd);
-                replies.push(std::mem::take(&mut reply));
+            ) {
+                Ok(_) => {
+                    let _ = turn.events.send(Event::Steered);
+                    if !reply.is_empty() {
+                        let _ = turn.events.send(Event::TextEnd);
+                        replies.push(std::mem::take(&mut reply));
+                    }
+                    known.push(text.clone());
+                    steering.push(text);
+                    sent = Instant::now();
+                }
+                Err(error) => {
+                    let lower = error.to_lowercase();
+                    status_line(
+                        if lower.contains("approval") || lower.contains("question") {
+                            "zenith is waiting for your answer in zenith; your steering goes once this turn ends."
+                        } else {
+                            "zenith reads your steering when this turn ends."
+                        },
+                    );
+                    later.push(text);
+                }
             }
-            expected = text.clone();
-            steering.push(text);
-            sent = Instant::now();
         }
         let state = call(
             exe,
@@ -314,7 +334,11 @@ fn run_at(turn: &Turn, exe: &Path, folder: &Path) -> Result<()> {
             .rposition(|m| m["kind"] == "message" && m["role"] == "user");
         // An acknowledgement can come before the message shows in the thread: never stream
         // or finish with the previous turn's answer.
-        if !last_user.is_some_and(|i| timeline[i]["text"].as_str() == Some(expected.as_str())) {
+        if !last_user.is_some_and(|i| {
+            timeline[i]["text"]
+                .as_str()
+                .is_some_and(|t| known.iter().any(|k| k == t))
+        }) {
             if sent.elapsed() > SHOW_TIMEOUT {
                 return Err(
                     "zenith did not show the message. Open zenith to check this conversation."
@@ -355,7 +379,29 @@ fn run_at(turn: &Turn, exe: &Path, folder: &Path) -> Result<()> {
                 if sent.elapsed() > Duration::from_secs(1)
                     && (!reply.is_empty() || sent.elapsed() > Duration::from_secs(10)) =>
             {
-                break
+                if later.is_empty() {
+                    break;
+                }
+                // The turn ended before zenith could take the steering: it is the next turn.
+                let texts: Vec<&str> = later
+                    .iter()
+                    .map(|t| t.strip_prefix(super::STEERING_HEADER).unwrap_or(t).trim())
+                    .collect();
+                let text = super::steering_message(&texts.join("\n\n"));
+                later.clear();
+                call(
+                    exe,
+                    "thread.send",
+                    &json!({"threadId": thread, "prompt": text}),
+                )?;
+                let _ = turn.events.send(Event::Steered);
+                if !reply.is_empty() {
+                    let _ = turn.events.send(Event::TextEnd);
+                    replies.push(std::mem::take(&mut reply));
+                }
+                known = vec![text.clone()];
+                steering.push(text);
+                sent = Instant::now();
             }
             _ => status_line("Working in zenith…"),
         }
@@ -451,9 +497,14 @@ printf '%s\n%s\n' "$1" "$3" >> calls
 case "$1" in
   thread.new|thread.send) printf '%s' "$3" > submitted.json; printf '{}' ;;
   thread.interrupt) touch interrupted; printf '{}' ;;
+  thread.steer)
+    if [ -f steer-ok ]; then printf '{"steered":true}'
+    else printf 'Error: unknown command "thread.steer" (see `zenith-cli list`)' >&2; exit 1
+    fi ;;
   thread.get)
     if [ -f interrupted ]; then
       if [ -f stopping ]; then printf '{"status":"ready"}'; else touch stopping; printf '{"status":"working"}'; fi
+    elif [ -f next.json ] && grep -q Slower submitted.json; then cat next.json
     elif [ -f polled ]; then cat turn.json
     else touch polled; cat old.json
     fi ;;
@@ -623,6 +674,7 @@ esac
             "turn",
             json!({"status":"working","timeline":[{"kind":"message","role":"user","text":follow_up(&turn)}]}),
         );
+        std::fs::write(dir.path().join("steer-ok"), "").unwrap();
         let steer = turn.steer.clone();
         let cancel = turn.cancel.clone();
         let root = dir.path().to_path_buf();
@@ -661,13 +713,83 @@ esac
             2,
             "Stop waits until zenith's turn has stopped"
         );
-        let sends: Vec<&str> = calls
-            .lines()
-            .collect::<Vec<_>>()
-            .windows(2)
-            .filter(|w| w[0] == "thread.send")
-            .map(|w| w[1])
-            .collect();
-        assert!(sends.last().unwrap().contains("Slower"));
+        let lines: Vec<&str> = calls.lines().collect();
+        let args = |command: &str| -> Vec<&str> {
+            lines
+                .windows(2)
+                .filter(|w| w[0] == command)
+                .map(|w| w[1])
+                .collect()
+        };
+        assert!(args("thread.steer")[0].contains("Slower"));
+        assert!(!args("thread.send").iter().any(|a| a.contains("Slower")));
+    }
+
+    #[test]
+    fn an_older_zenith_gets_the_steering_as_its_next_turn() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = mock_cli(dir.path());
+        let folder = dir.path().join("ws");
+        let (turn, rx) = turn_for(dir.path(), "Add drums", Some("thread-9".into()));
+        let working = json!({"status":"working","timeline":[{"kind":"message","role":"user","text":follow_up(&turn)}]});
+        respond(dir.path(), "old", working.clone());
+        respond(dir.path(), "turn", working);
+        let steering = super::super::steering_message("Slower");
+        respond(
+            dir.path(),
+            "next",
+            json!({"status":"ready","timeline":[
+                {"kind":"message","role":"user","text":follow_up(&turn)},
+                {"kind":"message","role":"assistant","text":"Drums added."},
+                {"kind":"message","role":"user","text":steering},
+                {"kind":"message","role":"assistant","text":"Slower now."}
+            ]}),
+        );
+        let steer = turn.steer.clone();
+        let root = dir.path().to_path_buf();
+        let finished = json!({"status":"ready","timeline":[
+            {"kind":"message","role":"user","text":follow_up(&turn)},
+            {"kind":"message","role":"assistant","text":"Drums added."}
+        ]});
+        let person = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(300));
+            steer.lock().unwrap().push_back(steering);
+            // zenith refuses thread.steer; then its turn ends.
+            let started = Instant::now();
+            while !std::fs::read_to_string(root.join("calls"))
+                .unwrap_or_default()
+                .contains("thread.steer")
+                && started.elapsed() < Duration::from_secs(10)
+            {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            std::fs::write(root.join("turn.json"), finished.to_string()).unwrap();
+        });
+        run_at(&turn, &exe, &folder).unwrap();
+        person.join().unwrap();
+        let events: Vec<Event> = rx.try_iter().collect();
+        assert!(events
+            .iter()
+            .any(|e| matches!(e, Event::Status(s) if s.contains("when this turn ends"))));
+        let history = events
+            .into_iter()
+            .find_map(|e| match e {
+                Event::Done {
+                    history,
+                    error: None,
+                    cancelled: false,
+                } => Some(history),
+                _ => None,
+            })
+            .expect("the run ends normally");
+        assert_eq!(
+            history[1].parts[0],
+            Part::Text("Drums added.\n\nSlower now.".into())
+        );
+        let calls = std::fs::read_to_string(dir.path().join("calls")).unwrap();
+        let steer_at = calls.find("thread.steer").unwrap();
+        let send_at = calls.rfind("thread.send").unwrap();
+        assert!(send_at > steer_at, "sent after the refused steer");
+        assert!(calls[send_at..].lines().nth(1).unwrap().contains("Slower"));
     }
 }

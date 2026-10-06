@@ -14,7 +14,7 @@ pub mod groups;
 use super::{
     actions::{self, Do},
     daw::Daw,
-    theme::{radius, size, Theme, FONT_MONO},
+    theme::{layout, radius, size, with_alpha, Theme, FONT_MONO},
     widgets::{
         self, icon, text_input, Button, InputEvent, MenuHost, MenuItem, Segmented, TextInput,
     },
@@ -800,7 +800,6 @@ impl Browser {
                                     .flex_none()
                                     .w(px(3.0))
                                     .h(px(11.0))
-                                    .rounded(px(radius::XS))
                                     .bg(theme.family(&g.name)),
                             )
                         })
@@ -852,7 +851,9 @@ impl Browser {
             .map(|n| n.input.clone());
         let drag = self.payload(&item);
         let star = item.favorite;
-        let fam_keys = theme.family("Keys");
+        // The selected row is inverted, paper on ink; its marks follow the paper.
+        let paper = theme.text_on_accent;
+        let fam_keys = if selected { paper } else { theme.text };
         let (click_item, menu_key) = (item.clone(), item.key.clone());
         let mut row = div()
             .id(("browser-row", ix))
@@ -866,10 +867,14 @@ impl Browser {
             .rounded(px(radius::SM))
             .text_size(px(size::BASE))
             .font_weight(gpui::FontWeight::MEDIUM)
-            .text_color(theme.text)
-            .when(selected, |d| d.bg(theme.accent_soft))
+            .text_color(if selected { paper } else { theme.text })
+            .when(selected, |d| d.bg(theme.accent_fill))
             .when(!selected, |d| d.hover(|s| s.bg(theme.hover)))
-            .child(swatch(theme.family(&item.family)))
+            .child(swatch(if selected {
+                paper
+            } else {
+                theme.family(&item.family)
+            }))
             .child(match naming {
                 Some(input) => div()
                     .flex_1()
@@ -897,7 +902,11 @@ impl Browser {
                     .font_family(FONT_MONO)
                     .text_size(px(size::XS))
                     .font_weight(gpui::FontWeight::NORMAL)
-                    .text_color(theme.text_3)
+                    .text_color(if selected {
+                        with_alpha(paper, 0.7)
+                    } else {
+                        theme.text_3
+                    })
                     .child(item.meta.clone()),
             )
             .when_some(star.zip(item.id.clone()), |d, (favorite, id)| {
@@ -915,7 +924,13 @@ impl Browser {
                         .child(icon(
                             if favorite { "star-filled" } else { "star" },
                             11.0,
-                            if favorite { fam_keys } else { theme.text_3 },
+                            if favorite {
+                                fam_keys
+                            } else if selected {
+                                paper
+                            } else {
+                                theme.text_3
+                            },
                         ))
                         .tooltip(move |_, cx| {
                             widgets::tip(
@@ -1020,6 +1035,26 @@ impl Render for Browser {
             .bg(theme.glass(1))
             .border_r_1()
             .border_color(theme.line)
+            // Titled like every area: its name, what it lists in mono.
+            .child(
+                div()
+                    .h(px(layout::TOOLBAR))
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.0))
+                    .px(px(12.0))
+                    .border_b_1()
+                    .border_color(theme.line)
+                    .child(widgets::panel_title("Browser", cx))
+                    .child(widgets::panel_info(
+                        {
+                            let n: usize = self.visible.iter().map(|g| g.items.len()).sum();
+                            format!("{n} {}", if n == 1 { "item" } else { "items" })
+                        },
+                        cx,
+                    )),
+            )
             .child(
                 div().flex().px(px(10.0)).pt(px(10.0)).pb(px(8.0)).child(
                     Segmented::new(

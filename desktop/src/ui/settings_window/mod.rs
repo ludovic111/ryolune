@@ -628,8 +628,11 @@ impl SettingsWindow {
                     .rounded(px(radius::SM))
                     .text_size(px(size::BASE))
                     .text_color(if on { theme.text } else { theme.text_2 })
+                    // The open section is inverted, paper on ink.
                     .when(on, |d| {
-                        d.bg(theme.accent_soft).text_color(theme.accent_text)
+                        d.bg(theme.accent_fill)
+                            .text_color(theme.text_on_accent)
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
                     })
                     .when(!on, |d| d.cursor_pointer().hover(|s| s.bg(theme.hover)))
                     .child(*title)

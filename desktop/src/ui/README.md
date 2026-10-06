@@ -27,26 +27,44 @@ painting code before it are gone; their behaviour is what these views reproduce.
 
 ## Look
 
-- `theme.rs` is the only place colours, radii and sizes live (lsuite design system, ryolune
-  teal accent). `Theme::get(cx)` in render. Add a token there, in both modes, never a colour
-  in a view. The accent means "yours or active" (selection, focus, playhead, lit keys, what
-  the agent touched); states keep their colours (`record`, `danger`, `mute`, `solo`, meters).
-  Text on an accent fill uses `accent_fill` + `text_on_accent`.
-- Chrome (title bar, transport, browser, inspector, agent panel, toolbars) is glass tier 1:
-  `.bg(theme.glass(1))`. Floating things (menus, palette, tooltips, toasts) tier 2, modals
-  tier 3 over `theme.scrim` (`widgets::surface(tier, cx)`). The arrangement, editors and mixer
-  strips are solid work surfaces (`theme.lane`, `theme.editor`, `theme.bg_raised`).
-- Fonts: Manrope (`FONT_UI`, the default) and IBM Plex Mono (`FONT_MONO`) for numbers, time
-  and caps labels. Sizes from `theme::size`, radii from `theme::radius`, panel widths from
+- lsuite design system v2 (`desktop/assets/lsuite/tokens.json`, a copy of lsuite's
+  `design/tokens.json`; `theme.rs` tests that the palette matches it): black and white, cut
+  square, with grain. `theme.rs` is the only place colours, radii and sizes live.
+  `Theme::get(cx)` in render. Add a token there, in both modes, never a colour in a view.
+- The accent is the ink of the mode (white in the dark, black in the light): selection,
+  focus, the playhead, the primary action. **A chosen thing is inverted**, paper on ink:
+  `accent_fill` behind `text_on_accent` (the open tab, a lit tool or key, the selected row,
+  the menu item under the pointer). Red (`record`, `danger`) only for record, arm and errors;
+  warnings and success are greys with an icon or a word. The work keeps its colours (track
+  colours on clips and notes, waveforms) and makers' logos keep theirs; `Theme::family` is grey.
+- Radii are zero (`theme::radius`); only round things (knobs, score note heads) stay round.
+  Floating surfaces cast a hard offset shadow (`theme.float_shadow()`, via
+  `widgets::surface`), the primary button a smaller one (`theme.chip_shadow()`).
+- The page is `grain::backdrop` (film grain and two corners of ordered-dither light, drawn at
+  device pixels, cached per size) under the chrome, which is glass tier 1
+  (`.bg(theme.glass(1))`). Floating things (menus, palette, tooltips) are tier 2, modals tier
+  3 over `theme.scrim`, inside `grain::brackets` (`dialogs::modal::sheet` does it). The
+  arrangement, editors and mixer strips are solid work surfaces (`theme.lane`, `theme.editor`,
+  `theme.bg_raised`); past the song's end the lanes are hatched.
+- Organization: every area has a title bar (`widgets::panel_title` + `panel_info` in mono,
+  its actions at the right). Tools that go together are boxed in a `widgets::group` of
+  `Button::flush` tools (`widgets::tool`, or `actions::tool` for a table action: lit when on,
+  shortcut in the tooltip); a tool shows its label when there is room
+  (`ui::centre_width`) and its icon alone otherwise. Section headings are caps running into a
+  hairline (`widgets::heading`).
+- Fonts: Chakra Petch (`FONT_UI`, the default) and IBM Plex Mono (`FONT_MONO`) for numbers,
+  time and caps labels, both bundled (OFL). Sizes from `theme::size`, panel widths from
   `theme::layout`.
-- Icons are SVGs in `desktop/assets/icons` (`widgets::icon("play", 12.0, color)`); add one there
-  when needed, drawn on a small grid with `#000` fills or strokes (GPUI tints them).
+- Icons are SVGs in `desktop/assets/icons` (`widgets::icon("play", 12.0, color)`): ryolune's
+  own on a small grid with `#000` fills, a few from Lucide (ISC, `LICENSE.lucide.txt`); GPUI
+  tints them. `mark.svg` is the mark, written by `scripts/gen-mark.py`.
 
 ## Building blocks (`widgets/`)
 
-- `Button` (text and/or icon; `ghost`, `primary`, `danger`, `lit`, `lit_color`, `tooltip`,
-  `on_click`), `Key` (M/S/R/A channel keys), `Segmented` (tabs), `Switch`, `dot`, `caps`,
-  `mono`, `row`, `section`, `rule`, `surface`, `glass`, `text_width`.
+- `Button` (text and/or icon; `ghost`, `primary`, `danger`, `lit`, `lit_color`, `flush`,
+  `tooltip`, `on_click`), `group`, `tool`, `panel_title`, `panel_info`, `heading`, `Key`
+  (M/S/R/A channel keys), `Segmented` (tabs), `Switch`, `dot`, `caps`, `surface`,
+  `text_width`.
 - `Knob`, `Fader`, `Slider` (0-1 values, `on_change(value, Phase, window, cx)`), `NumberDrag`
   (drag any element to change a number), `Meter` (LED meter, peaks or `.linear()`).
 - `TextInput` (an entity: `cx.new(|cx| TextInput::new(cx).multiline())`, subscribe to

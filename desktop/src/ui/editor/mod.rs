@@ -17,9 +17,12 @@ mod piano_roll;
 mod score;
 
 use super::{
+    actions,
     daw::Daw,
-    theme::{editor::CONTROLLER_LANE, editor::KEY_COLUMN, layout, radius, size, Theme, FONT_MONO},
-    widgets::{InputEvent, MenuHost, MenuItem, Segmented, TextInput},
+    theme::{editor::CONTROLLER_LANE, editor::KEY_COLUMN, layout, size, Theme, FONT_MONO},
+    widgets::{
+        group, panel_info, panel_title, InputEvent, MenuHost, MenuItem, Segmented, TextInput,
+    },
 };
 use geometry::{notes, snap, step_beats, Roll};
 use gpui::{
@@ -703,7 +706,9 @@ impl Editor {
         }
     }
 
-    fn toolbar(&mut self, shown: &Shown, cx: &mut Context<Self>) -> gpui::AnyElement {
+    fn toolbar(&mut self, shown: &Shown, width: f32, cx: &mut Context<Self>) -> gpui::AnyElement {
+        // Narrow: the clip's details and the settings' names give way (tooltips keep them).
+        let roomy = width >= 1000.0;
         let theme = Theme::get(cx).clone();
         let daw = self.daw.clone();
         let mode = shown.mode;
@@ -724,34 +729,44 @@ impl Editor {
                 .text_color(theme.text_3)
                 .child(text.to_string())
         };
+        // The area's title is the view it shows; what it shows (the clip) follows in mono.
+        let heading = match mode {
+            Mode::PianoRoll => "Piano roll",
+            Mode::Score => "Score",
+            Mode::Step => "Step sequencer",
+        };
         let title = match &shown.clip {
             Some(clip) => div()
                 .flex()
-                .flex_none()
+                .min_w_0()
                 .items_center()
-                .gap(px(7.0))
-                .child(
-                    div()
-                        .flex_none()
-                        .size(px(9.0))
-                        .rounded(px(radius::XS / 2.0))
-                        .bg(shown.track_color),
-                )
-                .child(
-                    div()
-                        .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .text_color(theme.text)
-                        .whitespace_nowrap()
-                        .child(clip.name.clone()),
-                )
-                .child(dim(&format!(
-                    "· bars {} – {}",
-                    piano_roll::bar_number(clip.start_bar + 1.0),
-                    piano_roll::bar_number(clip.start_bar + clip.length_bars)
-                )))
+                .gap(px(8.0))
+                .child(panel_title(heading, cx))
+                .child(div().flex_none().size(px(9.0)).bg(shown.track_color))
+                .when(roomy, |d| {
+                    d.child(panel_info(
+                        format!(
+                            "{} · bars {} – {}",
+                            clip.name,
+                            piano_roll::bar_number(clip.start_bar + 1.0),
+                            piano_roll::bar_number(clip.start_bar + clip.length_bars)
+                        ),
+                        cx,
+                    ))
+                })
                 .into_any_element(),
-            None => dim("Select a MIDI clip to edit it, or draw one with the pencil tool")
-                .whitespace_nowrap()
+            None => div()
+                .flex()
+                .min_w_0()
+                .items_center()
+                .gap(px(10.0))
+                .child(panel_title(heading, cx))
+                .when(roomy, |d| {
+                    d.child(panel_info(
+                        "Select a MIDI clip to edit it, or draw one with the pencil tool",
+                        cx,
+                    ))
+                })
                 .into_any_element(),
         };
         let velocity = self
@@ -763,19 +778,65 @@ impl Editor {
         } else {
             format!("1/{}", shown.division)
         };
+        let cell = |label: &str, value: String| {
+            div()
+                .flex()
+                .items_center()
+                .gap(px(5.0))
+                .h_full()
+                .px(px(8.0))
+                .whitespace_nowrap()
+                .when(roomy, |d| d.child(dim(label)))
+                .child(
+                    div()
+                        .font_family(FONT_MONO)
+                        .text_color(theme.text)
+                        .child(value),
+                )
+        };
+        let settings = group(
+            [
+                cell("Quantize", quantize).into_any_element(),
+                cell("Velocity", velocity.to_string())
+                    .id("editor-velocity")
+                    .cursor_pointer()
+                    .hover(|s| s.bg(theme.hover))
+                    .tooltip(|_, cx| super::widgets::tip("Velocity for new notes".into(), cx))
+                    .on_click(cx.listener(|this, e: &gpui::ClickEvent, window, cx| {
+                        let at = e.position();
+                        this.open_velocity_menu(
+                            gpui::point(at.x - px(40.0), at.y + px(14.0)),
+                            window,
+                            cx,
+                        );
+                    }))
+                    .into_any_element(),
+                cell("Scale", scale).into_any_element(),
+            ],
+            cx,
+        );
+        let lanes = {
+            let daw = self.daw.read(cx);
+            group(
+                [
+                    actions::tool("toggleControllerLane", "sliders", "Controllers", true, daw)
+                        .into_any_element(),
+                ],
+                cx,
+            )
+        };
         div()
             .h(px(layout::TOOLBAR))
             .flex_none()
             .flex()
             .items_center()
-            .gap(px(12.0))
-            .px(px(10.0))
+            .gap(px(10.0))
+            .px(px(12.0))
             .bg(theme.glass(1))
             .border_b_1()
             .border_color(theme.line)
-            .text_size(px(size::BASE))
+            .text_size(px(size::SM))
             .overflow_hidden()
-            .child(tabs)
             .child(title)
             .when(mode == Mode::Score, |d| {
                 d.child(
@@ -784,52 +845,10 @@ impl Editor {
                         .overflow_hidden(),
                 )
             })
-            .child(
-                div()
-                    .ml_auto()
-                    .flex()
-                    .flex_none()
-                    .items_center()
-                    .gap(px(14.0))
-                    .text_size(px(size::SM))
-                    .text_color(theme.text_2)
-                    .child(
-                        div()
-                            .flex()
-                            .gap(px(4.0))
-                            .child(dim("Quantize"))
-                            .child(quantize),
-                    )
-                    .child(
-                        div()
-                            .id("editor-velocity")
-                            .flex()
-                            .items_center()
-                            .gap(px(4.0))
-                            .h(px(22.0))
-                            .px(px(8.0))
-                            .rounded(px(radius::SM))
-                            .bg(theme.control)
-                            .border_1()
-                            .border_color(theme.control_edge)
-                            .cursor_pointer()
-                            .hover(|s| s.bg(theme.control_hover))
-                            .child(dim("Velocity"))
-                            .child(div().font_family(FONT_MONO).child(velocity.to_string()))
-                            .tooltip(|_, cx| {
-                                super::widgets::tip("Velocity for new notes".into(), cx)
-                            })
-                            .on_click(cx.listener(|this, e: &gpui::ClickEvent, window, cx| {
-                                let at = e.position();
-                                this.open_velocity_menu(
-                                    gpui::point(at.x - px(40.0), at.y + px(14.0)),
-                                    window,
-                                    cx,
-                                );
-                            })),
-                    )
-                    .child(div().flex().gap(px(4.0)).child(dim("Scale")).child(scale)),
-            )
+            .child(div().flex_1())
+            .child(tabs)
+            .child(settings)
+            .child(lanes)
             .into_any_element()
     }
 }
@@ -912,7 +931,8 @@ impl Render for Editor {
         let show_lane =
             self.daw.read(cx).app.show_controllers && shown.mode != Mode::Score && shown.is_midi();
         self.follow_clip(&shown);
-        let toolbar = self.toolbar(&shown, cx);
+        let width = super::centre_width(window, self.daw.read(cx).app.agents.open);
+        let toolbar = self.toolbar(&shown, width, cx);
         let this = cx.entity();
 
         // The keyboard column.

@@ -142,7 +142,9 @@ not thrown away. How each service takes it:
 - **Claude Code** reads its whole request when it starts and keeps no session here, so ryolune
   stops the run (its edits stay in the song and in Undo) and starts it again with the request,
   what it had answered so far and your steering.
-- **Zenith** gets it in its thread (`thread.send`), which steers its running turn.
+- **Zenith** steers its running turn (`thread.steer`). An older zenith without it, or a turn that
+  waits on an approval or a question, gets the steering as its next turn (`thread.send`) once the
+  turn ends; the status line says so.
 
 Steering that arrives after the agent has finished is not lost silently: the chat says it was not
 read, so you can send it as a new request.

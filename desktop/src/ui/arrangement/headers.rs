@@ -1,5 +1,7 @@
-//! Track headers beside the lanes: colour strip, name (double-click to rename), kind and
-//! routing, the M/S/R/monitor keys, the input level of an armed audio track, volume and pan.
+//! Track headers beside the lanes: colour strip, the track's number in an ink chip, its whole
+//! name (two lines when it needs them, double-click to rename), kind and routing, then the
+//! M/S/R/monitor keys (always shown, boxed, lit when on: inverted, red for arm), the input
+//! level of an armed audio track, volume and pan.
 //! A click selects the track, a drag moves it in the list, a right click opens its menu.
 
 use super::{gestures::TrackDrag, Arrangement, Drag, Editing};
@@ -166,9 +168,10 @@ impl Arrangement {
                 .id(SharedString::from(format!("track-name-{}", t.id)))
                 .flex_1()
                 .min_w_0()
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .text_size(px(size::BASE + 1.0))
+                // Names are never cut to make room: two lines instead.
+                .line_clamp(2)
+                .text_size(px(size::BASE))
+                .line_height(px(15.0))
                 .font_weight(gpui::FontWeight::SEMIBOLD)
                 .text_color(theme.text)
                 .child(t.name.clone())
@@ -195,10 +198,26 @@ impl Arrangement {
         } else {
             kind_label(t, tracks).into()
         };
+        // The track's number, inverted in an ink chip.
+        let chip = div()
+            .flex_none()
+            .min_w(px(22.0))
+            .h(px(18.0))
+            .px(px(4.0))
+            .flex()
+            .items_center()
+            .justify_center()
+            .bg(theme.text)
+            .text_color(theme.bg)
+            .font_family(FONT_MONO)
+            .text_size(px(10.0))
+            .font_weight(gpui::FontWeight::BOLD)
+            .child(format!("{}", index + 1));
         let name_row = div()
             .flex()
             .items_center()
             .gap(px(7.0))
+            .child(chip)
             .child(name)
             .child(
                 div()
@@ -349,8 +368,8 @@ impl Arrangement {
             .flex()
             .flex_col()
             .justify_center()
-            .gap(px(8.0))
-            .pl(px(arrange::COLOR_STRIP + 12.0))
+            .gap(px(7.0))
+            .pl(px(arrange::COLOR_STRIP + 10.0))
             .pr(px(10.0))
             .bg(bg)
             .border_b_1()
