@@ -39,6 +39,10 @@ pub enum Intent {
     Quit,
     /// Close this copy and start the freshly installed one.
     Relaunch,
+    /// Open a recent song (`Interop::pending_open`).
+    OpenRecent,
+    /// Open a song from another app (`Interop::pending_import`).
+    ImportFrom,
 }
 pub(crate) enum AfterTake {
     Save(bool),
@@ -148,6 +152,7 @@ pub struct Ryolune {
     pub(crate) published: Option<serde_json::Value>,
     pub(crate) export: crate::export::ExportDialog,
     pub(crate) recovery: crate::recovery::Recovery,
+    pub(crate) interop: crate::interop::Interop,
     pub(crate) control_job: Option<crate::control::ControlJob>,
     pub(crate) updates: crate::update::Updates,
     pub(crate) settings: Settings,
@@ -208,6 +213,9 @@ impl Ryolune {
             app.midi_port = settings.audio.midi_input.clone();
         }
         app.agents.open = settings.interface.agent_panel_open_on_start;
+        if !settings.onboarding.is_done() && !screenshot_run {
+            app.show_onboarding();
+        }
         app.catalog = host::scan::installed();
         app.connect();
         if control && settings.control.enable_bridge {
@@ -334,6 +342,7 @@ impl Ryolune {
             published: None,
             export: Default::default(),
             recovery: Default::default(),
+            interop: Default::default(),
             control_job: None,
             updates: Default::default(),
             settings: Settings::default(),
@@ -1661,6 +1670,7 @@ impl Ryolune {
                 self.locate(0.0);
             }
             Intent::Recover => self.restore_recovery(),
+            Intent::OpenRecent | Intent::ImportFrom => self.execute_interop(intent),
             Intent::Open => {
                 let current = self.session_file.clone();
                 self.spawn("Opening session…", move || {

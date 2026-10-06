@@ -179,6 +179,11 @@ pub const ACTIONS: &[ActionDef] = &[
     a("whatsNew", "What's New", &[]),
     a("diagnostics", "Logs and Crash Reports…", &[]),
     a("reportProblem", "Report a Problem…", &[]),
+    // Other apps, recent songs and the first-run setup.
+    a("openRecent", "Open Recent…", &[]),
+    a("importFromApp", "Import from Another App…", &[]),
+    a("exportForApp", "Export for Another App…", &[]),
+    a("firstRunSetup", "Set Up ryolune…", &[]),
 ];
 
 pub fn def(id: &str) -> Option<&'static ActionDef> {
@@ -192,6 +197,7 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
         &[
             Some("newSession"),
             Some("openSession"),
+            Some("openRecent"),
             Some("openDemo"),
             None,
             Some("save"),
@@ -200,6 +206,8 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
             Some("importMidi"),
             Some("exportAudio"),
             Some("exportMidi"),
+            Some("importFromApp"),
+            Some("exportForApp"),
             None,
             Some("recoverSession"),
             None,
@@ -304,6 +312,7 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
             Some("whatsNew"),
             Some("checkUpdates"),
             Some("pluginGuide"),
+            Some("firstRunSetup"),
             None,
             Some("diagnostics"),
             Some("reportProblem"),
@@ -839,6 +848,18 @@ pub fn perform(id: &str, daw: &mut Daw, cx: &mut Context<Daw>) -> bool {
         }
         "exportMidi" => {
             daw.app.export_midi_dialog();
+            cx.notify();
+        }
+        "openRecent" => {
+            daw.app.interop.show_recent = true;
+            cx.notify();
+        }
+        "importFromApp" | "exportForApp" => {
+            daw.app.app_dialog(id == "importFromApp");
+            cx.notify();
+        }
+        "firstRunSetup" => {
+            daw.app.show_onboarding();
             cx.notify();
         }
         "recoverSession" => panel(daw, "recovery", true, cx),

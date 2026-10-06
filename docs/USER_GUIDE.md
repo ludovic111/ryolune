@@ -20,10 +20,11 @@ and in the app under Help > Shortcuts and Help (⌘/). ⌘ is Ctrl on Windows an
 10. [Automation](#automation)
 11. [Plugins](#plugins)
 12. [Files: save, import, export, recover](#files-save-import-export-recover)
-13. [The agent](#the-agent)
-14. [Appearance](#appearance)
-15. [Settings](#settings)
-16. [Updates, what's new and problems](#updates-whats-new-and-problems)
+13. [Coming from another app](#coming-from-another-app)
+14. [The agent](#the-agent)
+15. [Appearance](#appearance)
+16. [Settings](#settings)
+17. [Updates, what's new and problems](#updates-whats-new-and-problems)
 17. [Limits](#limits)
 
 ## The window
@@ -225,7 +226,8 @@ click its automation button to open that parameter's lane.
 - **Save** (`⌘S`) and **Save as** (`⇧⌘S`) write a `.ryolune` file with the audio embedded. Saving
   never leaves a half-written file: the old one is kept if anything fails.
 - **Open** (`⌘O`) and **Open demo** (File menu) load a song. One song has one editing owner at a
-  time, across windows and scripts.
+  time, across windows and scripts. **Open Recent…** lists the songs you opened lately; one that
+  was moved or deleted says so.
 - **Import audio** (`⌘I`, or drop files): WAV, AIFF/AIFC, CAF, FLAC, MP3, AAC/M4A/MP4, Ogg Vorbis
   and the sound of video files (MKV, WebM…). Surround files are folded to stereo.
 - **Import and export MIDI** (File menu): notes, controllers and tempo changes, optionally the
@@ -238,6 +240,49 @@ click its automation button to open that parameter's lane.
   clipping. There is no MP3 export.
 - **Recovery**: an edited song gets a recovery copy every 30 seconds (Settings > General).
   File > Recover session… lists them; opening one never overwrites your original.
+
+## Coming from another app
+
+The first time ryolune starts, a short setup asks which app you made music in, whether you want
+the AI features (the agent and sound generation; nothing is hidden either way), lets you connect
+an agent provider and check the sound output, and starts you on the demo song, an empty song or
+a song from your old app. Help > Set Up ryolune… shows it again. If you used ryolune before this
+setup existed, it counts as done.
+
+**File > Import from Another App…** opens a song as a new, unsaved song (ryolune asks to save the
+open one first): a **DAWproject** (`.dawproject`), a **MIDI file**, or **audio files** (choose
+several stems at once: each becomes an audio track from bar 1). **File > Export for Another
+App…** writes the song for an app: a DAWproject, or for the apps without it a folder with the
+song as a MIDI file and one WAV per track (Stems), or just the MIDI, the mix or the stems. Both
+end with a report: what came across, what changed on the way, and what was left out.
+
+**DAWproject** is the open format of Bitwig Studio, Studio One, Cubase 14 and others. It carries
+the tracks, buses and sends, volume, pan, mute and solo, MIDI clips with their notes and
+controllers, audio clips with their audio and fades, markers, the tempo and its changes, volume
+and pan automation, and plugins with their settings. CLAP, VST3 and Audio Unit plugins load when
+they are installed here; the others are named in the report and on the track's note, and an
+instrument track without its instrument plays ryolune Synth. ryolune's own instruments and
+effects travel as named devices: another app keeps their place, but chooses its own sound.
+What does not travel: clip gain, fade curves (the other app uses its own), automation of plugin
+parameters, the clip launcher, looped clips (written out repeat by repeat), time-stretched audio
+(ryolune plays audio at its own speed) and meter changes (ryolune keeps one meter).
+
+How to bring a song over and take it back, app by app:
+
+| App | Bring your song to ryolune | Take it back |
+|---|---|---|
+| **Bitwig Studio** (5.0.9+) | Export the project as a DAWproject from the File menu, then Import from Another App… in ryolune. | Export for Another App… › Bitwig Studio writes a `.dawproject`; open it in Bitwig with File › Open…. |
+| **Studio One** (6.5+) | Export the song as a DAWproject from the File menu, then import it. | Export for Another App… › Studio One, then open the `.dawproject` in Studio One. |
+| **Cubase** (14+) | File › Export › DAWproject…, then import it. Older Cubase: Audio Mixdown with Channel Batch Export for stems, File › Export › MIDI File… for the notes. | Export for Another App… › Cubase, then File › Import › DAWproject… in Cubase. |
+| **Ableton Live** | File › Export Audio/Video… with Rendered Track set to All Individual Tracks (one WAV per track); Export MIDI Clip… on a clip for its notes. Import the WAVs together, or the `.mid`. | Export for Another App… › Ableton Live: a folder with the MIDI and one WAV per track; drag them into the Arrangement at bar 1. |
+| **Logic Pro** | File › Export › All Tracks as Audio Files…, and File › Export › Selection as MIDI File… for the MIDI regions. | Export for Another App… › Logic Pro, then File › Import › MIDI File… and drag the WAVs in at bar 1. |
+| **FL Studio** | File › Export › Wave file… with Split mixer tracks, and File › Export › MIDI file…. | Export for Another App… › FL Studio, then File › Import › MIDI file… and drag the WAVs into the Playlist. |
+| **REAPER** | File › Render… with Source set to Stems (selected tracks), and File › Export project MIDI…. (The free ProjectConverter turns a `.rpp` into a `.dawproject`.) | Export for Another App… › REAPER, then Insert › Media file… for each at the project start. |
+| **Pro Tools** | Bounce each track (Track Bounce), and File › Export › MIDI…. | Export for Another App… › Pro Tools, then File › Import › Audio… and File › Import › MIDI…. |
+| **GarageBand** | Share › Export Song to Disk… exports the mix only: solo each track and export it in turn, or open the project in Logic Pro for MIDI and stems. | Export for Another App… › GarageBand, then drag the `.mid` and the WAVs into the tracks area. |
+
+Audio files and MIDI carry no mix and no plugins, and audio files no tempo: after importing stems,
+set the tempo they were made at before editing to the grid.
 
 ## The agent
 

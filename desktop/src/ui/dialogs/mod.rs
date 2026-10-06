@@ -13,6 +13,8 @@
 pub mod export_sheet;
 pub mod help;
 pub mod modal;
+pub mod onboarding;
+pub mod recent;
 
 use super::{
     daw::Daw,
@@ -35,6 +37,10 @@ pub(crate) enum Shown {
     Recovery,
     WhatsNew,
     Help,
+    /// The first-run setup.
+    Onboarding,
+    /// File › Open Recent….
+    Recent,
 }
 
 pub struct Dialogs {
@@ -76,6 +82,8 @@ impl Dialogs {
             Some(Shown::Prompt)
         } else if monitor && !self.monitor_dismissed {
             Some(Shown::Monitor)
+        } else if app.interop.show_onboarding {
+            Some(Shown::Onboarding)
         } else if app.updates.show
             && !app.playing
             && (app.updates.available.is_some() || app.updates.installed.is_some())
@@ -83,6 +91,8 @@ impl Dialogs {
             Some(Shown::Update)
         } else if app.export.open {
             Some(Shown::Export)
+        } else if app.interop.show_recent {
+            Some(Shown::Recent)
         } else if app.recovery.open {
             Some(Shown::Recovery)
         } else if app.whats_new.is_some() {
@@ -128,6 +138,15 @@ impl Dialogs {
             Some(Shown::Recovery) => self.panel("recovery", false, cx),
             Some(Shown::WhatsNew) => self.panel("whatsNew", false, cx),
             Some(Shown::Help) => self.panel("help", false, cx),
+            // Later: the setup shows again at the next start.
+            Some(Shown::Onboarding) => self.daw.update(cx, |daw, cx| {
+                daw.app.interop.show_onboarding = false;
+                cx.notify();
+            }),
+            Some(Shown::Recent) => self.daw.update(cx, |daw, cx| {
+                daw.app.interop.show_recent = false;
+                cx.notify();
+            }),
             None => {}
         }
     }
@@ -142,6 +161,9 @@ impl Dialogs {
             Some(Shown::Update) => self.update_action(cx),
             Some(Shown::Export) => self.export.start(&self.daw, cx),
             Some(Shown::Recovery) => {}
+            Some(Shown::Onboarding) => self.daw.update(cx, |daw, cx| {
+                onboarding::finish(daw, onboarding::Start::Demo, cx)
+            }),
             _ => self.dismiss(&Dismiss, window, cx),
         }
     }
@@ -546,6 +568,8 @@ pub(crate) fn prompt_copy(intent: Intent, name: &str, dirty: bool, updated: bool
         Intent::Quit => ("before quitting", "Quit"),
         Intent::Relaunch if updated => ("before relaunching into the update", "Relaunch"),
         Intent::Relaunch => ("before relaunching", "Relaunch"),
+        Intent::OpenRecent => ("before opening another song", "Open"),
+        Intent::ImportFrom => ("before opening the imported song", "Import"),
     };
     if dirty {
         PromptCopy {
@@ -598,9 +622,11 @@ impl Render for Dialogs {
             Shown::Recovery => self.recovery_sheet(cx),
             Shown::WhatsNew => self.whats_new_sheet(cx),
             Shown::Help => self.help_sheet(cx),
+            Shown::Onboarding => self.onboarding_sheet(cx),
+            Shown::Recent => self.recent_sheet(cx),
         };
         // Sheets that only inform close on a click outside; forms and questions do not.
-        let outside = matches!(shown, Shown::Help | Shown::Recovery | Shown::WhatsNew);
+        let outside = matches!(shown, Shown::Help | Shown::Recovery | Shown::WhatsNew | Shown::Recent);
         modal::layer("dialogs", &self.focus.handle, cx)
             .on_action(cx.listener(Self::dismiss))
             .on_action(cx.listener(Self::accept))

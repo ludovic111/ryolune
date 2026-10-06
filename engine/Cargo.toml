@@ -28,6 +28,10 @@ midir = "0.10.3"
 midly = { version = "0.5.3", default-features = false, features = ["std", "strict"] }
 # Ogg Vorbis export: BSD-3-Clause, vendored libogg/libvorbis (aoTuV) built with `cc`.
 vorbis_rs = { version = "0.5", default-features = false }
+# DAWproject interchange (a zip of XML and audio). Both were already in the build (zip for
+# the desktop's update archives, roxmltree under usvg and fontconfig), so nothing new is fetched.
+zip = { version = "2", default-features = false, features = ["deflate"] }
+roxmltree = "0.20"
 
 [dev-dependencies]
 ryolune-plugin-gain = { path = "../plugins/gain" }

@@ -302,6 +302,24 @@
     "reportProblem": [
       "app.reportProblem",
       "app.diagnostics"
+    ],
+    "openRecent": [
+      "app.recent",
+      "app.openRecent"
+    ],
+    "importFromApp": [
+      "session.formats",
+      "session.importFrom"
+    ],
+    "exportForApp": [
+      "session.formats",
+      "session.exportTo"
+    ],
+    "firstRunSetup": [
+      "app.onboarding",
+      "app.finishOnboarding",
+      "session.new",
+      "session.importFrom"
     ]
   }
 }

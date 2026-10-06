@@ -7,6 +7,7 @@ mod diagnostics;
 mod discovery;
 mod export;
 mod generate;
+mod interop;
 mod native;
 mod plugins;
 mod recovery;

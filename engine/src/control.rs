@@ -322,6 +322,7 @@ pub static COMMANDS: std::sync::LazyLock<Vec<Spec>> = std::sync::LazyLock::new(|
         .chain(crate::control_overview::SPECS)
         .chain(crate::control_generate::SPECS)
         .chain(crate::control_suite::SPECS)
+        .chain(crate::control_interop::SPECS)
         .copied()
         .collect()
 });
@@ -341,6 +342,9 @@ pub const ALIASES: &[(&str, &str)] = &[
     ("export.stems", "session.exportStems"),
     ("export.midi", "session.exportMidi"),
     ("app.restart", "app.relaunch"),
+    ("project.formats", "session.formats"),
+    ("project.importFrom", "session.importFrom"),
+    ("project.exportTo", "session.exportTo"),
 ];
 
 /// The registry name for a command or one of its shared aliases.
@@ -470,6 +474,11 @@ pub trait Host {
     fn locate(&mut self, beats: f64) -> Result<()>;
     fn new_session(&mut self, demo: bool) -> Result<()>;
     fn open(&mut self, path: &Path) -> Result<()>;
+    /// Make `session` the open document, with no file yet and unsaved: a song brought from
+    /// another app (`session.importFrom`). Unsaved changes are discarded.
+    fn adopt_session(&mut self, _session: Session, _library: Library) -> Result<()> {
+        Err("This host cannot replace its song".into())
+    }
     fn save(&mut self, path: Option<&Path>) -> Result<PathBuf>;
     fn bounce(&mut self, path: &Path) -> Result<()>;
     /// Interface, audio device, application and agent actions that only the window can
@@ -627,6 +636,14 @@ impl Host for Headless {
         self.store.load(session)?;
         self.library = library;
         self.path = Some(path.to_path_buf());
+        Ok(())
+    }
+    fn adopt_session(&mut self, session: Session, library: Library) -> Result<()> {
+        self.store.load(session)?;
+        self.store.mark_unsaved();
+        self.library = library;
+        self.path = None;
+        self.position = 0.0;
         Ok(())
     }
     fn save(&mut self, path: Option<&Path>) -> Result<PathBuf> {
@@ -848,6 +865,9 @@ pub fn call(host: &mut dyn Host, name: &str, params: &Value, agent: bool) -> Res
         .any(|s| s.name == name)
     {
         return crate::control_generate::call(host, name, &a, agent);
+    }
+    if crate::control_interop::serves(name) {
+        return crate::control_interop::call(host, name, &a, agent);
     }
     if crate::control_suite::serves(name) {
         return crate::control_suite::call(host, name, &a, agent);

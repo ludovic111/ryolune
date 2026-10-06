@@ -25,6 +25,7 @@ pub struct Settings {
     pub generation: Generation,
     pub plugins: Plugins,
     pub control: Control,
+    pub onboarding: Onboarding,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -418,6 +419,38 @@ pub struct Control {
     /// Serve the CLI/MCP bridge when the window starts.
     pub enable_bridge: bool,
 }
+/// The first-run setup (`app.onboarding`, `app.finishOnboarding`).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Onboarding {
+    /// The ryolune version the setup was finished or skipped in; empty until then, and the
+    /// window shows the setup when it starts.
+    pub completed: String,
+    /// The app the person came from (`interop::apps` id), `none`, or empty when not asked.
+    /// It decides which "bring your song" steps show first.
+    pub coming_from: String,
+    /// Whether they want AI features (the agent and sound generation); `None` until asked.
+    /// Nothing is hidden either way yet.
+    pub ai: Option<bool>,
+}
+impl Onboarding {
+    pub fn is_done(&self) -> bool {
+        !self.completed.trim().is_empty()
+    }
+    /// A settings file written before the setup existed belongs to someone who has used
+    /// ryolune already: the setup counts as done.
+    fn migrate(&mut self, stored: &str) {
+        let had = serde_json::from_str::<serde_json::Value>(stored)
+            .ok()
+            .is_some_and(|v| v.get("onboarding").is_some());
+        if !had {
+            *self = Self {
+                completed: "0.13".into(),
+                ..Self::default()
+            };
+        }
+    }
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -430,6 +463,7 @@ impl Default for Settings {
             generation: Generation::default(),
             plugins: Plugins::default(),
             control: Control::default(),
+            onboarding: Onboarding::default(),
         }
     }
 }
@@ -623,6 +657,7 @@ impl Settings {
                 let mut settings: Settings = serde_json::from_str(&text)
                     .map_err(|e| format!("Invalid settings file {}: {e}", path.display()))?;
                 settings.interface.migrate(&text);
+                settings.onboarding.migrate(&text);
                 settings.validate()?;
                 Ok(settings)
             }
@@ -738,6 +773,12 @@ impl Settings {
             if paths.len() > 64 || paths.iter().any(|p| p.is_empty() || p.len() > 4096) {
                 return Err("Plugin search paths must be 1-64 non-empty entries".into());
             }
+        }
+        if self.onboarding.completed.len() > 40
+            || self.onboarding.coming_from.len() > 40
+            || self.onboarding.coming_from.chars().any(char::is_control)
+        {
+            return Err("Onboarding values are short names".into());
         }
         if self.audio.count_in_bars > 4 {
             return Err("Count-in is 0 to 4 bars".into());

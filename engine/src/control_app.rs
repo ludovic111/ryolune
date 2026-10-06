@@ -267,6 +267,9 @@ pub fn denied_for_agent(name: &str, permissions: &settings::Permissions) -> Opti
             "{name} is not allowed for agents: {what} is off in Settings > Agent ({setting})."
         ))
     };
+    if let Some(denied) = crate::control_interop::denied_for_agent(name, permissions) {
+        return Some(denied);
+    }
     match name {
         "session.new" | "session.open" | "session.restoreSnapshot"
             if !permissions.replace_session =>
