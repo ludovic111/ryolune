@@ -765,7 +765,9 @@ esac
             }
             std::fs::write(root.join("turn.json"), finished.to_string()).unwrap();
         });
-        run_at(&turn, &exe, &folder).unwrap();
+        if let Err(e) = run_at(&turn, &exe, &folder) {
+            panic!("{e}\n{}", std::fs::read_to_string(dir.path().join("calls")).unwrap());
+        }
         person.join().unwrap();
         let events: Vec<Event> = rx.try_iter().collect();
         assert!(events
