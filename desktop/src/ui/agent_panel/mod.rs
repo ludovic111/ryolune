@@ -26,7 +26,7 @@ pub use external::ExternalAgents;
 
 use super::{
     daw::Daw,
-    theme::{radius, size, Theme, FONT_MONO},
+    theme::{radius, size, with_alpha, Theme, FONT_MONO},
     widgets::{text_input, Button, InputEvent, MenuHost, TextInput},
 };
 use connection::Connection;
@@ -324,74 +324,60 @@ impl AgentPanel {
             None if self.checking => "Connecting…".into(),
             None => "Not connected".into(),
         };
+        // Titled like every area: the name, the connection in mono, the actions boxed at the
+        // right.
         div()
-            .h(px(48.0))
+            .h(px(crate::ui::theme::layout::TOOLBAR))
             .flex_none()
             .flex()
             .items_center()
-            .gap(px(4.0))
-            .pl(px(16.0))
-            .pr(px(10.0))
+            .gap(px(8.0))
+            .pl(px(14.0))
+            .pr(px(8.0))
             .border_b_1()
             .border_color(theme.line)
             .child(status_dot(ready, busy, &theme))
+            .child(crate::ui::widgets::panel_title("Agent", cx))
             .child(
                 div()
                     .flex_1()
                     .min_w_0()
-                    .ml(px(6.0))
-                    .flex()
-                    .flex_col()
-                    .child(
-                        div()
-                            .text_size(px(size::BASE + 1.0))
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(theme.text)
-                            .child("Agent"),
-                    )
-                    .child(
-                        div()
-                            .font_family(FONT_MONO)
-                            .text_size(px(size::XS))
-                            .text_color(theme.text_3)
-                            .whitespace_nowrap()
-                            .overflow_hidden()
-                            .text_ellipsis()
-                            .child(status),
-                    ),
+                    .child(crate::ui::widgets::panel_info(status, cx)),
             )
-            .child(
-                Button::icon("agent-new", "plus")
-                    .ghost()
-                    .disabled(busy || empty)
-                    .tooltip("New conversation")
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.select_tab(Tab::Chat, cx);
-                        this.confirm_clear = true;
-                        cx.notify();
-                    })),
-            )
-            .child(
-                Button::icon("agent-settings", "sliders")
-                    .ghost()
-                    .icon_size(14.0)
-                    .tooltip("Agent settings")
-                    .on_click(cx.listener(|this, _, _, cx| this.open_settings("agent", cx))),
-            )
-            .child(
-                Button::icon("agent-collapse", "chevron-right")
-                    .ghost()
-                    .tooltip("Collapse agent")
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.daw.update(cx, |daw, cx| {
-                            daw.run(
-                                "ui.showPanel",
-                                json!({"panel": "agent", "visible": false}),
-                                cx,
-                            );
-                        })
-                    })),
-            )
+            .child(crate::ui::widgets::group(
+                [
+                    Button::icon("agent-new", "plus")
+                        .flush()
+                        .disabled(busy || empty)
+                        .tooltip("New conversation")
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.select_tab(Tab::Chat, cx);
+                            this.confirm_clear = true;
+                            cx.notify();
+                        }))
+                        .into_any_element(),
+                    Button::icon("agent-settings", "gear")
+                        .flush()
+                        .icon_size(13.0)
+                        .tooltip("Agent settings")
+                        .on_click(cx.listener(|this, _, _, cx| this.open_settings("agent", cx)))
+                        .into_any_element(),
+                    Button::icon("agent-collapse", "chevron-right")
+                        .flush()
+                        .tooltip("Collapse agent")
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.daw.update(cx, |daw, cx| {
+                                daw.run(
+                                    "ui.showPanel",
+                                    json!({"panel": "agent", "visible": false}),
+                                    cx,
+                                );
+                            })
+                        }))
+                        .into_any_element(),
+                ],
+                cx,
+            ))
             .into_any_element()
     }
 
@@ -473,10 +459,10 @@ impl AgentPanel {
             .mb(px(4.0))
             .p(px(2.0))
             .gap(px(2.0))
-            .rounded(px(radius::SM + 2.0))
-            .bg(theme.well)
+            .rounded(px(radius::SM))
+            .bg(with_alpha(theme.bg_sunken, 0.35))
             .border_1()
-            .border_color(theme.hairline)
+            .border_color(theme.line_strong)
             .children(tabs.into_iter().map(|(tab, label, tip)| {
                 let on = self.tab == tab;
                 div()
@@ -492,12 +478,13 @@ impl AgentPanel {
                     .font_weight(FontWeight::SEMIBOLD)
                     .whitespace_nowrap()
                     .overflow_hidden()
-                    .text_color(if on { theme.text } else { theme.text_2 })
-                    .when(on, |d| {
-                        d.bg(theme.control)
-                            .border_1()
-                            .border_color(theme.control_edge)
+                    // The open tab is inverted, paper on ink.
+                    .text_color(if on {
+                        theme.text_on_accent
+                    } else {
+                        theme.text_2
                     })
+                    .when(on, |d| d.bg(theme.accent_fill))
                     .when(!on, |d| {
                         d.cursor_pointer()
                             .hover(|s| s.bg(theme.hover).text_color(theme.text))
@@ -560,19 +547,21 @@ impl AgentPanel {
     }
 }
 
-/// The status light: the accent with a glow when ready or working, a neutral dot otherwise.
+/// The status light: a square of ink when ready, ringed while working, hollow otherwise
+/// (the word beside it says which, colour is never the only signal).
 fn status_dot(lit: bool, working: bool, theme: &Theme) -> gpui::Div {
     div()
         .flex_none()
         .size(px(8.0))
-        .rounded_full()
-        .bg(if lit { theme.accent } else { theme.text_3 })
-        .when(lit, |d| {
+        .bg(if lit { theme.accent } else { theme.bg_sunken })
+        .border_1()
+        .border_color(if lit { theme.accent } else { theme.text_3 })
+        .when(working, |d| {
             d.shadow(vec![gpui::BoxShadow {
-                color: theme.accent_glow,
+                color: theme.accent_ring,
                 offset: gpui::point(px(0.0), px(0.0)),
-                blur_radius: px(if working { 10.0 } else { 6.0 }),
-                spread_radius: px(if working { 2.0 } else { 0.0 }),
+                blur_radius: px(0.0),
+                spread_radius: px(2.0),
             }])
         })
 }

@@ -1,13 +1,16 @@
-//! The transport: locate, play, stop, record and cycle keys; the sunk time display with
-//! position, SMPTE, tempo, signature and key; click and snap; the master meter and CPU; and
-//! the agent key. Glass tier 1, the display a solid well.
+//! The transport: locate keys and play, stop, record and cycle, each set boxed together; the
+//! time display with position, SMPTE, tempo, signature and key; click and snap; the master
+//! meter and CPU. Glass tier 1, the display a solid box. Play is inverted while it plays,
+//! record red while it records.
 
 use super::{
     actions::Do,
     daw::Daw,
     format,
     theme::{radius, size, Theme, FONT_MONO},
-    widgets::{Button, InputEvent, MenuHost, MenuItem, Meter, NumberDrag, Phase, TextInput},
+    widgets::{
+        group, tool, Button, InputEvent, MenuHost, MenuItem, Meter, NumberDrag, Phase, TextInput,
+    },
 };
 use gpui::{
     div, prelude::*, px, AnyElement, App, Context, Entity, MouseButton, SharedString, Subscription,
@@ -313,7 +316,7 @@ impl Transport {
             .rounded(px(radius::MD))
             .bg(theme.display)
             .border_1()
-            .border_color(theme.line)
+            .border_color(theme.line_strong)
             .child(cell("POSITION", position))
             .child(separator())
             .child(cell("SMPTE", big(smpte.into(), true)))
@@ -342,8 +345,6 @@ impl Render for Transport {
         let cycle = s.transport.cycle;
         let metronome = s.transport.metronome;
         let snap = s.transport.snap_division;
-        let agent_open = app.agents.open;
-        let agent_running = app.agents.runtime.running();
         let counting_in = app.device.as_ref().is_some_and(|d| {
             d.telemetry
                 .counting_in
@@ -355,7 +356,6 @@ impl Render for Transport {
         let master_db = format::peak_db(peaks[0].max(peaks[1]));
         let menu = self.menu.render(window, cx);
 
-        let group = || div().flex().items_center().gap(px(4.0));
         let caps = |text: &'static str| {
             div()
                 .font_family(FONT_MONO)
@@ -371,6 +371,124 @@ impl Render for Transport {
                 .text_color(theme.text_2)
                 .child(text)
         };
+        let wide = f32::from(window.viewport_size().width) >= 1560.0;
+        let locate = group(
+            [
+                tool("return", "return", "Start", false, "Go to beginning (↩)")
+                    .on_click(act("returnToStart"))
+                    .into_any_element(),
+                tool("rewind", "rewind", "Rewind", false, "Rewind one bar (,)")
+                    .icon_size(13.0)
+                    .on_click(act("rewind"))
+                    .into_any_element(),
+                tool(
+                    "forward",
+                    "forward",
+                    "Forward",
+                    false,
+                    "Forward one bar (.)",
+                )
+                .icon_size(13.0)
+                .on_click(act("forward"))
+                .into_any_element(),
+            ],
+            cx,
+        );
+        let keys = group(
+            [
+                // Play is the transport's primary key: inverted while it plays.
+                tool("play", "play", "Play", false, "Play (Space)")
+                    .lit(playing)
+                    .on_click(act("togglePlay"))
+                    .into_any_element(),
+                tool(
+                    "stop",
+                    "stop",
+                    "Stop",
+                    false,
+                    "Stop · twice to return to start",
+                )
+                .icon_size(10.0)
+                .on_click(act("stop"))
+                .into_any_element(),
+                tool(
+                    "record",
+                    "record",
+                    "Record",
+                    false,
+                    if counting_in {
+                        "Counting in: recording starts on the next bar"
+                    } else {
+                        "Record (R) · arm a track, then play"
+                    },
+                )
+                .icon_size(11.0)
+                .lit(recording)
+                .lit_color(theme.record)
+                .on_click(act("record"))
+                .into_any_element(),
+                tool(
+                    "cycle",
+                    "cycle",
+                    "Cycle",
+                    false,
+                    "Cycle (C) · drag in the ruler to set the range",
+                )
+                .icon_size(13.0)
+                .lit(cycle)
+                .on_click(act("cycle"))
+                .into_any_element(),
+            ],
+            cx,
+        );
+        let snap_label = if snap == 1 {
+            "Snap bar".to_string()
+        } else {
+            format!("Snap 1/{snap}")
+        };
+        let modes = group(
+            [
+                tool("click", "metronome", "Click", true, "Metronome (K)")
+                    .lit(metronome)
+                    .on_click(act("metronome"))
+                    .into_any_element(),
+                Button::new("snap", snap_label)
+                    .with_icon("grid")
+                    .flush()
+                    .tooltip("Snap grid")
+                    .on_click(cx.listener(move |this, e: &gpui::ClickEvent, window, cx| {
+                        let daw = this.daw.clone();
+                        let items = SNAPS
+                            .iter()
+                            .map(|&d| {
+                                let daw = daw.clone();
+                                MenuItem::new(
+                                    if d == 1 {
+                                        "Bar".to_string()
+                                    } else {
+                                        format!("1/{d}")
+                                    },
+                                    move |_, cx| {
+                                        daw.update(cx, |daw, cx| {
+                                            daw.run(
+                                                "transport.setSnap",
+                                                json!({ "division": d }),
+                                                cx,
+                                            );
+                                        })
+                                    },
+                                )
+                                .checked(snap == d)
+                            })
+                            .collect();
+                        let at = e.position();
+                        this.menu
+                            .open(items, gpui::point(at.x - px(30.0), px(66.0)), window, cx);
+                    }))
+                    .into_any_element(),
+            ],
+            cx,
+        );
         div()
             .size_full()
             .flex()
@@ -385,71 +503,19 @@ impl Render for Transport {
                 div()
                     .flex()
                     .items_center()
-                    .gap(px(12.0))
-                    .child(
-                        group()
-                            .child(
-                                Button::icon("return", "return")
-                                    .tooltip("Go to beginning (↩)")
-                                    .on_click(act("returnToStart")),
-                            )
-                            .child(
-                                Button::icon("rewind", "rewind")
-                                    .icon_size(13.0)
-                                    .tooltip("Rewind one bar (,)")
-                                    .on_click(act("rewind")),
-                            )
-                            .child(
-                                Button::icon("forward", "forward")
-                                    .icon_size(13.0)
-                                    .tooltip("Forward one bar (.)")
-                                    .on_click(act("forward")),
-                            ),
-                    )
-                    .child(
-                        group()
-                            .child(
-                                Button::icon("play", "play")
-                                    .lit(playing)
-                                    .tooltip("Play (Space)")
-                                    .on_click(act("togglePlay")),
-                            )
-                            .child(
-                                Button::icon("stop", "stop")
-                                    .icon_size(10.0)
-                                    .tooltip("Stop · twice to return to start")
-                                    .on_click(act("stop")),
-                            )
-                            .child(
-                                Button::icon("record", "record")
-                                    .icon_size(11.0)
-                                    .lit(recording)
-                                    .lit_color(theme.record)
-                                    .tooltip(if counting_in {
-                                        "Counting in: recording starts on the next bar"
-                                    } else {
-                                        "Record (R) · arm a track, then play"
-                                    })
-                                    .on_click(act("record")),
-                            )
-                            .child(
-                                Button::icon("cycle", "cycle")
-                                    .icon_size(13.0)
-                                    .lit(cycle)
-                                    .tooltip("Cycle (C) · drag in the ruler to set the range")
-                                    .on_click(act("cycle")),
-                            ),
-                    )
+                    .gap(px(8.0))
+                    .child(locate)
+                    .child(keys)
                     .when(counting_in, |d| {
                         d.child(
                             div()
                                 .px(px(8.0))
                                 .py(px(2.0))
-                                .rounded_full()
                                 .bg(theme.record)
-                                .text_color(theme.bg_sunken)
-                                .text_size(px(size::SM))
-                                .child("Count-in"),
+                                .text_color(theme.text_on_accent)
+                                .font_family(FONT_MONO)
+                                .text_size(px(size::XS))
+                                .child("COUNT-IN"),
                         )
                     }),
             )
@@ -459,61 +525,7 @@ impl Render for Transport {
                     .flex()
                     .items_center()
                     .gap(px(14.0))
-                    .child(
-                        group()
-                            .child(
-                                Button::new("click", "Click")
-                                    .lit(metronome)
-                                    .tooltip("Metronome (K)")
-                                    .on_click(act("metronome")),
-                            )
-                            .child(
-                                Button::new(
-                                    "snap",
-                                    if snap == 1 {
-                                        "Snap Bar".to_string()
-                                    } else {
-                                        format!("Snap 1/{snap}")
-                                    },
-                                )
-                                .tooltip("Snap grid")
-                                .on_click(cx.listener(
-                                    move |this, e: &gpui::ClickEvent, window, cx| {
-                                        let daw = this.daw.clone();
-                                        let items = SNAPS
-                                            .iter()
-                                            .map(|&d| {
-                                                let daw = daw.clone();
-                                                MenuItem::new(
-                                                    if d == 1 {
-                                                        "Bar".to_string()
-                                                    } else {
-                                                        format!("1/{d}")
-                                                    },
-                                                    move |_, cx| {
-                                                        daw.update(cx, |daw, cx| {
-                                                            daw.run(
-                                                                "transport.setSnap",
-                                                                json!({ "division": d }),
-                                                                cx,
-                                                            );
-                                                        })
-                                                    },
-                                                )
-                                                .checked(snap == d)
-                                            })
-                                            .collect();
-                                        let at = e.position();
-                                        this.menu.open(
-                                            items,
-                                            gpui::point(at.x - px(30.0), px(66.0)),
-                                            window,
-                                            cx,
-                                        );
-                                    },
-                                )),
-                            ),
-                    )
+                    .child(modes)
                     .child(
                         div()
                             .flex()
@@ -522,7 +534,7 @@ impl Render for Transport {
                             .child(caps("MASTER"))
                             .child(
                                 div()
-                                    .w(px(150.0))
+                                    .w(px(if wide { 150.0 } else { 110.0 }))
                                     .h(px(14.0))
                                     .child(Meter::new([peaks[0], peaks[1]]).segments(22)),
                             )
@@ -536,48 +548,11 @@ impl Render for Transport {
                             .child(caps("CPU"))
                             .child(
                                 div()
-                                    .w(px(80.0))
+                                    .w(px(if wide { 80.0 } else { 56.0 }))
                                     .h(px(14.0))
                                     .child(Meter::new([cpu]).linear().segments(12)),
                             )
                             .child(readout(format!("{}%", (cpu * 100.0).round() as i32))),
-                    )
-                    .child(
-                        div()
-                            .id("agent-key")
-                            .flex()
-                            .items_center()
-                            .gap(px(8.0))
-                            .h(px(28.0))
-                            .px(px(12.0))
-                            .rounded(px(radius::SM))
-                            .bg(if agent_open {
-                                theme.accent_soft
-                            } else {
-                                theme.control
-                            })
-                            .border_1()
-                            .border_color(if agent_open {
-                                theme.accent_ring
-                            } else {
-                                theme.control_edge
-                            })
-                            .text_size(px(size::BASE))
-                            .cursor_pointer()
-                            .hover(|s| s.bg(theme.control_hover))
-                            .child(div().size(px(8.0)).rounded_full().bg(theme.accent).when(
-                                agent_running,
-                                |d| {
-                                    d.shadow(vec![gpui::BoxShadow {
-                                        color: theme.accent_glow,
-                                        offset: gpui::point(px(0.0), px(0.0)),
-                                        blur_radius: px(8.0),
-                                        spread_radius: px(1.0),
-                                    }])
-                                },
-                            ))
-                            .child("Agent")
-                            .on_click(act("toggleAgentPanel")),
                     ),
             )
             .children(menu)

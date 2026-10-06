@@ -271,7 +271,11 @@ pub fn channel_key(
     cx: &App,
 ) -> Stateful<gpui::Div> {
     let theme = Theme::get(cx);
-    let fg = if on { theme.bg_sunken } else { theme.text_2 };
+    let fg = if on {
+        theme.text_on_accent
+    } else {
+        theme.text_2
+    };
     let hover = if on { color } else { theme.control_hover };
     div()
         .id(id.into())

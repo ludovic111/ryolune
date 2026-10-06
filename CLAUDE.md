@@ -14,7 +14,7 @@ GPUI 0.2 (gpui.rs, Zed's framework, direct upstream crate, `runtime_shaders` so 
 toolchain is needed) in `desktop/src/ui`; Tauri, the React `frontend/` and the egui painting code
 are gone. `desktop/src/ui/README.md` is the contract: the `Daw` entity (`ui/daw.rs`) owns the
 host (`crate::app::Ryolune`) and ticks it (per frame while busy, 10/s idle, at once when the
-bridge or a worker calls `Ryolune::wake`); views read `daw.read(cx).app` and change things only
+bridge or a worker calls the host's `wake` closure); views read `daw.read(cx).app` and change things only
 through registry commands (`daw.run`, `daw.request`), with `daw.gesture(true/false)` around
 drags. `ui/actions.rs` is the one table behind the title-bar menus, the macOS menu bar,
 shortcuts and the command palette (ids mapped in `docs/agent-parity.json`); the shortcut sheet
@@ -26,23 +26,42 @@ Window captures (`ui.screenshot`, `--screenshot`) use CoreGraphics (`ui/capture.
 Check with `cargo test -p ryolune` (scratch profile env vars), then look at the real window
 (`--screenshot`, or the app driven by `ryolune-cli` with `RYOLUNE_CONTROL` in a scratch folder).
 
-Theme (0.13, lsuite design system, owner's decision 2026-10-01): `desktop/src/ui/theme.rs` is the
-only place visual values live, built on `../lsuite/design/tokens.json`: ryolune teal (hue 185,
-`#00c5b4` dark / `#009586` light; `accent_fill` is one step darker by day so white text keeps
-4.5:1), lsuite neutrals, three glass tiers (`theme.glass(1|2|3)`: chrome, floating, modal) over a
-translucent backdrop with two teal glows, and the window is `WindowBackgroundAppearance::Blurred`
-(opaque with macOS Reduce transparency). Work surfaces (lanes, editors, mixer strips) stay solid.
-App tokens kept: meters mint/amber, `mute`/`solo`/`record`, families (`theme.family(folder)`),
-the track palette. Add a token to both modes, never a colour in a view; the contrast test in
-`theme.rs` covers every surface and glass tier over white and black desktops: fix the palette,
-not the threshold. `engine/src/settings.rs` `THEMES` is still `["ryolune"]` with
-`interface.mode` dark/light/auto. Fonts: Manrope and IBM Plex Mono TTFs in `desktop/assets/fonts`
-(the files must carry the plain family names; the old ones said "Manrope ExtraLight"). Icons are
-SVGs in `desktop/assets/icons` (tinted by GPUI); the app icon's source is
-`desktop/icons/ryolune.svg` (`scripts/make-icon.sh`). The public page is lsuite.xyz/ryolune, in
+Theme (design system v2, owner's decision 2026-10-06: "the whole suite looks like kimchi now";
+branch `design-v2`, not released yet): `desktop/src/ui/theme.rs` is the only place visual values
+live, on lsuite's v2 tokens (`desktop/assets/lsuite/tokens.json` + `tokens.css`, copies of
+`../lsuite/design/`; a test checks the palette against the JSON, copy the file again when the
+suite changes). Black and white: the accent is the ink of the mode (white dark, black light), a
+chosen thing is inverted (`accent_fill` + `text_on_accent`), red (`record`/`danger`) only for
+record, arm and errors, warnings/success are greys; mute/solo keys light in ink, meters are greys
+with red for clipping, `Theme::family` is grey (plugin panels draw in ink). The work keeps its
+colours (track palette on clips and notes) and makers' logos keep theirs. Radii are zero; only
+knobs and score note heads are round. Floating surfaces: hard offset shadow
+(`Theme::float_shadow`, `chip_shadow` for the primary button). The page is `ui/grain.rs`
+(ported from kimchi: grain tiles and Bayer-dither corners as RenderImages at device pixels, the
+strength baked into the alpha because GPUI 0.2.2 images ignore element opacity), under glass
+tier 1 chrome; work surfaces stay solid, lanes past the song end are hatched; dialogs sit in
+`grain::brackets` (`dialogs::modal::sheet`), so does the agent composer. Organization (owner liked
+it in kimchi): every area has a title bar (`widgets::panel_title`/`panel_info`), tools are boxed
+by kind in `widgets::group` with `Button::flush` / `actions::tool` (lit when on, shortcut in the
+tooltip, label only when `ui::centre_width` leaves room), track headers show a number chip, the
+whole name on two lines and always-visible boxed keys. The title bar holds history · views
+(mixer, automation, commands) · agent · app groups, Sponsor and Export (primary); the transport
+keeps locate/keys/click+snap groups and the meters. The contrast test covers every surface and
+tier over the page at its densest grain + dither and over white and black desktops: fix the
+palette, not the threshold. `engine/src/settings.rs` `THEMES` is still `["ryolune"]` with
+`interface.mode` dark/light/auto (no coloured themes left to remap). Fonts: Chakra Petch
+(UI, 400-700) and IBM Plex Mono TTFs in `desktop/assets/fonts` (Manrope is gone). Icons are SVGs in
+`desktop/assets/icons` (tinted by GPUI; a few Lucide ones, ISC). The mark (the ring and the dot cut
+square, the ring's shadow side dissolving into dither) and the app icon are written by
+`scripts/gen-mark.py` (`desktop/icons/mark.svg`, `desktop/icons/ryolune.svg`,
+`desktop/assets/icons/mark.svg` in currentColor); `scripts/make-icon.sh` renders the .icns, png and
+.ico with resvg. The window is still `WindowBackgroundAppearance::Blurred` (opaque with macOS
+Reduce transparency). The public page is lsuite.xyz/ryolune, in
 the lsuite repo (ludovic111/lsuite); ryolune.com redirects there with the same path, so
 `/support` and `/download/<platform>` links keep working. `site/` is the former standalone site,
 no longer deployed; its launch film (`site/video/`) is made in `marketing/` (see its README).
+When v2 is released, update lsuite's DESIGN.md ("ryolune and zenith still wear v1") and the
+captures on lsuite.xyz/ryolune.
 
 The owner requested a complete Rust rewrite on 2026-09-12, including the interface.
 This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.md`.
@@ -80,8 +99,8 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   every descriptor (`automatic_folder`, ordered `EFFECT_RULES`), favourites/recents/overrides live in
   `settings.plugins`, and the window colours a folder with `Theme::family`. Drags are never eased. The count-in
   lives in the renderer (`Renderer::count_in`), the capture callback drops frames while
-  `Telemetry::counting_in` is set, and `InputMeter` holds the input open only while an audio track
-  is armed. Native plugin calls are panic-guarded in `sdk/src/ffi.rs` (`Guarded`); test plugins with
+  `Telemetry::counting_in` is set, and `device::LiveInput` holds the input open only while an audio
+  track is armed (`audio.meterInputWhenArmed`). Native plugin calls are panic-guarded in `sdk/src/ffi.rs` (`Guarded`); test plugins with
   `ryolune_plugin::testing::Bench`. Continuous controls dispatch on every move inside one
   `Daw::gesture`, so a drag is one undo step.
 - 0.8 (released 2026-09-23; the owner delegated lossy export and MIDI CC scope): input monitoring
@@ -99,8 +118,8 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   time, and `plugins/abi1-fixture` (no SDK dependency, never "update" it) is loaded by
   `engine/tests/abi1_plugin.rs`. Native state is saved from a main-thread model instance and
   restored by swapping a freshly loaded instance in on the audio thread. The window's private
-  handlers are the allow-lists in `desktop/src/web.rs` tests (`PRIVATE_HANDLERS`, `PRIVATE_TAURI`);
-  anything else is a registry command, and work that waits on the network or renders offline is
+  handlers are gone: views call the registry through `Daw::run` / `Daw::request` and
+  `engine/tests/agent_parity.rs` checks them against `docs/agent-parity.json`; anything else is a registry command, and work that waits on the network or renders offline is
   a live job through `Ryolune::start_worker`. The clipboard and the lane width belong to the host
   (`Host::clipboard`, `Host::lane_width`). Browser rows fold channel layouts
   (`control_plugins::layout_of`); when extending `EFFECT_RULES`, diff every plugin's folder before
@@ -122,7 +141,7 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   chases only differences on locate and rests bend/pedal/pressure at stop. Live MIDI controllers
   are `Message::RoutedControl`. CLAP gets controllers as MIDI only when its note port speaks MIDI;
   VST3 through `IMidiMapping` (`Shared.midi_map`), one queue point per value; AU through
-  `Event::to_midi`. Lane UI: `canvas/controllerLane.ts`, `components/editor/ControllerLane.tsx`,
+  `Event::to_midi`. Lane UI: `desktop/src/ui/editor/controllers.rs` and `lane.rs`,
   `ui.showPanel panel=controllers`. Inserts hear a MIDI track's controllers (never its notes) when
   `Processor::accepts_events` says so (native ABI 2, CLAP note port, VST3 event bus, AU music
   effect); they ride the same per-track list, so chase and rest reach them. Channels: `Note` and
@@ -144,7 +163,7 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   extensions ryolune does not write. Plugin folders: `control_plugins::AutoFolders` decides per
   product (vendor, kind, name without layout): name first, then `PRODUCTS`/`PRIORITY_RULES`, then
   `EFFECT_RULES`, the category last. `Store` restores redo on `cancel_gesture`; background captures
-  skip over redo or an open gesture. `NativeStore.request()` is `run()` without the error dialog, for
+  skip over redo or an open gesture. `Daw::request` (`ui/daw.rs`) is `run` without the error dialog, for
   forms that show their own errors. `atomic_write` keeps the target's mode (0644 when new) and writes
   through symlinks. Engine regression tests live in `engine/tests/regressions.rs`. The agent's
   Changes list records only document edits that did not come from the window.
@@ -170,10 +189,10 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   sounding clip's envelope from the old graph (`glide_from`, 5 ms), never touching playback
   without a rebuild. `plugin.list` rows fold formats and layouts (vendor + name; CLAP, VST3, AU
   order, others under `formats`); search also matches `folder_words` and stock descriptions.
-  Side panels shrink to `size.*Min` floors so the arrangement keeps `arrangementMin` at the
-  1120 px minimum. `ui.screenshot` finishes running animations first (`settleMotion` in
-  `main.tsx`). Docs: `docs/COMMANDS.md` and `docs/SHORTCUTS.md` are generated and checked by
-  tests (`RYOLUNE_BLESS=1` regenerates); `USER_GUIDE.md`, `AI_CONTROL.md` and `DEVELOPMENT.md`
+  Side panels shrink to the `theme::layout` floors (`BROWSER_MIN`, `INSPECTOR_MIN`, `AGENT_MIN`)
+  so the arrangement keeps `ARRANGEMENT_MIN` at the 1120 px minimum (`WINDOW_MIN_W`).
+  `ui.screenshot` grabs the window through CoreGraphics (`ui/capture.rs`, macOS only).
+  Docs: `docs/COMMANDS.md` and `docs/SHORTCUTS.md` are generated and checked by tests (`RYOLUNE_BLESS=1` regenerates); `USER_GUIDE.md`, `AI_CONTROL.md` and `DEVELOPMENT.md`
   are written by hand, keep them true when behaviour changes.
 - 0.10 (2026-09-27, owner asked for the next update and delegated): tempo changes live in
   `Session.tempo_changes` (`TempoPoint { bar, bpm, ramp }`, bar order, after bar 0, absent when
@@ -233,7 +252,7 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   on workers, transfer through bounded queues, and reclaim old graphs outside the callback.
 - Plugins (`engine/src/plugin.rs`, `engine/src/host/`, `engine/src/stock.rs`): every insert and
   instrument is an `Instance` (main-thread `Editor` + audio-thread `Processor`). Processors live
-  in the callback's `Rack`, keyed by insert id, and survive renderer rebuilds; a new `Renderer`
+  in the callback's `Rack`, keyed by a numeric slot (`desktop/src/plugins.rs` maps insert keys to slots), and survive renderer rebuilds; a new `Renderer`
   must `adopt` the old one so held notes are released or chased. Create, activate, save state
   and destroy plugins on the UI thread only; unmount through the queue and wait for retirement
   before dropping an editor. Parameter values are document state (`Insert.params`) so they undo;
@@ -269,8 +288,9 @@ Porkbun 301 there with the path kept.
 
 Still to do:
 
-- [x] **Design system** (0.13, 2026-10-02: done in the GPUI window; see Theme above). The app
-      icon is redrawn from the lsuite template.
+- [x] **Design system** (0.13, 2026-10-02: done in the GPUI window). v2 (black and white, grain,
+      square, kimchi's organization; new mark and icon) on branch `design-v2` (2026-10-06), to be
+      released separately; see Theme above.
 - [x] **Discovery** (0.13: `~/.lsuite/apps/ryolune.json`, format 1 in `engine/src/lsuite.rs`,
       written by `desktop/src/discovery.rs`; `app.suite` reads every app's. Documented in lsuite's
       STANDARD.md on branch `claude/ryolune-discovery-handoffs` of the lsuite repo, not merged.)

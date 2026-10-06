@@ -27,7 +27,7 @@ use std::{
     sync::Arc,
 };
 
-/// Default track colours, mirroring `TRACKS` in `desktop/src/theme.rs`. They are session data
+/// Default track colours, mirroring `TRACKS` in `desktop/src/ui/theme.rs`. They are session data
 /// (the `.ryolune` file stores them), not paint tokens.
 pub const TRACK_PALETTE: [&str; 8] = [
     "#ed835e", "#b191ea", "#6ab3fd", "#d991d2", "#e0af3b", "#95bd69", "#eb8182", "#ee9748",

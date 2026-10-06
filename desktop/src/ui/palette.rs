@@ -239,18 +239,27 @@ impl Palette {
                     .px(px(8.0))
                     .rounded(px(radius::XS))
                     .text_size(px(size::BASE))
-                    .text_color(theme.text)
-                    .when(active, |d| d.bg(theme.accent_soft))
-                    .child(
-                        div()
-                            .w(px(16.0))
-                            .flex_none()
-                            .flex()
-                            .justify_center()
-                            .when(checked == Some(true), |d| {
-                                d.child(icon("check", 10.0, theme.accent_text))
-                            }),
-                    )
+                    .text_color(if active {
+                        theme.text_on_accent
+                    } else {
+                        theme.text
+                    })
+                    // The row under the pointer or the arrows is inverted, paper on ink.
+                    .when(active, |d| d.bg(theme.accent_fill))
+                    .child(div().w(px(16.0)).flex_none().flex().justify_center().when(
+                        checked == Some(true),
+                        |d| {
+                            d.child(icon(
+                                "check",
+                                10.0,
+                                if active {
+                                    theme.text_on_accent
+                                } else {
+                                    theme.accent_text
+                                },
+                            ))
+                        },
+                    ))
                     .child(
                         div()
                             .flex_1()
@@ -264,7 +273,11 @@ impl Palette {
                             .flex_none()
                             .font_family(FONT_MONO)
                             .text_size(px(10.0))
-                            .text_color(theme.text_3)
+                            .text_color(if active {
+                                theme.text_on_accent
+                            } else {
+                                theme.text_3
+                            })
                             .child(entry.group.to_uppercase()),
                     )
                     .child(
@@ -275,7 +288,11 @@ impl Palette {
                             .justify_end()
                             .font_family(FONT_MONO)
                             .text_size(px(size::XS))
-                            .text_color(theme.text_2)
+                            .text_color(if active {
+                                theme.text_on_accent
+                            } else {
+                                theme.text_2
+                            })
                             .children(actions::shortcut_label(entry.id)),
                     )
                     .on_mouse_move(cx.listener(move |this, _, _, cx| {

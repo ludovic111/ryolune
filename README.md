@@ -19,8 +19,9 @@ same song, and every edit it makes is one undo away.
   window, drawn on the GPU with GPUI. No webview, no JavaScript.
 - **35 stock instruments and effects** with front panels that draw what the audio does, plus
   your own CLAP, VST3, Audio Unit (macOS) and ryolune native plugins.
-- **The lsuite look**: frosted glass chrome over solid work surfaces and ryolune teal, in dark
-  and light, with text contrast tested on every surface and glass tier.
+- **The lsuite look** (design system v2, shared with kimchi): black and white, square corners,
+  film grain and dithered light behind the chrome, solid work surfaces, every area titled and
+  its tools boxed together, in dark and light, with text contrast tested on every surface.
 - **Works with the rest of lsuite**: send a mix or stems onto a kimchi video project, score a
   cut that comes back from kimchi, and find the other apps through `~/.lsuite`.
 - **Built for AI control**: everything a person can do in the window is a command that the
