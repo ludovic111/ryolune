@@ -504,7 +504,11 @@ impl Dialogs {
                     .flex_col()
                     .gap(px(6.0))
                     .child(modal::heading(format!("ryolune {}", release.version), cx))
-                    .child(modal::well(release.notes, cx)),
+                    .child(crate::ui::agent_panel::markdown::render(
+                        &crate::ui::agent_panel::markdown::parse(&release.notes),
+                        &format!("whats-new-{}", release.version),
+                        cx,
+                    )),
             );
         }
         let since = shown.since.clone();
