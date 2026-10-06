@@ -660,7 +660,9 @@ mod tests {
             std::thread::sleep(Duration::from_millis(200));
             steer.lock().unwrap().push_back("Slower, please".into());
         });
-        let mut command = Command::new(&binary);
+        // Through sh: executing a file just written races other tests' forks (ETXTBSY).
+        let mut command = Command::new("/bin/sh");
+        command.arg(&binary);
         command
             .current_dir(dir.path())
             .stdin(Stdio::piped())
@@ -814,7 +816,9 @@ mod tests {
         let (tx, rx) = mpsc::sync_channel(64);
         let cancel = Arc::new(AtomicBool::new(false));
         let turn = turn("Make a bass line", tx, cancel);
-        let mut command = Command::new(&binary);
+        // Through sh: executing a file just written races other tests' forks (ETXTBSY).
+        let mut command = Command::new("/bin/sh");
+        command.arg(&binary);
         command
             .current_dir(dir.path())
             .stdin(Stdio::piped())
@@ -874,7 +878,9 @@ mod tests {
         });
         let (tx, rx) = mpsc::sync_channel(64);
         let turn = turn("Test", tx, cancel);
-        let mut command = Command::new(&binary);
+        // Through sh: executing a file just written races other tests' forks (ETXTBSY).
+        let mut command = Command::new("/bin/sh");
+        command.arg(&binary);
         command
             .current_dir(dir.path())
             .stdin(Stdio::piped())
