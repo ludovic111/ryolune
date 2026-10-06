@@ -4,6 +4,7 @@ mod agents;
 mod app;
 mod control;
 mod diagnostics;
+mod conversations;
 mod discovery;
 mod export;
 mod generate;

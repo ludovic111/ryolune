@@ -27,7 +27,7 @@ pub use external::ExternalAgents;
 use super::{
     daw::Daw,
     theme::{radius, size, with_alpha, Theme, FONT_MONO},
-    widgets::{text_input, Button, InputEvent, MenuHost, TextInput},
+    widgets::{text_input, Button, InputEvent, MenuHost, MenuItem, TextInput},
 };
 use connection::Connection;
 use gpui::{
@@ -36,6 +36,13 @@ use gpui::{
 };
 use serde_json::json;
 use std::collections::HashSet;
+
+/// What the editor under the header changes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Editing {
+    Memory,
+    Title,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tab {
@@ -55,7 +62,15 @@ pub struct AgentPanel {
     /// Send the selection along with the message.
     with_context: bool,
     slash_index: usize,
-    confirm_clear: bool,
+    /// "Delete this conversation?" shows under the header.
+    confirm_delete: bool,
+    /// The project memory or the conversation's title being edited under the header.
+    editing: Option<Editing>,
+    memory_input: Entity<TextInput>,
+    title_input: Entity<TextInput>,
+    editing_error: String,
+    /// The conversation drawn last frame: another one starts the chat's caches over.
+    shown_conversation: String,
     /// Put the cursor in the message box once it is on screen.
     focus_composer: bool,
 
@@ -94,9 +109,16 @@ impl AgentPanel {
                 .multiline()
                 .placeholder("Describe your idea, or type / for commands…")
         });
+        let memory_input = cx.new(|cx| {
+            TextInput::new(cx).multiline().placeholder(
+                "What the agent should always know about this song: key, style, what to avoid…",
+            )
+        });
+        let title_input = cx.new(TextInput::new);
         let subscriptions = vec![
             cx.observe(&daw, |_, _, cx| cx.notify()),
             cx.subscribe_in(&composer, window, Self::composer_event),
+            cx.subscribe_in(&title_input, window, Self::title_event),
         ];
         #[allow(unused_mut)]
         let mut this = Self {
@@ -109,7 +131,12 @@ impl AgentPanel {
             composer_error: String::new(),
             with_context: true,
             slash_index: 0,
-            confirm_clear: false,
+            confirm_delete: false,
+            editing: None,
+            memory_input,
+            title_input,
+            editing_error: String::new(),
+            shown_conversation: String::new(),
             focus_composer: false,
             connection: None,
             checking: false,
@@ -226,10 +253,35 @@ impl AgentPanel {
         }
     }
 
+    /// While the agent works, the message steers it (`agent.steer`): it joins the
+    /// conversation now and the agent reads it at its next step.
+    fn steer(&mut self, cx: &mut Context<Self>) {
+        let draft = self.draft(cx);
+        if draft.trim().is_empty() {
+            return;
+        }
+        let result = self.daw.update(cx, |daw, cx| {
+            daw.request("agent.steer", json!({ "text": draft.trim() }), cx)
+        });
+        match result {
+            Ok(_) => {
+                self.composer.update(cx, |input, cx| input.set_text("", cx));
+                self.composer_error.clear();
+                self.force_follow = true;
+            }
+            Err(error) => self.composer_error = error,
+        }
+        self.focus_composer = true;
+        cx.notify();
+    }
+
     /// Send the message with the selection, through `agent.send`.
     fn send(&mut self, cx: &mut Context<Self>) {
+        if self.busy(cx) {
+            return self.steer(cx);
+        }
         let draft = self.draft(cx);
-        if draft.trim().is_empty() || self.busy(cx) || !self.ready() || self.checking {
+        if draft.trim().is_empty() || !self.ready() || self.checking {
             return;
         }
         let chips = if self.with_context {
@@ -298,6 +350,140 @@ impl AgentPanel {
         }
     }
 
+    /// Enter saves the title being edited, Escape leaves it.
+    fn title_event(
+        &mut self,
+        _: &Entity<TextInput>,
+        event: &InputEvent,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            InputEvent::Submit => self.save_editing(cx),
+            InputEvent::Cancel => {
+                self.editing = None;
+                cx.notify();
+            }
+            _ => {}
+        }
+    }
+
+    /// Open the editor under the header with what is saved now.
+    fn edit(&mut self, what: Editing, window: &mut Window, cx: &mut Context<Self>) {
+        let (text, input) = {
+            let conversations = &self.daw.read(cx).app.agents.conversations;
+            match what {
+                Editing::Memory => (conversations.memory.clone(), self.memory_input.clone()),
+                Editing::Title => (conversations.thread.title.clone(), self.title_input.clone()),
+            }
+        };
+        input.update(cx, |input, cx| {
+            input.set_text(text, cx);
+            input.focus(window);
+        });
+        self.editing = Some(what);
+        self.editing_error.clear();
+        self.confirm_delete = false;
+        cx.notify();
+    }
+
+    /// Save: `agent.setMemory` or `agent.renameConversation`.
+    fn save_editing(&mut self, cx: &mut Context<Self>) {
+        let Some(what) = self.editing else {
+            return;
+        };
+        let (method, params) = match what {
+            Editing::Memory => (
+                "agent.setMemory",
+                json!({ "text": self.memory_input.read(cx).text().trim() }),
+            ),
+            Editing::Title => (
+                "agent.renameConversation",
+                json!({ "title": self.title_input.read(cx).text().trim() }),
+            ),
+        };
+        let result = self
+            .daw
+            .update(cx, |daw, cx| daw.request(method, params, cx));
+        match result {
+            Ok(_) => {
+                self.editing = None;
+                self.editing_error.clear();
+            }
+            Err(error) => self.editing_error = error,
+        }
+        cx.notify();
+    }
+
+    /// The conversations menu: the song's conversations, then what to do with them.
+    fn conversations_menu(
+        &mut self,
+        position: gpui::Point<gpui::Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let app = &self.daw.read(cx).app;
+        let busy = app.agents.runtime.running();
+        let listed = app.conversations_json();
+        let current = listed["current"].as_str().unwrap_or("").to_string();
+        let mut items = vec![MenuItem::Header("Conversations for this song".into())];
+        for thread in listed["conversations"].as_array().into_iter().flatten() {
+            let id = thread["id"].as_str().unwrap_or("").to_string();
+            let when = thread["updatedAt"]
+                .as_str()
+                .unwrap_or("")
+                .get(..16)
+                .unwrap_or("")
+                .replace('T', " ");
+            let daw = self.daw.clone();
+            let open = id == current;
+            items.push(
+                MenuItem::new(
+                    thread["title"].as_str().unwrap_or("").to_string(),
+                    move |_, cx| {
+                        let id = id.clone();
+                        daw.update(cx, |daw, cx| {
+                            daw.run("agent.selectConversation", json!({ "id": id }), cx);
+                        });
+                    },
+                )
+                .detail(when)
+                .checked(open)
+                .disabled(busy && !open),
+            );
+        }
+        let this = cx.entity().downgrade();
+        let daw = self.daw.clone();
+        let rename = this.clone();
+        let delete = this.clone();
+        let memory = this;
+        items.extend([
+            MenuItem::Separator,
+            MenuItem::new("New conversation", move |_, cx| {
+                daw.update(cx, |daw, cx| {
+                    daw.fire("agent.newConversation", cx);
+                });
+            })
+            .disabled(busy),
+            MenuItem::new("Rename conversation…", move |window, cx| {
+                let _ = rename.update(cx, |panel, cx| panel.edit(Editing::Title, window, cx));
+            }),
+            MenuItem::new("Delete conversation…", move |_, cx| {
+                let _ = delete.update(cx, |panel, cx| {
+                    panel.editing = None;
+                    panel.confirm_delete = true;
+                    cx.notify();
+                });
+            })
+            .disabled(busy),
+            MenuItem::Separator,
+            MenuItem::new("Project memory…", move |window, cx| {
+                let _ = memory.update(cx, |panel, cx| panel.edit(Editing::Memory, window, cx));
+            }),
+        ]);
+        self.menu.open(items, position, window, cx);
+    }
+
     /// Arrow keys move through the slash menu while it is open, instead of the caret.
     fn slash_step(&mut self, down: bool, cx: &mut Context<Self>) -> bool {
         let count = slash::matches(&self.draft(cx)).len();
@@ -318,6 +504,7 @@ impl AgentPanel {
         let app = &self.daw.read(cx).app;
         let busy = app.agents.runtime.running();
         let empty = app.agents.runtime.transcript.is_empty();
+        let title = app.agents.conversations.thread.title.clone();
         let ready = self.ready();
         let status = match &self.connection {
             Some(connection) => connection::provider_name_of(&connection.provider),
@@ -340,19 +527,46 @@ impl AgentPanel {
             .child(crate::ui::widgets::panel_title("Agent", cx))
             .child(
                 div()
+                    .id("agent-conversations")
                     .flex_1()
                     .min_w_0()
-                    .child(crate::ui::widgets::panel_info(status, cx)),
+                    .flex()
+                    .items_center()
+                    .gap(px(4.0))
+                    .cursor_pointer()
+                    .tooltip(|_, cx| {
+                        super::widgets::tip(
+                            "Conversations for this song, and its project memory".into(),
+                            cx,
+                        )
+                    })
+                    .on_mouse_down(
+                        gpui::MouseButton::Left,
+                        cx.listener(|this, e: &gpui::MouseDownEvent, window, cx| {
+                            this.conversations_menu(e.position, window, cx)
+                        }),
+                    )
+                    .child(crate::ui::widgets::panel_info(
+                        format!("{title} · {status}"),
+                        cx,
+                    ))
+                    .child(div().flex_none().child(super::widgets::icon(
+                        "chevron-down",
+                        9.0,
+                        theme.text_3,
+                    ))),
             )
             .child(crate::ui::widgets::group(
                 [
                     Button::icon("agent-new", "plus")
                         .flush()
                         .disabled(busy || empty)
-                        .tooltip("New conversation")
+                        .tooltip("New conversation (this one is kept)")
                         .on_click(cx.listener(|this, _, _, cx| {
                             this.select_tab(Tab::Chat, cx);
-                            this.confirm_clear = true;
+                            this.daw.update(cx, |daw, cx| {
+                                daw.fire("agent.newConversation", cx);
+                            });
                             cx.notify();
                         }))
                         .into_any_element(),
@@ -381,7 +595,109 @@ impl AgentPanel {
             .into_any_element()
     }
 
-    /// "Clear the conversation? Your music stays." under the header.
+    /// Conversations are not being saved: say why, under the header.
+    fn storage_notice(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+        let theme = Theme::get(cx).clone();
+        let error = self
+            .daw
+            .read(cx)
+            .app
+            .agents
+            .conversations
+            .storage_error()?
+            .to_string();
+        Some(
+            div()
+                .flex_none()
+                .px(px(16.0))
+                .py(px(8.0))
+                .border_b_1()
+                .border_color(theme.line)
+                .text_size(px(size::XS))
+                .line_height(px(16.0))
+                .text_color(theme.danger)
+                .child(error)
+                .into_any_element(),
+        )
+    }
+
+    /// The project memory or the conversation's title, edited under the header.
+    fn editor(&mut self, what: Editing, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
+        let theme = Theme::get(cx).clone();
+        let (heading, input) = match what {
+            Editing::Memory => (
+                "Project memory · sent ahead of every request about this song",
+                self.memory_input.clone(),
+            ),
+            Editing::Title => ("Rename this conversation", self.title_input.clone()),
+        };
+        let focused = input.read(cx).is_focused(window);
+        let bytes = self.memory_input.read(cx).text().trim().len();
+        div()
+            .flex_none()
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
+            .px(px(16.0))
+            .py(px(10.0))
+            .border_b_1()
+            .border_color(theme.line)
+            .text_size(px(size::SM))
+            .text_color(theme.text_2)
+            .child(heading)
+            .child(
+                div()
+                    .id(("agent-editor", what as usize))
+                    .when(what == Editing::Memory, |d| {
+                        d.min_h(px(80.0)).max_h(px(180.0)).overflow_y_scroll()
+                    })
+                    .child(super::widgets::field(&input, focused, cx)),
+            )
+            .when(!self.editing_error.is_empty(), |d| {
+                d.child(
+                    div()
+                        .text_size(px(size::XS))
+                        .text_color(theme.danger)
+                        .child(self.editing_error.clone()),
+                )
+            })
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(8.0))
+                    .child(
+                        div()
+                            .flex_1()
+                            .text_size(px(size::XS))
+                            .text_color(theme.text_3)
+                            .when(what == Editing::Memory, |d| {
+                                d.child(format!(
+                                    "{:.1} of {} KB",
+                                    bytes as f32 / 1024.0,
+                                    crate::conversations::MEMORY_LIMIT / 1024
+                                ))
+                            }),
+                    )
+                    .child(
+                        Button::new("editor-cancel", "Cancel")
+                            .compact()
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.editing = None;
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        Button::new("editor-save", "Save")
+                            .compact()
+                            .primary()
+                            .on_click(cx.listener(|this, _, _, cx| this.save_editing(cx))),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    /// "Delete this conversation?" under the header.
     fn confirm(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let theme = Theme::get(cx).clone();
         let busy = self.busy(cx);
@@ -401,35 +717,34 @@ impl AgentPanel {
             .child(
                 div()
                     .w_full()
-                    .child("Clear the conversation? Your music stays."),
+                    .child("Delete this conversation for good? Your music stays."),
             )
             .child(
-                Button::new("clear-cancel", "Cancel")
+                Button::new("delete-cancel", "Cancel")
                     .compact()
                     .on_click(cx.listener(|this, _, _, cx| {
-                        this.confirm_clear = false;
+                        this.confirm_delete = false;
                         cx.notify();
                     })),
             )
             .child(
-                Button::new("clear-confirm", "Clear conversation")
+                Button::new("delete-confirm", "Delete conversation")
                     .compact()
                     .primary()
                     .disabled(busy)
-                    .on_click(cx.listener(|this, _, _, cx| this.clear_conversation(cx))),
+                    .on_click(cx.listener(|this, _, _, cx| this.delete_conversation(cx))),
             )
             .into_any_element()
     }
 
-    /// "Clear conversation" confirmed: `agent.clear`; the music stays.
-    fn clear_conversation(&mut self, cx: &mut Context<Self>) {
-        let cleared = self
-            .daw
-            .update(cx, |daw, cx| daw.request("agent.clear", json!({}), cx));
-        if cleared.is_ok() {
-            self.confirm_clear = false;
-            self.open_steps.clear();
-            self.markdown.clear();
+    /// "Delete conversation" confirmed: `agent.deleteConversation`; the music stays.
+    fn delete_conversation(&mut self, cx: &mut Context<Self>) {
+        let id = self.daw.read(cx).app.agents.conversations.thread.id.clone();
+        let deleted = self.daw.update(cx, |daw, cx| {
+            daw.request("agent.deleteConversation", json!({ "id": id }), cx)
+        });
+        if deleted.is_ok() {
+            self.confirm_delete = false;
         }
         cx.notify();
     }
@@ -579,8 +894,20 @@ impl Render for AgentPanel {
                 input.update(cx, |input, _| input.focus(window))
             });
         }
+        let conversation = self.daw.read(cx).app.agents.conversations.thread.id.clone();
+        if conversation != self.shown_conversation {
+            // Entry ids repeat across conversations: nothing cached may carry over.
+            self.shown_conversation = conversation;
+            self.markdown.clear();
+            self.open_steps.clear();
+            self.confirm_delete = false;
+            self.force_follow = true;
+        }
         let header = self.header(cx);
-        let confirm = self.confirm_clear.then(|| self.confirm(cx));
+        let confirm = self.confirm_delete.then(|| self.confirm(cx));
+        let editing = self.editing;
+        let editor = editing.map(|what| self.editor(what, window, cx));
+        let storage = self.storage_notice(cx);
         let tabs = self.tabs(cx);
         let body = match self.tab {
             Tab::Chat => self.chat(window, cx),
@@ -614,7 +941,9 @@ impl Render for AgentPanel {
                 }
             }))
             .child(header)
+            .children(storage)
             .children(confirm)
+            .children(editor)
             .child(tabs)
             .child(
                 div()

@@ -46,6 +46,12 @@ pub struct Session {
     /// keeps one tempo, so such files read and write exactly as before.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tempo_changes: Vec<crate::tempo::TempoPoint>,
+    /// Stable id of the song, kept across saves and renames: what the agent's saved
+    /// conversations and project memory belong to. Absent in older files; those get one from
+    /// their path when opened ([`Session::id_for_path`]) and keep it from the next save.
+    /// Never part of an undo step.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub id: String,
     #[serde(flatten)]
     pub extra: HashMap<String, serde_json::Value>,
 }
@@ -685,6 +691,24 @@ fn default_browser_tab() -> String {
 }
 
 impl Session {
+    /// Give a song without an id a new random one (a new song, the demo).
+    pub fn ensure_id(&mut self) {
+        if self.id.is_empty() {
+            self.id = crate::lsuite::uuid_v4();
+        }
+    }
+    /// The id an older file without one gets: derived from where it is, so opening it again
+    /// before it is saved finds the same conversations.
+    pub fn id_for_path(path: &std::path::Path) -> String {
+        let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+        // FNV-1a: stable across runs and Rust versions, unlike the std hasher.
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for byte in path.to_string_lossy().bytes() {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        format!("file-{hash:016x}")
+    }
     /// Fill in missing insert ids and default buses so every strip has stable rack keys.
     pub fn normalize(&mut self) {
         for strip in self.strips.values_mut() {

@@ -596,3 +596,47 @@ fn automation_lanes_get_readable_names() {
     );
     assert_eq!(level["lane"]["name"], "Drums · Drum Machine · Level");
 }
+
+/// The agent's conversations belong to a song by its id: a file without one (every file before
+/// it existed) gets the same id each time it is opened from the same place, keeps it once saved,
+/// and restoring a creative take saved before the song had an id does not lose it.
+#[test]
+fn a_song_keeps_one_id_across_opening_saving_and_takes() {
+    use ryolune_engine::{audio::Library, document, store};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("Old song.ryolune");
+    let mut old = serde_json::to_value(store::demo()).unwrap();
+    old.as_object_mut().unwrap().remove("id");
+    let file = json!({"format":"ryolune-session","version":1,"session":old,"audio":{}});
+    std::fs::write(&path, file.to_string()).unwrap();
+    let (first, _) = document::load(&path).unwrap();
+    let (again, _) = document::load(&path).unwrap();
+    assert!(first.id.starts_with("file-"));
+    assert_eq!(
+        first.id, again.id,
+        "the same file finds the same conversations"
+    );
+    // Saved, the id is in the file and survives a move.
+    document::save(&first, &Library::new(), &path).unwrap();
+    let moved = dir.path().join("Moved.ryolune");
+    std::fs::rename(&path, &moved).unwrap();
+    let (loaded, _) = document::load(&moved).unwrap();
+    assert_eq!(loaded.id, first.id);
+    // An empty id is not written, so such files read and write as before.
+    let mut fresh = store::empty();
+    assert!(fresh.id.is_empty());
+    assert!(serde_json::to_value(&fresh).unwrap().get("id").is_none());
+    fresh.ensure_id();
+    assert_eq!(fresh.id.len(), 36);
+    // Takes made while the song had no id.
+    let mut host = Headless::new();
+    host.store.load(store::demo()).unwrap();
+    let original = call(&mut host, "take.create", json!({"name":"Original"}));
+    call(&mut host, "take.create", json!({"name":"Variation"}));
+    host.store.amend(|s| s.id = "song-1".into()).unwrap();
+    let takes = call(&mut host, "take.list", json!({}));
+    let id = takes["takes"][0]["id"].as_str().unwrap().to_string();
+    assert!(original.is_object());
+    call(&mut host, "take.select", json!({"id": id}));
+    assert_eq!(host.store.session().id, "song-1");
+}

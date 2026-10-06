@@ -234,6 +234,9 @@ impl Ryolune {
         if settings.plugins.scan_on_start && !screenshot_run {
             app.scan_plugins();
         }
+        if !screenshot_run {
+            app.attach_conversations(host::scan::data_dir().join(crate::conversations::FILE));
+        }
         let path = path.or_else(|| {
             settings
                 .general
@@ -272,7 +275,8 @@ impl Ryolune {
             let _ = self.settings.save();
         }
     }
-    pub(crate) fn from_session(session: Session, screenshot: Option<PathBuf>) -> Self {
+    pub(crate) fn from_session(mut session: Session, screenshot: Option<PathBuf>) -> Self {
+        session.ensure_id();
         let zoom = session.view.pixels_per_bar;
         Self {
             store: Store::new(session).expect("Validated demo"),
@@ -1521,12 +1525,15 @@ impl Ryolune {
     /// recovery snapshot is neither.
     pub(crate) fn load_document(
         &mut self,
-        session: Session,
+        mut session: Session,
         library: Library,
         path: PathBuf,
         ownership: Option<SessionFileLock>,
         remember: bool,
     ) {
+        if session.id.is_empty() {
+            session.id = Session::id_for_path(&path);
+        }
         self.unload_plugins();
         self.position = session.transport.position_beats;
         self.zoom = session.view.pixels_per_bar.clamp(12.0, 480.0);
@@ -1649,11 +1656,12 @@ impl Ryolune {
                 self.closing = true;
             }
             Intent::New | Intent::Demo => {
-                let s = if matches!(intent, Intent::New) {
+                let mut s = if matches!(intent, Intent::New) {
                     store::empty()
                 } else {
                     store::demo()
                 };
+                s.ensure_id();
                 if let Err(e) = self.store.load(s) {
                     self.error = Some(e);
                     return;

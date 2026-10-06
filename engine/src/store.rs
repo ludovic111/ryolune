@@ -213,7 +213,13 @@ fn apply(s: &mut Session, command: Command, depth: usize) -> Result<()> {
     }
     match command {
         Command::Rename(name) => s.name = name,
-        Command::RestoreTake(session) => *s = *session,
+        Command::RestoreTake(session) => {
+            // A take is the same song: it keeps the song's id (takes saved before songs had
+            // one carry none).
+            let id = std::mem::take(&mut s.id);
+            *s = *session;
+            s.id = id;
+        }
         Command::AddTrack(track) => {
             if s.tracks.iter().any(|t| t.id == track.id) {
                 return Err("Track ID already exists".into());

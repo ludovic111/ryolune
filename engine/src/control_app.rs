@@ -171,7 +171,7 @@ pub const SPECS: &[Spec] = &[
     ]),
     query("agent.status", "The built-in agent: provider, model, whether a task is running, turn count and last reply.", &[]),
     edit("agent.configure", "Select the agent provider, model and reasoning effort together. Only while idle.", &[
-        req("provider", Kind::String, "codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio or compatible."),
+        req("provider", Kind::String, "codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio, compatible or zenith."),
         req("model", Kind::String, "Model ID; empty uses the provider default."),
         req("reasoningEffort", Kind::String, "Provider effort level; empty uses its default."),
     ]),
@@ -209,6 +209,25 @@ pub const SPECS: &[Spec] = &[
         opt("version", Kind::String, "One release, such as 0.12.0."),
         opt("since", Kind::String, "Every release after this version, up to this copy."),
         opt("all", Kind::Boolean, "Every release this copy carries (default false)."),
+    ]),
+    query("agent.conversations", "The agent's saved conversations for the open song, newest first: id, title, when it last changed, how many requests and which one is open; also the size of the song's project memory and any error saving them.", &[]),
+    edit("agent.newConversation", "Start a new agent conversation for this song; the open one is kept and agent.selectConversation goes back to it. Only while the agent is idle.", &[]),
+    edit("agent.selectConversation", "Open one of the song's saved agent conversations in the panel, as agent.conversations lists them. Only while the agent is idle.", &[
+        req("id", Kind::String, "Conversation id from agent.conversations."),
+    ]),
+    edit("agent.renameConversation", "Rename an agent conversation (the open one by default). New conversations are titled from their first request.", &[
+        req("title", Kind::String, "The new title, 1 to 120 characters on one line."),
+        opt("id", Kind::String, "Conversation id from agent.conversations; default the open one."),
+    ]),
+    edit("agent.deleteConversation", "Delete one of the song's agent conversations for good (its edits stay in the song). Deleting the open one opens the newest other. Only a person can do this.", &[
+        req("id", Kind::String, "Conversation id from agent.conversations."),
+    ]),
+    query("agent.memory", "The song's project memory: notes the person keeps for the agent (style, key, what to avoid), sent ahead of every request to every provider.", &[]),
+    edit("agent.setMemory", "Replace the song's project memory, at most 32 KB; empty clears it. It goes ahead of every request as user-maintained context, so only a person can change it.", &[
+        req("text", Kind::String, "The whole memory text, plain language."),
+    ]),
+    edit("agent.steer", "Steer the agent while it works: the text joins the conversation now and reaches the agent at its next step, after the tool calls under way, instead of stopping it (Claude Code restarts its run with it).", &[
+        req("text", Kind::String, "What to change or add, in plain language."),
     ]),
 ];
 

@@ -84,6 +84,7 @@ what was left out and `next` names the commands that drill down.
 | `toggleAgentPanel` | ⌘J | `ui.showPanel` panel=agent | covered |
 | `askAgent` | ⇧⌘J | `ui.showPanel` panel=agent, `agent.send` | covered |
 | `stopAgent` | | `agent.stop` | covered (its menu item was never enabled: fixed, it now follows the running agent) |
+| `newAgentConversation` | Agent › New Agent Conversation | `agent.newConversation` | covered |
 | `editorPianoRoll` | | `view.set` editorMode=pianoRoll | covered |
 | `editorScore` | | `view.set` editorMode=score | covered |
 | `editorStep` | | `view.set` editorMode=step | covered |
@@ -353,9 +354,13 @@ are not listed, as in the window.
 |---|---|---|
 | Open / close, settings gear | `ui.showPanel` panel=agent / settings | covered |
 | Send, stop | `agent.send`, `agent.stop` | covered |
+| Steer while the agent works (Send becomes Steer) | `agent.steer` | covered |
 | Conversation | `agent.transcript` | covered |
 | Changes tab: undo from here, redo to here | `agent.changes`, `agent.revert` | covered |
-| New conversation | `agent.clear` | covered |
+| New conversation (+, the conversations menu) | `agent.newConversation`; `agent.clear` empties the open one | covered |
+| Conversations menu: list, open, rename | `agent.conversations`, `agent.selectConversation`, `agent.renameConversation` | covered |
+| Conversations menu: delete | `agent.deleteConversation` | covered for people; refused to agents (the conversation is lost for good) |
+| Project memory | `agent.memory`, `agent.setMemory` | reading covered; writing refused to agents (it goes ahead of every later request, like the standing instructions in Settings) |
 | Model picker | `agent.models`, `agent.configure`, `agent.providers` | covered |
 | Connection check | `agent.connection`, `agent.status` | covered |
 | Takes: create, switch, remove, listen | `take.create`, `take.select`, `take.remove`, `take.list`, `transport.play` | covered |

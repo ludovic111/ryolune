@@ -73,7 +73,12 @@ pub fn load(path: &Path) -> Result<(Session, Library)> {
     if std::fs::metadata(path).map_err(|e| e.to_string())?.len() > 768 * 1024 * 1024 {
         return Err("Session file exceeds 768 MiB".into());
     }
-    decode_session(&std::fs::read_to_string(path).map_err(|e| e.to_string())?)
+    let (mut session, library) =
+        decode_session(&std::fs::read_to_string(path).map_err(|e| e.to_string())?)?;
+    if session.id.is_empty() {
+        session.id = Session::id_for_path(path);
+    }
+    Ok((session, library))
 }
 pub fn save(session: &Session, library: &Library, path: &Path) -> Result<()> {
     session.validate()?;
