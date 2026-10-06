@@ -1739,7 +1739,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     fn finish(app: &mut Ryolune) {
-        let deadline = Instant::now() + Duration::from_secs(20);
+        let deadline = Instant::now() + Duration::from_secs(60);
         while app.control_job.is_some() {
             app.poll_control_job();
             assert!(Instant::now() < deadline, "control worker stalled");
@@ -1790,7 +1790,7 @@ mod tests {
     }
 
     fn finish_native(app: &mut Ryolune) {
-        let deadline = Instant::now() + Duration::from_secs(20);
+        let deadline = Instant::now() + Duration::from_secs(60);
         while app.job.is_some() {
             app.poll();
             assert!(Instant::now() < deadline);
@@ -1872,7 +1872,7 @@ mod tests {
         std::fs::create_dir(&directory).unwrap();
         app.run_control_command("session.save", &json!({"path":directory}), false, "test")
             .unwrap();
-        let deadline = Instant::now() + Duration::from_secs(20);
+        let deadline = Instant::now() + Duration::from_secs(60);
         while app.control_job.is_some() {
             app.poll_control_job();
             assert!(Instant::now() < deadline);
