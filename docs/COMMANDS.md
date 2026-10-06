@@ -2,13 +2,13 @@
 
 <!-- Generated from the command registry by tools/tests/command_docs.rs. Do not edit by hand: run `RYOLUNE_BLESS=1 cargo test -p ryolune-tools --test command_docs`. -->
 
-ryolune has 203 commands. The window, `ryolune-cli`, `ryolune-mcp` and the built-in agent all run these same commands, with the same undo history. On the CLI a command is `ryolune-cli <name> --param value`; in MCP it is the tool `<name>` with the dot replaced by an underscore (`track.add` is `track_add`); the agent sees the same tools.
+ryolune has 209 commands. The window, `ryolune-cli`, `ryolune-mcp` and the built-in agent all run these same commands, with the same undo history. On the CLI a command is `ryolune-cli <name> --param value`; in MCP it is the tool `<name>` with the dot replaced by an underscore (`track.add` is `track_add`); the agent sees the same tools.
 
 Conventions: bars and beats are zero-based; note `start` and `length` are beats relative to their clip; pitch 60 is C4; velocity is 1–127; a fader value of 0.75 is unity gain. Strip commands accept a track id or `master`, `bus-a`, `bus-b`; insert slots are 0–7.
 
 **Edits** marks a command that can change the song, the transport, settings or files (it is one undo step when it changes the song). **Needs the app** marks a command only the running window can serve; the others also work on a file (`ryolune-cli --file song.ryolune …`).
 
-Names shared across the lsuite apps are accepted too, and run the ryolune command beside them: `app.version` → `app.info`, `project.overview` → `session.overview`, `export.audio` → `session.exportAudio`, `export.stems` → `session.exportStems`, `export.midi` → `session.exportMidi`.
+Names shared across the lsuite apps are accepted too, and run the ryolune command beside them: `app.version` → `app.info`, `project.overview` → `session.overview`, `export.audio` → `session.exportAudio`, `export.stems` → `session.exportStems`, `export.midi` → `session.exportMidi`, `app.restart` → `app.relaunch`.
 
 ## Families
 
@@ -33,7 +33,7 @@ Names shared across the lsuite apps are accepted too, and run the ryolune comman
 - [settings](#settings) — `settings.get`, `settings.set`, `settings.reset`
 - [audio](#audio) — `audio.devices`, `audio.status`, `audio.allowSpeakerMonitoring`, `audio.setOutput`, `audio.setInput`, `audio.setMidiInput`, `audio.reconnect`
 - [ui](#ui) — `ui.screenshot`, `ui.showPanel`, `ui.openPluginWindow`, `ui.closePluginWindow`, `ui.dismissError`, `ui.closePluginWindows`, `ui.musicalTyping`, `ui.setTool`, `ui.status`, `ui.state`
-- [app](#app) — `app.info`, `app.checkUpdates`, `app.installUpdate`, `app.quit`, `app.confirm`, `app.openGuide`, `app.relaunch`, `app.suite`
+- [app](#app) — `app.info`, `app.checkUpdates`, `app.installUpdate`, `app.quit`, `app.confirm`, `app.openGuide`, `app.relaunch`, `app.logs`, `app.crashReports`, `app.clearCrashReports`, `app.diagnostics`, `app.reportProblem`, `app.whatsNew`, `app.suite`
 - [agent](#agent) — `agent.status`, `agent.configure`, `agent.providers`, `agent.mcp`, `agent.openClient`, `agent.models`, `agent.connection`, `agent.send`, `agent.stop`, `agent.transcript`, `agent.changes`, `agent.revert`, `agent.clear`
 - [generate](#generate) — `generate.services`, `generate.audio`, `generate.list`, `generate.preview`, `generate.place`, `generate.delete`
 - [export](#export) — `export.toKimchi`
@@ -1797,13 +1797,13 @@ Capture the window to a PNG so an agent can see the interface. Returns the file 
 
 *Edits · Needs the app*
 
-Show or hide an interface panel: agent, automation, mixer (every channel, in place of the region editor), controllers (the controller lane under the piano roll), tempo (the tempo track under the ruler), palette (the command palette), settings, help, export, recovery, or master / bus-a / bus-b in the inspector.
+Show or hide an interface panel: agent, automation, mixer (every channel, in place of the region editor), controllers (the controller lane under the piano roll), tempo (the tempo track under the ruler), palette (the command palette), settings, help, export, recovery, whatsNew (the release notes of this version), diagnostics (Settings › Diagnostics), or master / bus-a / bus-b in the inspector.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `panel` | string | yes | agent, automation, mixer, controllers, settings, help, export, recovery, master, bus-a or bus-b. |
+| `panel` | string | yes | agent, automation, mixer, controllers, tempo, palette, settings, help, export, recovery, whatsNew, diagnostics, master, bus-a or bus-b. |
 | `visible` | boolean |  | Show (default) or hide. |
-| `section` | string |  | Settings section: general, audio, interface, agent, generation, plugins, control, updates or about. |
+| `section` | string |  | Settings section: general, audio, interface, agent, generation, plugins, control, updates, diagnostics or about. |
 
 ### `ui.openPluginWindow`
 
@@ -1924,6 +1924,49 @@ Open one of ryolune's pages, or a sound service's key page, in the web browser.
 *Edits · Needs the app*
 
 Relaunch the app, for example after an update was installed. Unsaved changes prompt first.
+
+### `app.logs`
+
+The last lines of ryolune's log (this run's by default, or an earlier run's), with the log folder and every log file. Logs stay on this computer and never hold API keys.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `lines` | integer |  | Lines from the end, 1-2000 (default 100). |
+| `file` | string |  | A log file name from `files`, such as ryolune.1.log for the run before. |
+
+### `app.crashReports`
+
+Crash reports newest first: panics that stopped ryolune (crash), panics a background job survived (recovered) and runs that ended without quitting (unclean). With id, one report's full text.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | string |  | A report's file name from the list, to read its text. |
+
+### `app.clearCrashReports`
+
+*Edits*
+
+Delete every crash report in the crashes folder. Logs and recovery snapshots are kept.
+
+### `app.diagnostics`
+
+What a bug report needs: version and build, system, audio device, plugin scan summary, folders, the log file, counts and recent crash reports. Holds no API keys, prompts or songs.
+
+### `app.reportProblem`
+
+*Edits · Needs the app*
+
+Open a new GitHub issue for ryolune in the web browser, with the version, the system and the last crash's summary filled in. Nothing is sent: the person reads and submits it. Only a person can do this.
+
+### `app.whatsNew`
+
+Release notes built into this copy, newest first, in Markdown: this version's by default, one version's (version), every release after one (since), or all of them (all). ui.showPanel panel=whatsNew shows them in the window.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `version` | string |  | One release, such as 0.12.0. |
+| `since` | string |  | Every release after this version, up to this copy. |
+| `all` | boolean |  | Every release this copy carries (default false). |
 
 ### `app.suite`
 

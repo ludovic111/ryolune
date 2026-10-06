@@ -116,9 +116,7 @@ pub fn init(data_dir: &Path) -> Started {
         return started;
     }
     log::set_max_level(level.max(log::LevelFilter::Warn));
-    let _ = STATE.set(State {
-        logs: logs.clone(),
-    });
+    let _ = STATE.set(State { logs: logs.clone() });
     install_panic_hook(data_dir.to_path_buf());
     let marker = Marker {
         pid: std::process::id(),
