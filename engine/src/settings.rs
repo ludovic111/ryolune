@@ -25,6 +25,7 @@ pub struct Settings {
     pub generation: Generation,
     pub plugins: Plugins,
     pub control: Control,
+    pub onboarding: Onboarding,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -42,6 +43,9 @@ pub struct General {
     pub exports_completed: u32,
     /// The one-time support request was shown; either answer ends it for good.
     pub support_asked: bool,
+    /// The version that ran last, so the window opens What's New once after an update.
+    /// Absent in files written before 0.14.
+    pub last_run_version: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -101,6 +105,9 @@ pub enum Provider {
     LmStudio,
     /// Any other OpenAI-compatible endpoint (local servers, other vendors).
     Compatible,
+    /// zenith, the lsuite agent hub: its agents (signed in there) work on the song through
+    /// ryolune's MCP server.
+    Zenith,
 }
 /// A service that speaks the OpenAI Chat Completions API at a fixed address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -117,7 +124,7 @@ pub struct Hosted {
     pub strict: bool,
 }
 impl Provider {
-    pub const ALL: [Provider; 13] = [
+    pub const ALL: [Provider; 14] = [
         Provider::Codex,
         Provider::Claude,
         Provider::Anthropic,
@@ -131,6 +138,7 @@ impl Provider {
         Provider::Ollama,
         Provider::LmStudio,
         Provider::Compatible,
+        Provider::Zenith,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -147,6 +155,7 @@ impl Provider {
             Provider::Ollama => "Ollama on this computer",
             Provider::LmStudio => "LM Studio on this computer",
             Provider::Compatible => "OpenAI-compatible endpoint",
+            Provider::Zenith => "Zenith · lsuite",
         }
     }
     pub fn key(self) -> &'static str {
@@ -164,21 +173,23 @@ impl Provider {
             Provider::Ollama => "ollama",
             Provider::LmStudio => "lmstudio",
             Provider::Compatible => "compatible",
+            Provider::Zenith => "zenith",
         }
     }
     pub fn parse(key: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|p| p.key() == key)
     }
-    /// The installed command-line agents, which bring their own sign-in.
+    /// The installed command-line agents, which bring their own sign-in (zenith keeps its
+    /// agents' sign-ins too).
     pub fn is_cli(self) -> bool {
-        matches!(self, Provider::Codex | Provider::Claude)
+        matches!(self, Provider::Codex | Provider::Claude | Provider::Zenith)
     }
     /// Every provider that runs through the OpenAI Chat Completions client: OpenAI itself,
     /// the hosted and local services and the custom endpoint.
     pub fn speaks_openai(self) -> bool {
         !matches!(
             self,
-            Provider::Codex | Provider::Claude | Provider::Anthropic
+            Provider::Codex | Provider::Claude | Provider::Anthropic | Provider::Zenith
         )
     }
     /// The fixed address of a hosted or local OpenAI-compatible service.
@@ -266,7 +277,8 @@ impl Provider {
             | Provider::Xai
             | Provider::Ollama
             | Provider::LmStudio
-            | Provider::Compatible => "",
+            | Provider::Compatible
+            | Provider::Zenith => "",
         }
     }
 }
@@ -301,6 +313,8 @@ pub struct Agent {
     /// Extra standing instructions appended to the system prompt.
     pub instructions: String,
     pub permissions: Permissions,
+    /// `zenith-cli`; blank finds it ($RYOLUNE_ZENITH_CLI, the lsuite discovery entry, PATH).
+    pub zenith_executable: String,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -415,6 +429,38 @@ pub struct Control {
     /// Serve the CLI/MCP bridge when the window starts.
     pub enable_bridge: bool,
 }
+/// The first-run setup (`app.onboarding`, `app.finishOnboarding`).
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Onboarding {
+    /// The ryolune version the setup was finished or skipped in; empty until then, and the
+    /// window shows the setup when it starts.
+    pub completed: String,
+    /// The app the person came from (`interop::apps` id), `none`, or empty when not asked.
+    /// It decides which "bring your song" steps show first.
+    pub coming_from: String,
+    /// Whether they want AI features (the agent and sound generation); `None` until asked.
+    /// Nothing is hidden either way yet.
+    pub ai: Option<bool>,
+}
+impl Onboarding {
+    pub fn is_done(&self) -> bool {
+        !self.completed.trim().is_empty()
+    }
+    /// A settings file written before the setup existed belongs to someone who has used
+    /// ryolune already: the setup counts as done.
+    fn migrate(&mut self, stored: &str) {
+        let had = serde_json::from_str::<serde_json::Value>(stored)
+            .ok()
+            .is_some_and(|v| v.get("onboarding").is_some());
+        if !had {
+            *self = Self {
+                completed: "0.13".into(),
+                ..Self::default()
+            };
+        }
+    }
+}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -427,6 +473,7 @@ impl Default for Settings {
             generation: Generation::default(),
             plugins: Plugins::default(),
             control: Control::default(),
+            onboarding: Onboarding::default(),
         }
     }
 }
@@ -442,6 +489,7 @@ impl Default for General {
             recent_sessions: vec![],
             exports_completed: 0,
             support_asked: false,
+            last_run_version: None,
         }
     }
 }
@@ -519,6 +567,7 @@ impl Default for Agent {
             max_tool_rounds: 48,
             instructions: String::new(),
             permissions: Permissions::default(),
+            zenith_executable: String::new(),
         }
     }
 }
@@ -598,9 +647,12 @@ impl Settings {
                             std::fs::Permissions::from_mode(0o600),
                         );
                     }
-                    eprintln!("{error}; kept a copy at {}", backup.display());
+                    crate::diagnostics::warn(&format!(
+                        "{error}; kept a copy at {}",
+                        backup.display()
+                    ));
                 } else {
-                    eprintln!("{error}");
+                    crate::diagnostics::warn(&error);
                 }
                 Self::default()
             }
@@ -616,6 +668,7 @@ impl Settings {
                 let mut settings: Settings = serde_json::from_str(&text)
                     .map_err(|e| format!("Invalid settings file {}: {e}", path.display()))?;
                 settings.interface.migrate(&text);
+                settings.onboarding.migrate(&text);
                 settings.validate()?;
                 Ok(settings)
             }
@@ -662,6 +715,11 @@ impl Settings {
         }
         if self.agent.model.len() > 200 || self.agent.model.chars().any(char::is_control) {
             return Err("Model names must be printable and at most 200 characters".into());
+        }
+        if self.agent.zenith_executable.len() > 4096
+            || self.agent.zenith_executable.chars().any(char::is_control)
+        {
+            return Err("The zenith-cli path must be printable and under 4096 characters".into());
         }
         if !THEMES.contains(&self.interface.appearance.as_str()) {
             return Err(format!(
@@ -732,6 +790,12 @@ impl Settings {
                 return Err("Plugin search paths must be 1-64 non-empty entries".into());
             }
         }
+        if self.onboarding.completed.len() > 40
+            || self.onboarding.coming_from.len() > 40
+            || self.onboarding.coming_from.chars().any(char::is_control)
+        {
+            return Err("Onboarding values are short names".into());
+        }
         if self.audio.count_in_bars > 4 {
             return Err("Count-in is 0 to 4 bars".into());
         }
@@ -780,9 +844,11 @@ impl Settings {
             Provider::DeepSeek => (&a.deepseek_api_key, &["DEEPSEEK_API_KEY"]),
             Provider::Xai => (&a.xai_api_key, &["XAI_API_KEY"]),
             Provider::Compatible => (&a.compatible_api_key, &[]),
-            Provider::Codex | Provider::Claude | Provider::Ollama | Provider::LmStudio => {
-                return None
-            }
+            Provider::Codex
+            | Provider::Claude
+            | Provider::Ollama
+            | Provider::LmStudio
+            | Provider::Zenith => return None,
         };
         stored_or_env(stored, env)
     }
@@ -841,6 +907,17 @@ impl Settings {
             }
         }
         value
+    }
+    /// The API keys these settings hold, so the log can mask them (`diagnostics::set_secrets`).
+    pub fn secrets(&self) -> Vec<String> {
+        let value = serde_json::to_value(self).unwrap_or(Value::Null);
+        SECRET_PATHS
+            .iter()
+            .filter_map(|path| lookup(&value, path)?.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect()
     }
     /// Read a dotted path (`agent.model`) or the whole document when `path` is `None`.
     pub fn get(&self, path: Option<&str>) -> Result<Value> {

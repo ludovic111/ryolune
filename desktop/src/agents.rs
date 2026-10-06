@@ -22,6 +22,8 @@ pub(crate) struct AgentPanel {
     pub tab: usize,
     pub prompt: String,
     pub(crate) runtime: Runtime,
+    /// The song's saved conversations and project memory (`crate::conversations`).
+    pub(crate) conversations: crate::conversations::Conversations,
     history: VecDeque<Activity>,
     sequence: u64,
     last_request: Option<Instant>,
@@ -89,6 +91,8 @@ impl AgentPanel {
             .hash(&mut h);
         r.elapsed().as_secs().hash(&mut h);
         (r.first_id, r.transcript.len()).hash(&mut h);
+        let c = &self.conversations;
+        (&c.thread, c.memory.len(), c.storage_error()).hash(&mut h);
         for entry in r.transcript.iter().rev().take(100) {
             (&entry.text, entry.streaming).hash(&mut h);
             if let Some(tool) = &entry.tool {
@@ -168,7 +172,9 @@ impl Ryolune {
         let provider = self.settings.agent.provider;
         let needs_bridge = matches!(
             provider,
-            ryolune_engine::settings::Provider::Codex | ryolune_engine::settings::Provider::Claude
+            ryolune_engine::settings::Provider::Codex
+                | ryolune_engine::settings::Provider::Claude
+                | ryolune_engine::settings::Provider::Zenith
         );
         let connection = self.connection();
         if needs_bridge && !self.settings.control.enable_bridge {
@@ -190,12 +196,31 @@ impl Ryolune {
             false,
         )
         .unwrap_or(Value::Null);
+        self.conversation_started(&prompt);
         let history = self.agents.runtime.history.clone();
         let mcp = agent::cli::companion("ryolune-mcp");
+        // The song's project memory goes ahead of the request, for every provider.
+        let memory = agent::memory_prefix(&self.agents.conversations.memory);
+        let request = format!("{memory}{prompt}");
+        let song = (
+            self.store.session().id.clone(),
+            self.store.session().name.clone(),
+        );
+        let remote = self
+            .agents
+            .runtime
+            .remote
+            .as_ref()
+            .filter(|r| r.provider == provider.key())
+            .map(|r| r.id.clone());
+        if provider == ryolune_engine::settings::Provider::Zenith {
+            // zenith hands its agents ryolune's MCP server from the lsuite entry.
+            self.publish_discovery(true);
+        }
         self.agents
             .runtime
-            .start(prompt.clone(), move |cancel, events| Turn {
-                prompt,
+            .start(prompt, memory, move |cancel, events, steer| Turn {
+                prompt: request,
                 history,
                 settings,
                 session_summary: summary,
@@ -203,16 +228,41 @@ impl Ryolune {
                 mcp_executable: mcp,
                 cancel,
                 events,
+                steer,
+                song,
+                remote,
             })?;
         self.agents.prompt.clear();
         self.agents.tab = 0;
+        self.save_conversation(false);
+        Ok(())
+    }
+
+    /// `agent.steer`: the text joins the running task at its next step.
+    pub(crate) fn steer_agent(&mut self, text: &str) -> Result<()> {
+        self.agents.runtime.steer(text)?;
+        self.save_conversation(false);
         Ok(())
     }
 
     /// Execute the tool calls the worker asked for and keep the transcript moving.
     pub(crate) fn run_agent_tools(&mut self) {
+        self.follow_song();
+        let was_running = self.agents.runtime.running();
         let calls = self.agents.runtime.poll();
+        if was_running && !self.agents.runtime.running() {
+            // The run ended: keep the conversation as it ended.
+            self.agents.conversations.thread.updated_at = ryolune_engine::lsuite::now_rfc3339();
+            self.save_conversation(false);
+            self.follow_song();
+        }
         for call in calls {
+            if self.song_switching() {
+                let _ = call.reply.send(Err(
+                    "Another song was opened; this request was stopped.".into()
+                ));
+                continue;
+            }
             let method = call.name.replacen('_', ".", 1);
             let result = self.run_control_command(&method, &call.args, true, "Agent");
             let running = result
@@ -271,7 +321,12 @@ impl Ryolune {
         // previous transcripts in the next transcript.
         if matches!(
             method,
-            "agent.status" | "agent.transcript" | "agent.providers"
+            "agent.status"
+                | "agent.transcript"
+                | "agent.providers"
+                | "agent.conversations"
+                | "agent.memory"
+                | "agent.steer"
         ) {
             return;
         }
@@ -333,9 +388,11 @@ impl Ryolune {
         self.agents.history.truncate(HISTORY_LIMIT);
     }
 
-    /// A new document has no agent history and nothing to revert.
+    /// A new document has no agent history and nothing to revert; it shows its own saved
+    /// conversations.
     pub(crate) fn reset_agent_history(&mut self) {
         self.agents.history.clear();
+        self.follow_song();
     }
 }
 
@@ -357,6 +414,12 @@ impl AgentPanel {
             "edits": self.runtime.edits(),
             "elapsedSeconds": self.runtime.elapsed().as_secs(),
             "tokens": { "input": self.runtime.tokens.0, "output": self.runtime.tokens.1 },
+            "conversation": {
+                "id": self.conversations.thread.id,
+                "title": self.conversations.thread.title,
+            },
+            "steeringPending": self.runtime.pending_steering(),
+            "storageError": self.conversations.storage_error(),
         })
     }
     pub(crate) fn transcript_json(&self, limit: usize) -> Value {
@@ -400,8 +463,10 @@ impl AgentPanel {
             .collect();
         json!({ "entries": entries, "changes": self.history.len() })
     }
+    /// Empty the open conversation (it keeps its id, its title starts over).
     pub(crate) fn clear_transcript(&mut self) {
         self.runtime.clear();
+        self.conversations.thread.title = crate::conversations::NEW_TITLE.into();
     }
     pub(crate) fn runner_busy(&self) -> bool {
         self.runtime.running()

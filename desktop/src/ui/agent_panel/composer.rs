@@ -1,7 +1,8 @@
-//! The composer under the conversation: the status line (with Stop while the agent works),
-//! errors in plain words with what to do next, and one raised card holding what the
-//! message is about (the selection, as chips), the slash menu, the message box and its bar
-//! (model and reasoning, the send hint, Send). Enter sends, Shift+Enter starts a new line.
+//! The composer under the conversation: the status line, errors in plain words with what to
+//! do next, and one raised card holding what the message is about (the selection, as
+//! chips), the slash menu, the message box and its bar (model and reasoning, the send hint,
+//! Send). Enter sends, Shift+Enter starts a new line. While the agent works, Send steers it
+//! (`agent.steer`) and Stop sits beside it.
 
 use super::{connection, context, slash, steps, AgentPanel, Tab};
 use crate::ui::{
@@ -41,7 +42,8 @@ impl AgentPanel {
             .map(|e| context::split_context(&e.text).0.to_string());
         let chips = context::selection_context(app.store.session());
         let matches = slash::matches(&draft);
-        let can_send = !draft.trim().is_empty() && !running && ready && !self.checking;
+        // While the agent works the message steers it instead (`agent.steer`).
+        let can_send = !draft.trim().is_empty() && (running || (ready && !self.checking));
         let focused = self.composer.read(cx).is_focused(window);
         let model_button = self.model_button(cx);
         let model_menu = self.models.open.then(|| self.model_menu(window, cx));
@@ -56,19 +58,17 @@ impl AgentPanel {
             .min_h(px(22.0))
             .text_size(px(size::SM))
             .text_color(theme.text_2)
-            .child(status)
-            .when(running, |d| {
-                d.child(
-                    Button::new("agent-stop", "Stop")
-                        .compact()
-                        .tooltip("Stop the agent after the current step")
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.daw.update(cx, |daw, cx| {
-                                daw.fire("agent.stop", cx);
-                            })
-                        })),
-                )
-            });
+            .child(status);
+        let stop = running.then(|| {
+            Button::new("agent-stop", "Stop")
+                .compact()
+                .tooltip("Stop the agent after the current step")
+                .on_click(cx.listener(|this, _, _, cx| {
+                    this.daw.update(cx, |daw, cx| {
+                        daw.fire("agent.stop", cx);
+                    })
+                }))
+        });
 
         let error_box = (!error.is_empty()).then(|| {
             let unsent = !self.composer_error.is_empty();
@@ -213,14 +213,19 @@ impl AgentPanel {
                         .rounded(px(radius::SM))
                         .text_size(px(size::SM))
                         .cursor_pointer()
-                        .when(i == selected, |d| d.bg(theme.accent_soft))
-                        .hover(|s| s.bg(theme.hover))
+                        // The chosen command is inverted, paper on ink.
+                        .when(i == selected, |d| d.bg(theme.accent_fill))
+                        .when(i != selected, |d| d.hover(|s| s.bg(theme.hover)))
                         .child(
                             div()
                                 .min_w(px(75.0))
                                 .flex_none()
                                 .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(theme.accent_text)
+                                .text_color(if i == selected {
+                                    theme.text_on_accent
+                                } else {
+                                    theme.accent_text
+                                })
                                 .child(format!("/{}", command.name)),
                         )
                         .child(
@@ -230,7 +235,11 @@ impl AgentPanel {
                                 .whitespace_nowrap()
                                 .overflow_hidden()
                                 .text_ellipsis()
-                                .text_color(theme.text_2)
+                                .text_color(if i == selected {
+                                    theme.text_on_accent
+                                } else {
+                                    theme.text_2
+                                })
                                 .child(command.label),
                         )
                         .on_click(cx.listener(move |this, _, _, cx| this.choose_slash(command, cx)))
@@ -244,17 +253,12 @@ impl AgentPanel {
             .flex()
             .items_center()
             .justify_center()
-            .rounded_full()
             .when(can_send, |d| {
                 d.bg(theme.accent_fill)
                     .cursor_pointer()
                     .hover(|s| s.bg(theme.accent_hover))
-                    .shadow(vec![gpui::BoxShadow {
-                        color: theme.accent_glow,
-                        offset: gpui::point(px(0.0), px(1.0)),
-                        blur_radius: px(6.0),
-                        spread_radius: px(0.0),
-                    }])
+                    // The primary action stands on a small hard shadow.
+                    .shadow(theme.chip_shadow())
             })
             .when(!can_send, |d| {
                 d.bg(theme.control)
@@ -270,7 +274,17 @@ impl AgentPanel {
                     theme.text_3
                 },
             ))
-            .tooltip(|_, cx| crate::ui::widgets::tip("Send (Enter)".into(), cx))
+            .tooltip(move |_, cx| {
+                crate::ui::widgets::tip(
+                    if running {
+                        "Steer (Enter): the agent reads it at its next step"
+                    } else {
+                        "Send (Enter)"
+                    }
+                    .into(),
+                    cx,
+                )
+            })
             .when(can_send, |d| {
                 d.on_click(cx.listener(|this, _, _, cx| this.send(cx)))
             });
@@ -291,12 +305,12 @@ impl AgentPanel {
             } else {
                 theme.glass_edge
             })
-            .shadow(vec![gpui::BoxShadow {
-                color: theme.glass_shadow.opacity(0.5),
-                offset: gpui::point(px(0.0), px(2.0)),
-                blur_radius: px(8.0),
-                spread_radius: px(0.0),
-            }])
+            // The composer sits in viewfinder brackets, like the suite's other composers.
+            .child(crate::ui::grain::brackets(
+                10.0,
+                -6.0,
+                if focused { theme.text_2 } else { theme.text_3 },
+            ))
             .child(
                 div()
                     .text_size(px(size::SM))
@@ -334,8 +348,13 @@ impl AgentPanel {
                             .text_ellipsis()
                             .text_size(px(size::XS))
                             .text_color(theme.text_3)
-                            .child("Enter to send · Shift Enter for a new line"),
+                            .child(if running {
+                                "Enter to steer · Shift Enter for a new line"
+                            } else {
+                                "Enter to send · Shift Enter for a new line"
+                            }),
                     )
+                    .children(stop)
                     .child(send),
             )
             .children(model_menu);

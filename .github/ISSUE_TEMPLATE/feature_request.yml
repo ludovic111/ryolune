@@ -1,0 +1,27 @@
+name: Feature request
+description: An idea that would make ryolune better for your music.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: The music or the workflow, and where ryolune gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you imagine it working. Another app that does it well is a fine answer.
+    validations:
+      required: true
+  - type: textarea
+    id: scripts
+    attributes:
+      label: Scripts and agents
+      description: |
+        Every action in ryolune is also a command for `ryolune-cli`, MCP and the built-in agent.
+        If this should be scriptable, say how you would call it.
+    validations:
+      required: false

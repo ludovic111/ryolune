@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 
 /// The sidebar, in the order the window shows it: (section key, title). The keys are
 /// `SECTION_KEYS` (what `ui.showPanel section=` takes).
-pub(crate) const SIDEBAR: [(&str, &str); 9] = [
+pub(crate) const SIDEBAR: [(&str, &str); 10] = [
     ("general", "General"),
     ("audio", "Audio & MIDI"),
     ("interface", "Interface"),
@@ -16,6 +16,7 @@ pub(crate) const SIDEBAR: [(&str, &str); 9] = [
     ("plugins", "Plugins"),
     ("control", "Control"),
     ("updates", "Updates"),
+    ("diagnostics", "Diagnostics"),
     ("about", "About"),
 ];
 
@@ -214,14 +215,14 @@ pub(crate) const FIELDS: [Field; 22] = [
         "updates",
         "general.checkUpdatesOnStart",
         "Check for updates on start",
-        "Ask GitHub for a newer release when ryolune starts.",
+        "Ask GitHub for a newer release when ryolune starts, then every six hours while it is open.",
         Kind::Switch,
     ),
     f(
         "updates",
         "general.installUpdatesAutomatically",
         "Install updates automatically",
-        "Download and verify a new release in the background; ryolune relaunches into it when you choose.",
+        "Download and verify a new release in the background; ryolune restarts into it when you choose.",
         Kind::Switch,
     ),
 ];
@@ -229,11 +230,12 @@ pub(crate) const FIELDS: [Field; 22] = [
 /// Settings kept on purpose out of the window: bookkeeping, the theme's mode (edited by the
 /// Appearance picker) and what the browser edits itself (favourites, folders, recents).
 #[cfg(test)]
-pub(crate) const HIDDEN: [&str; 8] = [
+pub(crate) const HIDDEN: [&str; 9] = [
     "general.lastSession",
     "general.recentSessions",
     "general.exportsCompleted",
     "general.supportAsked",
+    "general.lastRunVersion",
     "interface.mode",
     "plugins.favorites",
     "plugins.folders",

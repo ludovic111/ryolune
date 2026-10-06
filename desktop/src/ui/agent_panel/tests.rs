@@ -145,10 +145,11 @@ fn creates_a_protected_original_before_a_variation(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn clearing_the_conversation_keeps_the_music(cx: &mut TestAppContext) {
+fn conversations_are_kept_switched_and_deleted_and_the_music_stays(cx: &mut TestAppContext) {
     let (panel, daw, cx) = setup(cx);
     let tracks = daw.read_with(cx, |daw, _| daw.app.store.session().tracks.len());
     daw.update(cx, |daw, _| {
+        daw.app.conversation_started("An idea");
         daw.app.agents.runtime.transcript.push(Entry {
             role: Role::User,
             text: "An idea".into(),
@@ -156,12 +157,86 @@ fn clearing_the_conversation_keeps_the_music(cx: &mut TestAppContext) {
             streaming: false,
         })
     });
-    panel.update(cx, |panel, cx| panel.clear_conversation(cx));
+    let first = daw.read_with(cx, |daw, _| daw.app.agents.conversations.thread.id.clone());
+    // + keeps this one and opens an empty one.
+    daw.update(cx, |daw, cx| daw.fire("agent.newConversation", cx));
+    cx.run_until_parked();
     assert!(daw.read_with(cx, |daw, _| daw.app.agents.runtime.transcript.is_empty()));
+    let listed = daw.update(cx, |daw, cx| {
+        daw.request("agent.conversations", serde_json::json!({}), cx)
+            .unwrap()
+    });
+    assert_eq!(listed["conversations"].as_array().unwrap().len(), 2);
+    daw.update(cx, |daw, cx| {
+        daw.run(
+            "agent.selectConversation",
+            serde_json::json!({ "id": first }),
+            cx,
+        )
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        daw.read_with(cx, |daw, _| daw
+            .app
+            .agents
+            .conversations
+            .thread
+            .title
+            .clone()),
+        "An idea"
+    );
+    // Project memory and renaming go through the editor under the header.
+    panel.update_in(cx, |panel, window, cx| {
+        panel.edit(Editing::Memory, window, cx);
+        panel
+            .memory_input
+            .update(cx, |input, cx| input.set_text("Stay in D minor.", cx));
+        panel.save_editing(cx);
+        panel.edit(Editing::Title, window, cx);
+        panel
+            .title_input
+            .update(cx, |input, cx| input.set_text("Ideas", cx));
+        panel.save_editing(cx);
+    });
+    cx.run_until_parked();
+    daw.read_with(cx, |daw, _| {
+        assert_eq!(daw.app.agents.conversations.memory, "Stay in D minor.");
+        assert_eq!(daw.app.agents.conversations.thread.title, "Ideas");
+    });
+    // Delete, confirmed under the header.
+    panel.update(cx, |panel, cx| {
+        panel.confirm_delete = true;
+        panel.delete_conversation(cx);
+    });
+    cx.run_until_parked();
+    assert_ne!(
+        daw.read_with(cx, |daw, _| daw.app.agents.conversations.thread.id.clone()),
+        first
+    );
     assert_eq!(
         daw.read_with(cx, |daw, _| daw.app.store.session().tracks.len()),
         tracks
     );
+}
+
+#[gpui::test]
+fn while_the_agent_works_enter_steers_it(cx: &mut TestAppContext) {
+    let (panel, daw, cx) = setup(cx);
+    let complete = daw.update(cx, |daw, _| daw.app.agents.mock_running_task());
+    type_and(&panel, "Slower, please", InputEvent::Submit, cx);
+    assert_eq!(draft(&panel, cx), "", "the steering left the box");
+    daw.read_with(cx, |daw, _| {
+        let runtime = &daw.app.agents.runtime;
+        assert_eq!(runtime.pending_steering(), 1);
+        assert_eq!(runtime.transcript.last().unwrap().text, "Slower, please");
+    });
+    complete();
+    daw.update(cx, |daw, _| daw.app.run_agent_tools());
+    // Never read: the person is told to send it again.
+    daw.read_with(cx, |daw, _| {
+        let last = daw.app.agents.runtime.transcript.last().unwrap();
+        assert!(last.text.contains("before reading your steering"));
+    });
 }
 
 /// Every tab draws over a conversation with messages, steps, a failure and a streaming reply,

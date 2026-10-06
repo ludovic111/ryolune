@@ -655,7 +655,7 @@ impl AgentPanel {
                 .flex_col()
                 .gap(px(4.0))
                 .mt(px(8.0))
-                .child(crate::ui::widgets::caps("Your sounds", cx))
+                .child(crate::ui::widgets::heading("Your sounds", cx))
                 .children(state.sounds.iter().map(|sound| {
                     let on = playing.as_deref() == Some(sound.id.as_str());
                     let (id, path) = (sound.id.clone(), sound.path.clone());

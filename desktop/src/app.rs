@@ -39,6 +39,10 @@ pub enum Intent {
     Quit,
     /// Close this copy and start the freshly installed one.
     Relaunch,
+    /// Open a recent song (`Interop::pending_open`).
+    OpenRecent,
+    /// Open a song from another app (`Interop::pending_import`).
+    ImportFrom,
 }
 pub(crate) enum AfterTake {
     Save(bool),
@@ -148,6 +152,7 @@ pub struct Ryolune {
     pub(crate) published: Option<serde_json::Value>,
     pub(crate) export: crate::export::ExportDialog,
     pub(crate) recovery: crate::recovery::Recovery,
+    pub(crate) interop: crate::interop::Interop,
     pub(crate) control_job: Option<crate::control::ControlJob>,
     pub(crate) updates: crate::update::Updates,
     pub(crate) settings: Settings,
@@ -174,6 +179,8 @@ pub struct Ryolune {
     /// The user accepted built-in microphone to built-in speakers, until the app closes.
     pub(crate) monitor_speakers_ok: bool,
     pub(crate) bridge_wanted: bool,
+    /// The What's New sheet is open (by itself once after an update, or on request).
+    pub(crate) whats_new: Option<crate::diagnostics::WhatsNew>,
 }
 pub fn id(prefix: &str) -> String {
     ryolune_engine::control::new_id(prefix)
@@ -194,7 +201,9 @@ impl Ryolune {
         check_updates: bool,
     ) -> Self {
         let screenshot_run = screenshot.is_some();
+        let existing_profile = Settings::path().exists();
         let settings = Settings::load();
+        ryolune_engine::diagnostics::set_secrets(settings.secrets());
         let mut app = Self::from_session(store::demo(), screenshot);
         app.wake = wake;
         app.settings = settings.clone();
@@ -204,16 +213,29 @@ impl Ryolune {
             app.midi_port = settings.audio.midi_input.clone();
         }
         app.agents.open = settings.interface.agent_panel_open_on_start;
+        if !settings.onboarding.is_done() && !screenshot_run {
+            app.show_onboarding();
+        }
         app.catalog = host::scan::installed();
         app.connect();
         if control && settings.control.enable_bridge {
             app.start_control();
         }
+        // Startup and then every six hours while open (`update::RECHECK`), unless updates
+        // are off in Settings, `--no-update-check` / RYOLUNE_NO_UPDATE, or a capture run.
+        app.updates.periodic = check_updates && !screenshot_run;
         if check_updates && settings.general.check_updates_on_start && !screenshot_run {
             app.check_for_updates(false);
         }
+        if !screenshot_run {
+            app.note_version(existing_profile);
+            app.crash_test();
+        }
         if settings.plugins.scan_on_start && !screenshot_run {
             app.scan_plugins();
+        }
+        if !screenshot_run {
+            app.attach_conversations(host::scan::data_dir().join(crate::conversations::FILE));
         }
         let path = path.or_else(|| {
             settings
@@ -253,7 +275,8 @@ impl Ryolune {
             let _ = self.settings.save();
         }
     }
-    pub(crate) fn from_session(session: Session, screenshot: Option<PathBuf>) -> Self {
+    pub(crate) fn from_session(mut session: Session, screenshot: Option<PathBuf>) -> Self {
+        session.ensure_id();
         let zoom = session.view.pixels_per_bar;
         Self {
             store: Store::new(session).expect("Validated demo"),
@@ -323,6 +346,7 @@ impl Ryolune {
             published: None,
             export: Default::default(),
             recovery: Default::default(),
+            interop: Default::default(),
             control_job: None,
             updates: Default::default(),
             settings: Settings::default(),
@@ -339,6 +363,7 @@ impl Ryolune {
             monitoring: ryolune_engine::device::Monitoring::Off,
             monitor_speakers_ok: false,
             bridge_wanted: false,
+            whats_new: None,
         }
     }
     pub fn dispatch(&mut self, command: Command) {
@@ -403,7 +428,7 @@ impl Ryolune {
         self.job = Some(rx);
         self.status = status.into();
         std::thread::spawn(move || {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
+            let result = ryolune_engine::diagnostics::catch("background operation", work)
                 .unwrap_or_else(|_| {
                     Err("Background operation failed. Your open session is intact.".into())
                 });
@@ -1500,12 +1525,15 @@ impl Ryolune {
     /// recovery snapshot is neither.
     pub(crate) fn load_document(
         &mut self,
-        session: Session,
+        mut session: Session,
         library: Library,
         path: PathBuf,
         ownership: Option<SessionFileLock>,
         remember: bool,
     ) {
+        if session.id.is_empty() {
+            session.id = Session::id_for_path(&path);
+        }
         self.unload_plugins();
         self.position = session.transport.position_beats;
         self.zoom = session.view.pixels_per_bar.clamp(12.0, 480.0);
@@ -1628,11 +1656,12 @@ impl Ryolune {
                 self.closing = true;
             }
             Intent::New | Intent::Demo => {
-                let s = if matches!(intent, Intent::New) {
+                let mut s = if matches!(intent, Intent::New) {
                     store::empty()
                 } else {
                     store::demo()
                 };
+                s.ensure_id();
                 if let Err(e) = self.store.load(s) {
                     self.error = Some(e);
                     return;
@@ -1649,6 +1678,7 @@ impl Ryolune {
                 self.locate(0.0);
             }
             Intent::Recover => self.restore_recovery(),
+            Intent::OpenRecent | Intent::ImportFrom => self.execute_interop(intent),
             Intent::Open => {
                 let current = self.session_file.clone();
                 self.spawn("Opening session…", move || {

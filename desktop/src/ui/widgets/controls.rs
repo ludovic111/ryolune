@@ -1,5 +1,6 @@
-//! Buttons, keys, tabs and switches. Every control is a value (`RenderOnce`) configured by
-//! the caller, which owns the state and passes a callback.
+//! Buttons, keys, tabs and switches, and the boxes tools are grouped in. Every control is a
+//! value (`RenderOnce`) configured by the caller, which owns the state and passes a callback.
+//! lsuite v2: square corners, a chosen thing inverted (paper on ink), red only for record.
 
 use crate::ui::{
     assets,
@@ -31,6 +32,84 @@ pub fn caps(text: impl Into<SharedString>, cx: &App) -> gpui::Div {
         .child(text.into().to_uppercase())
 }
 
+/// A section heading: caps in mono running into a hairline, like a drawing.
+pub fn heading(text: impl Into<SharedString>, cx: &App) -> gpui::Div {
+    let theme = Theme::get(cx);
+    div()
+        .flex()
+        .items_center()
+        .gap(px(8.0))
+        .min_w_0()
+        .child(caps(text, cx).text_color(theme.text_2).flex_none())
+        .child(div().flex_1().h(px(1.0)).bg(theme.line))
+}
+
+/// An area's title, as a sidebar titles itself ("Arrangement", "Mixer", "Inspector").
+pub fn panel_title(text: impl Into<SharedString>, cx: &App) -> gpui::Div {
+    let theme = Theme::get(cx);
+    div()
+        .flex_none()
+        .whitespace_nowrap()
+        .text_size(px(size::BASE))
+        .font_weight(gpui::FontWeight::SEMIBOLD)
+        .text_color(theme.text)
+        .child(text.into())
+}
+
+/// What an area shows, in mono beside its title (`16 bars · 120 bpm`).
+pub fn panel_info(text: impl Into<SharedString>, cx: &App) -> gpui::Div {
+    let theme = Theme::get(cx);
+    div()
+        .min_w_0()
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .font_family(FONT_MONO)
+        .text_size(px(size::XS))
+        .text_color(theme.text_3)
+        .child(text.into())
+}
+
+/// Height of a [`group`] of tools.
+pub const GROUP_H: f32 = 28.0;
+
+/// Tools that belong together in one box, a hairline between each (`Button::flush` inside).
+/// Toolbars are made of these: what goes together is boxed together.
+pub fn group(items: impl IntoIterator<Item = gpui::AnyElement>, cx: &App) -> gpui::Div {
+    let theme = Theme::get(cx);
+    let mut d = div()
+        .flex()
+        .flex_none()
+        .items_center()
+        .h(px(GROUP_H))
+        .border_1()
+        .border_color(theme.line_strong)
+        .bg(with_alpha(theme.bg_sunken, 0.35));
+    for (i, el) in items.into_iter().enumerate() {
+        if i > 0 {
+            d = d.child(div().flex_none().w(px(1.0)).h_full().bg(theme.line));
+        }
+        d = d.child(el);
+    }
+    d
+}
+
+/// A tool in a [`group`]: icon and label, or the icon alone where room is short (the tooltip
+/// still names it).
+pub fn tool(
+    id: impl Into<ElementId>,
+    icon: &'static str,
+    label: &'static str,
+    labelled: bool,
+    tip: impl Into<SharedString>,
+) -> Button {
+    let b = if labelled {
+        Button::new(id, label).with_icon(icon)
+    } else {
+        Button::icon(id, icon)
+    };
+    b.flush().tooltip(tip)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Variant {
     /// No fill until hovered: toolbars, rows.
@@ -57,6 +136,8 @@ pub struct Button {
     disabled: bool,
     compact: bool,
     full_width: bool,
+    /// Inside a [`group`]: as tall as the group, no box of its own.
+    flush: bool,
     tooltip: Option<SharedString>,
     on_click: Option<ClickHandler>,
 }
@@ -74,6 +155,7 @@ impl Button {
             disabled: false,
             compact: false,
             full_width: false,
+            flush: false,
             tooltip: None,
             on_click: None,
         }
@@ -126,6 +208,14 @@ impl Button {
         self.full_width = true;
         self
     }
+    /// Sits in a [`group`]: quiet, as tall as the group, the group draws the box.
+    pub fn flush(mut self) -> Self {
+        self.flush = true;
+        if self.variant == Variant::Raised {
+            self.variant = Variant::Ghost;
+        }
+        self
+    }
     pub fn tooltip(mut self, text: impl Into<SharedString>) -> Self {
         self.tooltip = Some(text.into());
         self
@@ -139,17 +229,18 @@ impl Button {
 impl RenderOnce for Button {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = Theme::get(cx).clone();
+        // Lit is chosen: inverted, paper on ink; a lit colour (record) fills with that colour.
         let lit_color = self.lit_color.unwrap_or(theme.accent_fill);
         let (bg, fg, edge, hover) = match (self.variant, self.lit) {
             (_, true) => (
                 lit_color,
-                if self.lit_color.is_some() {
-                    theme.bg_sunken
-                } else {
-                    theme.text_on_accent
-                },
-                with_alpha(lit_color, 0.9),
+                theme.text_on_accent,
                 lit_color,
+                if self.lit_color.is_some() {
+                    lit_color
+                } else {
+                    theme.accent_hover
+                },
             ),
             (Variant::Ghost, false) => (
                 gpui::transparent_black(),
@@ -170,17 +261,24 @@ impl RenderOnce for Button {
                 theme.accent_hover,
             ),
             (Variant::Danger, false) => (
-                theme.control,
+                with_alpha(theme.danger, 0.12),
                 theme.danger,
-                theme.control_edge,
-                theme.control_hover,
+                with_alpha(theme.danger, 0.4),
+                with_alpha(theme.danger, 0.2),
             ),
         };
-        let h = if self.compact { 22.0 } else { 28.0 };
+        let h = if self.flush {
+            GROUP_H - 2.0
+        } else if self.compact {
+            22.0
+        } else {
+            28.0
+        };
         let icon_only = self.label.is_none();
         let disabled = self.disabled;
         let on_click = self.on_click.clone();
         let tooltip = self.tooltip.clone();
+        let primary = self.variant == Variant::Primary && !self.lit && !disabled;
         div()
             .id(self.id)
             .flex()
@@ -191,26 +289,23 @@ impl RenderOnce for Button {
             .h(px(h))
             .when(icon_only, |d| d.w(px(h)))
             .when(!icon_only, |d| {
-                d.px(px(if self.compact { 8.0 } else { 12.0 }))
+                d.px(px(if self.compact || self.flush {
+                    8.0
+                } else {
+                    12.0
+                }))
             })
             .when(self.full_width, |d| d.w_full())
             .rounded(px(radius::SM))
             .bg(bg)
-            .border_1()
-            .border_color(edge)
-            .when(
-                matches!(self.variant, Variant::Raised | Variant::Primary) || self.lit,
-                |d| {
-                    d.shadow(vec![gpui::BoxShadow {
-                        color: theme.glass_shadow.opacity(0.5),
-                        offset: gpui::point(px(0.0), px(1.0)),
-                        blur_radius: px(2.0),
-                        spread_radius: px(0.0),
-                    }])
-                },
-            )
+            .when(!self.flush, |d| d.border_1().border_color(edge))
+            // The primary action stands on a small hard shadow.
+            .when(primary, |d| d.shadow(theme.chip_shadow()))
             .text_size(px(size::BASE))
             .text_color(fg)
+            .when(primary || self.lit, |d| {
+                d.font_weight(gpui::FontWeight::SEMIBOLD)
+            })
             .when(disabled, |d| d.opacity(0.4))
             .when(!disabled, |d| {
                 d.cursor_pointer()
@@ -242,6 +337,7 @@ impl Render for Tip {
             .bg(theme.glass(2))
             .border_1()
             .border_color(theme.glass_edge)
+            .shadow(theme.float_shadow())
             .text_size(px(size::SM))
             .text_color(theme.text)
             .font_family(crate::ui::theme::FONT_UI)
@@ -294,7 +390,7 @@ impl RenderOnce for Key {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let theme = Theme::get(cx).clone();
         let (bg, fg) = if self.on {
-            (self.color, theme.bg_sunken)
+            (self.color, theme.text_on_accent)
         } else {
             (theme.control, theme.text_2)
         };
@@ -335,7 +431,7 @@ impl RenderOnce for Key {
     }
 }
 
-/// Tabs in a sunken groove; the selected one stands raised.
+/// Tabs in one box; the chosen one is inverted (paper on ink).
 #[derive(IntoElement)]
 pub struct Segmented {
     id: ElementId,
@@ -378,10 +474,10 @@ impl RenderOnce for Segmented {
             .when(self.full_width, |d| d.w_full())
             .p(px(2.0))
             .gap(px(2.0))
-            .rounded(px(radius::SM + 1.0))
-            .bg(theme.well)
+            .rounded(px(radius::SM))
+            .bg(with_alpha(theme.bg_sunken, 0.35))
             .border_1()
-            .border_color(theme.hairline)
+            .border_color(theme.line_strong)
             .children(self.items.into_iter().enumerate().map(|(i, label)| {
                 let on = i == self.selected;
                 let f = self.on_select.clone();
@@ -391,18 +487,24 @@ impl RenderOnce for Segmented {
                     .items_center()
                     .justify_center()
                     .when(self.full_width, |d| d.flex_1())
-                    .h(px(24.0))
+                    .h(px(22.0))
                     .px(px(10.0))
-                    .rounded(px(radius::SM - 1.0))
+                    .rounded(px(radius::SM))
                     .text_size(px(size::BASE))
                     .whitespace_nowrap()
-                    .text_color(if on { theme.text } else { theme.text_2 })
-                    .when(on, |d| {
-                        d.bg(theme.control)
-                            .border_1()
-                            .border_color(theme.control_edge)
+                    .text_color(if on {
+                        theme.text_on_accent
+                    } else {
+                        theme.text_2
                     })
-                    .when(!on, |d| d.cursor_pointer().hover(|s| s.bg(theme.hover)))
+                    .when(on, |d| {
+                        d.bg(theme.accent_fill)
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                    })
+                    .when(!on, |d| {
+                        d.cursor_pointer()
+                            .hover(|s| s.bg(theme.hover).text_color(theme.text))
+                    })
                     .child(label)
                     .when_some(f, |d, f| d.on_click(move |_, w, cx| f(i, w, cx)))
             }))
@@ -434,25 +536,28 @@ impl RenderOnce for Switch {
         let theme = Theme::get(cx).clone();
         let on = self.on;
         let f = self.on_toggle.clone();
+        // Square, like everything: a box with a square knob, lit (inverted) when on.
         div()
             .id(self.id)
             .flex_none()
             .w(px(30.0))
             .h(px(18.0))
             .p(px(2.0))
-            .rounded_full()
-            .bg(if on { theme.accent } else { theme.well })
+            .bg(if on { theme.accent_fill } else { theme.well })
             .border_1()
-            .border_color(if on { theme.accent } else { theme.line_strong })
+            .border_color(if on {
+                theme.accent_fill
+            } else {
+                theme.line_strong
+            })
             .cursor_pointer()
             .child(
                 div()
                     .size(px(12.0))
-                    .rounded_full()
                     .bg(if on {
                         theme.text_on_accent
                     } else {
-                        theme.thumb
+                        theme.text_3
                     })
                     .when(on, |d| d.ml(px(12.0))),
             )
@@ -465,7 +570,8 @@ pub fn child_id(parent: &ElementId, key: impl ToString) -> ElementId {
     ElementId::NamedChild(Box::new(parent.clone()), key.to_string().into())
 }
 
-/// A coloured dot: a family swatch, a track colour, a status light.
+/// A coloured square: a family swatch, a track colour, a status light (square, like every
+/// corner in v2).
 pub fn dot(color: Hsla, size_px: f32) -> gpui::Div {
-    div().flex_none().size(px(size_px)).rounded_full().bg(color)
+    div().flex_none().size(px(size_px)).bg(color)
 }

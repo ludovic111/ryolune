@@ -6,7 +6,7 @@
 use crate::ui::{
     daw::Daw,
     theme::{radius, size, Theme, FONT_MONO},
-    widgets::{caps, select_button, InputEvent, MenuHost, MenuItem, TextInput},
+    widgets::{select_button, InputEvent, MenuHost, MenuItem, TextInput},
 };
 use gpui::{div, prelude::*, px, Context, Entity, MouseButton, Subscription, Window};
 use ryolune_engine::model::{Clip, ClipData, FadeCurve, CLIP_GAIN_MAX_DB, CLIP_GAIN_MIN_DB};
@@ -320,8 +320,8 @@ impl Render for Region {
                 div()
                     .flex()
                     .items_center()
-                    .justify_between()
-                    .child(caps("Region", cx))
+                    .gap(px(8.0))
+                    .child(crate::ui::widgets::heading("Region", cx).flex_1())
                     .child(
                         div()
                             .font_family(FONT_MONO)

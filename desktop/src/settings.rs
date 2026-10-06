@@ -12,7 +12,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-pub(crate) const SECTIONS: [&str; 9] = [
+pub(crate) const SECTIONS: [&str; 10] = [
     "General",
     "Audio & MIDI",
     "Interface",
@@ -22,10 +22,11 @@ pub(crate) const SECTIONS: [&str; 9] = [
     "Updates",
     "About",
     "Generation",
+    "Diagnostics",
 ];
-/// Settings sections by index. Generation came last (0.12), so earlier indices keep their
-/// meaning; the window orders them itself.
-pub(crate) const SECTION_KEYS: [&str; 9] = [
+/// Settings sections by index. Generation came last (0.12), then Diagnostics, so earlier
+/// indices keep their meaning; the window orders them itself.
+pub(crate) const SECTION_KEYS: [&str; 10] = [
     "general",
     "audio",
     "interface",
@@ -35,6 +36,7 @@ pub(crate) const SECTION_KEYS: [&str; 9] = [
     "updates",
     "about",
     "generation",
+    "diagnostics",
 ];
 
 #[derive(Default)]
@@ -66,6 +68,7 @@ impl Ryolune {
         let previous = self.settings.clone();
         next.save()?;
         self.settings = next.clone();
+        ryolune_engine::diagnostics::set_secrets(next.secrets());
         if previous.audio.output_device != next.audio.output_device
             || previous.audio.buffer_frames != next.audio.buffer_frames
         {

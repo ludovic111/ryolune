@@ -395,7 +395,7 @@ impl RenderOnce for Fader {
                             point(b.center().x - px(2.0), b.origin.y + px(cap_h / 2.0)),
                             gpui::size(px(4.0), px(travel)),
                         );
-                        window.paint_quad(gpui::fill(groove, theme.groove).corner_radii(px(2.0)));
+                        window.paint_quad(gpui::fill(groove, theme.groove));
                         let y = b.origin.y + px(travel * (1.0 - value));
                         let cap = Bounds::new(
                             point(b.origin.x + px(2.0), y),
@@ -403,7 +403,7 @@ impl RenderOnce for Fader {
                         );
                         window.paint_shadows(
                             cap,
-                            gpui::Corners::all(px(3.0)),
+                            gpui::Corners::all(px(0.0)),
                             &[gpui::BoxShadow {
                                 color: theme.glass_shadow,
                                 offset: point(px(0.0), px(2.0)),
@@ -413,7 +413,6 @@ impl RenderOnce for Fader {
                         );
                         window.paint_quad(
                             gpui::fill(cap, theme.thumb)
-                                .corner_radii(px(3.0))
                                 .border_widths(px(1.0))
                                 .border_color(theme.control_edge),
                         );
@@ -483,10 +482,10 @@ impl RenderOnce for Slider {
                             point(b.origin.x + px(thumb / 2.0), b.center().y - px(2.0)),
                             gpui::size(px(travel), px(4.0)),
                         );
-                        window.paint_quad(gpui::fill(groove, theme.groove).corner_radii(px(2.0)));
+                        window.paint_quad(gpui::fill(groove, theme.groove));
                         let filled =
                             Bounds::new(groove.origin, gpui::size(px(travel * value), px(4.0)));
-                        window.paint_quad(gpui::fill(filled, color).corner_radii(px(2.0)));
+                        window.paint_quad(gpui::fill(filled, color));
                         let x = b.origin.x + px(travel * value);
                         let t = Bounds::new(
                             point(x, b.center().y - px(thumb / 2.0)),

@@ -19,12 +19,19 @@ fs2 = "0.4.3"
 clap-sys = "0.5"
 vst3 = "0.3"
 libloading = "0.8"
+# The logging facade (already built for GPUI); ryolune writes its own rotating file
+# (`diagnostics.rs`), so no logging framework is added.
+log = { version = "0.4", features = ["std"] }
 # 0.10 (coremidi 0.8, core-foundation 0.9): gpui pins core-foundation =0.10.0, which
 # coremidi 0.9 (midir 0.11) cannot share.
 midir = "0.10.3"
 midly = { version = "0.5.3", default-features = false, features = ["std", "strict"] }
 # Ogg Vorbis export: BSD-3-Clause, vendored libogg/libvorbis (aoTuV) built with `cc`.
 vorbis_rs = { version = "0.5", default-features = false }
+# DAWproject interchange (a zip of XML and audio). Both were already in the build (zip for
+# the desktop's update archives, roxmltree under usvg and fontconfig), so nothing new is fetched.
+zip = { version = "2", default-features = false, features = ["deflate"] }
+roxmltree = "0.20"
 
 [dev-dependencies]
 ryolune-plugin-gain = { path = "../plugins/gain" }

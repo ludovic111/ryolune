@@ -16,6 +16,7 @@ pub mod daw;
 pub mod dialogs;
 pub mod editor;
 pub mod format;
+pub mod grain;
 pub mod inspector;
 pub mod mixer;
 pub mod palette;
@@ -37,6 +38,19 @@ use gpui::{
 };
 use std::path::PathBuf;
 use theme::{layout, Mode, Theme};
+
+/// About how wide the centre column (arrangement, editor, mixer) is: the window less the
+/// side panels. Toolbars use it to drop labels before they run out of room.
+pub fn centre_width(window: &gpui::Window, agent_open: bool) -> f32 {
+    let side = layout::BROWSER
+        + layout::INSPECTOR
+        + if agent_open {
+            layout::AGENT
+        } else {
+            layout::AGENT_RAIL
+        };
+    (f32::from(window.viewport_size().width) - side).max(layout::ARRANGEMENT_MIN)
+}
 
 /// Which mode the settings ask for: dark, light, or the system's ("auto").
 pub fn resolve_mode(setting: &str, cx: &App) -> Mode {
@@ -70,6 +84,7 @@ pub fn run(
     control: bool,
     updates: bool,
     agents: bool,
+    unclean: Vec<PathBuf>,
 ) {
     Application::new()
         .with_assets(assets::Assets)
@@ -81,6 +96,7 @@ pub fn run(
             });
             let mut app = Ryolune::new(wake, path.clone(), screenshot.clone(), control, updates);
             app.agents.open |= agents;
+            app.previous_run_ended(&unclean);
             let opaque = reduce_transparency();
             let mode = resolve_mode(&app.settings.interface.mode, cx);
             cx.set_global(Theme::new(mode, opaque));
@@ -92,7 +108,7 @@ pub fn run(
                 titlebar: Some(TitlebarOptions {
                     title: Some("ryolune".into()),
                     appears_transparent: true,
-                    traffic_light_position: Some(point(px(14.0), px(12.0))),
+                    traffic_light_position: Some(point(px(14.0), px(14.0))),
                 }),
                 window_background: if opaque {
                     WindowBackgroundAppearance::Opaque
@@ -112,7 +128,7 @@ pub fn run(
                 cx.new(|cx| workspace::Workspace::new(daw.clone(), window, cx))
             });
             if let Err(error) = window {
-                eprintln!("ryolune could not open its window: {error}");
+                log::error!("ryolune could not open its window: {error}");
                 cx.quit();
                 return;
             }

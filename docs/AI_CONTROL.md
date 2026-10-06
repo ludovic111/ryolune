@@ -116,15 +116,51 @@ switches for the rest:
 
 | Permission | Covers |
 | --- | --- |
-| File operations | open, save, import, export, bounce, plugin scan, writing a screenshot to a path |
+| File operations | open, save, import, export, bounce, plugin scan, writing a screenshot to a path, deleting crash reports |
 | Transport | play, record, stop, locate, marker navigation |
 | Replace the session | new session, open another song |
 | Settings | `settings.set`, `settings.reset` |
-| Application control | quit, install an update |
+| Application control | quit, install an update, restart (`app.relaunch`, also `app.restart`) |
 | Generate sounds | `generate.audio`, which spends the generation service's credits (on by default) |
 
 Connecting an AI service or a generation service, signing in and changing these permissions stay
-with the person: agents may not set `agent.*`, `control.*` or `generation.*`.
+with the person: agents may not set `agent.*`, `control.*` or `generation.*`. The song's project
+memory and its saved conversations are the person's too: an agent may read the memory
+(`agent.memory`), list, open, start and rename conversations, and steer the built-in agent, but
+`agent.setMemory` and `agent.deleteConversation` are refused to agents (the memory goes ahead of
+every later request, like the standing instructions in Settings; a deleted conversation is gone).
+
+## The built-in agent's conversations
+
+The panel's conversations are kept per song (by the song's stable `id`, saved in the file) in
+`<data dir>/agent-conversations.json`, and every client sees the same ones:
+
+| Command | Does |
+| --- | --- |
+| `agent.conversations` | the song's conversations, newest first: `id`, `title`, `updatedAt`, `requests`, `current`; `memoryBytes`, `storageError` |
+| `agent.newConversation` | opens an empty conversation; the open one is kept |
+| `agent.selectConversation id=…` | opens a saved one (only while the agent is idle) |
+| `agent.renameConversation title=… [id=…]` | renames one (new ones take their first request's first 60 characters) |
+| `agent.deleteConversation id=…` | deletes one for good (refused to agents) |
+| `agent.clear` | empties the open conversation; the edits stay in Undo |
+| `agent.memory` / `agent.setMemory text=…` | the song's project memory, at most 32 KB (setting it is refused to agents) |
+| `agent.steer text=…` | steers the running request: it reaches the agent at its next step |
+
+Project memory goes ahead of every request for every provider as `Project memory
+(user-maintained context):\n…\n\nCurrent request:\n…`, and is taken out again of the history
+the next request carries. Steering reaches API providers after the tool results of the step in
+progress (or as one more round when the answer was being written); Codex through `turn/steer`;
+zenith through `thread.steer` (or, for an older zenith or a turn waiting on an approval,
+`thread.send` once the turn ends); Claude Code, which reads its whole request at start,
+by stopping the run and starting it again with the request, what it had answered and the
+steering. `agent.status` reports the open conversation and `steeringPending`.
+
+```sh
+ryolune-cli agent.send --prompt "Add a bass line"
+ryolune-cli agent.steer --text "Keep it under the kick, and simpler"
+ryolune-cli agent.setMemory --text "D minor, 92 BPM, no hi-hats"
+ryolune-cli agent.conversations
+```
 
 ## Generation
 
@@ -179,9 +215,41 @@ apps it can drive and how.
   audio on a new track at bar 1, each marker on the ruler at the bar where it falls, and the
   cycle over the cut, in one undo step. Without a manifest, give `path`, `markers` (`time` in
   seconds, `label`) and `durationSeconds` yourself.
+- **zenith as the agent.** With **Zenith · lsuite** chosen in Settings > Agent (`agent.configure
+  provider=zenith`), the panel's requests go to a zenith thread through `zenith-cli`
+  (`$RYOLUNE_ZENITH_CLI`, the path in Settings, zenith's lsuite entry, then PATH). Each song has a
+  folder, `<data dir>/agent-workspaces/<song id>`, registered as a zenith project and holding
+  ryolune's MCP recipe; zenith hands its agents ryolune's MCP server from ryolune's lsuite entry,
+  and `ryolune-mcp --live` started that way finds the window's control file there. The edits
+  come back as MCP edits: undo steps, in Changes and in the chat. Models are zenith's
+  `provider/model` pairs (`provider.list`); an approval or a question zenith waits on shows in
+  the status line, to answer in zenith; Stop runs `thread.interrupt` and waits for the thread.
 - **Shared names.** Commands that every lsuite app has keep one name across the suite:
-  `app.version`, `project.overview`, `export.audio`, `export.stems` and `export.midi` work here
-  too and run `app.info`, `session.overview` and `session.export*`.
+  `app.version`, `project.overview`, `export.audio`, `export.stems`, `export.midi` and
+  `app.restart` work here too and run `app.info`, `session.overview`, `session.export*` and
+  `app.relaunch`.
+
+## Other music apps
+
+`session.formats` lists what ryolune opens and writes for other apps (DAWproject, MIDI, audio
+files, stems, and a package of MIDI plus stems), each with what survives the trip, and the apps
+people come from (Ableton Live, Logic Pro, FL Studio, Bitwig Studio, REAPER, Cubase, Studio
+One, Pro Tools, GarageBand) with their formats, the steps to bring a song over and take it back,
+and whether each is installed here (`app` narrows it to one).
+
+- `session.importFrom path=…` opens a `.dawproject`, a `.mid`, or audio files (`paths=[…]`, one
+  track each) as a new, unsaved song in place of the open one. It answers with a `report`:
+  `kept`, `approximated`, `dropped` and `missingMedia`, the same shape kimchi uses. Plugins are
+  matched by CLAP id, VST3 class id or Audio Unit name against the scanned plugins.
+- `session.exportTo path=… format=dawproject|midi|audio|stems|package` (or `app=bitwig`, which
+  picks the app's best format) writes the song for another app, with the same report.
+- `project.formats`, `project.importFrom` and `project.exportTo` are the lsuite names for them.
+- The first-run setup is `app.onboarding` (its state, steps, the apps found, the providers ready)
+  and `app.finishOnboarding comingFrom=… ai=…`, which only a person can answer: agents are
+  refused. Recent songs are `app.recent` and `app.openRecent index=…` (or `path`).
+
+Importing replaces the song, so agents need both `replaceSession` and `fileOperations`;
+exporting needs `fileOperations`; `app.openRecent` needs `replaceSession`.
 
 ## Recipes
 
@@ -287,10 +355,21 @@ and the theme. `ui.showPanel` opens the mixer, automation, controller lane, temp
 settings, help, the command palette and more; `view.set` scrolls and zooms; `ui.setTool` picks a tool;
 `ui.screenshot` saves a PNG of the window, captured once running animations have settled.
 
+### When something goes wrong
+
+`app.diagnostics` returns what a bug report needs: version and build, system, audio device,
+plugin scan summary, folders, the log file and recent crash reports, with no keys, prompts or
+songs. `app.logs` (`lines`, `file`) reads the end of this run's log or an earlier one;
+`app.crashReports` lists crash reports (`crash`, `recovered`, `unclean`) and reads one with
+`id`. These work without the window too. `app.whatsNew` returns the release notes built into
+this copy (`version`, `since`, `all`). `app.reportProblem` is for people only: it opens a
+prefilled GitHub issue in their browser, and nothing is ever sent by itself.
+
 ## What only a person does
 
-A few things deliberately have no command: signing in to an AI service and changing the agent's
-connection or permissions or the generation service, the menu bar itself, the agent panel's own composer, and pure layout
+A few things deliberately have no command for agents: signing in to an AI service and changing the agent's
+connection or permissions or the generation service, opening a GitHub issue
+(`app.reportProblem` is refused to agents), answering the first-run setup, the menu bar itself, the agent panel's own composer, and pure layout
 (vertical track scroll, folding a browser folder). The reasons are listed in
 [AGENT_PARITY.md](AGENT_PARITY.md).
 

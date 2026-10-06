@@ -122,9 +122,32 @@ cargo run --release -- --scan-plugins
 cargo run --release -p ryolune-engine --example probe -- "clap:com.example.plugin"
 ```
 
+## Logs and crash reports
+
+The window process logs through the `log` facade to `<data dir>/logs/ryolune.log` and echoes
+every line to stderr (`engine/src/diagnostics.rs`, installed in `desktop/src/main.rs`). The
+data dir is `RYOLUNE_DATA_DIR` when set, else the platform folder (`~/Library/Application
+Support/ryolune`, `%APPDATA%\ryolune`, `~/.local/share/ryolune`). Each start rotates the log to
+`ryolune.1.log` … `ryolune.3.log`; a file past 8 MB rolls over too. `RYOLUNE_LOG=debug` (or
+`trace`, `warn`…) sets the level for ryolune's crates, `info` by default; other crates log
+warnings and errors. The settings' API keys are masked in every line. Never log from the audio
+callback.
+
+- A panic nothing catches writes `<data dir>/crashes/crash-<time>-<pid>.txt` (message, thread,
+  backtrace, system, the last log lines) before the default hook runs. Background work wraps its
+  closure in `diagnostics::catch("what", ...)` instead of `catch_unwind`, so its panic becomes
+  a `recovered-…` report and the job fails without taking the app down.
+- `logs/running-<pid>.json` exists while a window runs; a clean quit removes it. One left by a
+  process that is gone becomes an `unclean-…` report at the next start.
+- `app.logs`, `app.crashReports`, `app.clearCrashReports` and `app.diagnostics` read them
+  (Settings › Diagnostics shows the same). Debug builds take `RYOLUNE_CRASH_TEST=main` (a panic
+  on the interface thread) or `=worker` (a recovered one) to check the reports.
+
 ## Releases
 
-1. Bump `version` in the workspace `Cargo.toml` and add `docs/releases/X.Y.Z.md`.
+1. Bump `version` in the workspace `Cargo.toml` and add `docs/releases/X.Y.Z.md`. The notes
+   are built into the app (`engine/build.rs`) for What's New and `app.whatsNew`; a test fails
+   when the version has no notes file.
 2. Update the site's release content (checklist in `site/README.md`).
 3. Merge to `main`, then push a matching tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 

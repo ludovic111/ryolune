@@ -20,10 +20,12 @@ and in the app under Help > Shortcuts and Help (⌘/). ⌘ is Ctrl on Windows an
 10. [Automation](#automation)
 11. [Plugins](#plugins)
 12. [Files: save, import, export, recover](#files-save-import-export-recover)
-13. [The agent](#the-agent)
-14. [Appearance](#appearance)
-15. [Settings](#settings)
-16. [Limits](#limits)
+13. [Coming from another app](#coming-from-another-app)
+14. [The agent](#the-agent)
+15. [Appearance](#appearance)
+16. [Settings](#settings)
+17. [Updates, what's new and problems](#updates-whats-new-and-problems)
+18. [Limits](#limits)
 
 ## The window
 
@@ -224,7 +226,8 @@ click its automation button to open that parameter's lane.
 - **Save** (`⌘S`) and **Save as** (`⇧⌘S`) write a `.ryolune` file with the audio embedded. Saving
   never leaves a half-written file: the old one is kept if anything fails.
 - **Open** (`⌘O`) and **Open demo** (File menu) load a song. One song has one editing owner at a
-  time, across windows and scripts.
+  time, across windows and scripts. **Open Recent…** lists the songs you opened lately; one that
+  was moved or deleted says so.
 - **Import audio** (`⌘I`, or drop files): WAV, AIFF/AIFC, CAF, FLAC, MP3, AAC/M4A/MP4, Ogg Vorbis
   and the sound of video files (MKV, WebM…). Surround files are folded to stereo.
 - **Import and export MIDI** (File menu): notes, controllers and tempo changes, optionally the
@@ -238,17 +241,69 @@ click its automation button to open that parameter's lane.
 - **Recovery**: an edited song gets a recovery copy every 30 seconds (Settings > General).
   File > Recover session… lists them; opening one never overwrites your original.
 
+## Coming from another app
+
+The first time ryolune starts, a short setup asks which app you made music in, whether you want
+the AI features (the agent and sound generation; nothing is hidden either way), lets you connect
+an agent provider and check the sound output, and starts you on the demo song, an empty song or
+a song from your old app. Help > Set Up ryolune… shows it again. If you used ryolune before this
+setup existed, it counts as done.
+
+**File > Import from Another App…** opens a song as a new, unsaved song (ryolune asks to save the
+open one first): a **DAWproject** (`.dawproject`), a **MIDI file**, or **audio files** (choose
+several stems at once: each becomes an audio track from bar 1). **File > Export for Another
+App…** writes the song for an app: a DAWproject, or for the apps without it a folder with the
+song as a MIDI file and one WAV per track (Stems), or just the MIDI, the mix or the stems. Both
+end with a report: what came across, what changed on the way, and what was left out.
+
+**DAWproject** is the open format of Bitwig Studio, Studio One, Cubase 14 and others. It carries
+the tracks, buses and sends, volume, pan, mute and solo, MIDI clips with their notes and
+controllers, audio clips with their audio and fades, markers, the tempo and its changes, volume
+and pan automation, and plugins with their settings. CLAP, VST3 and Audio Unit plugins load when
+they are installed here; the others are named in the report and on the track's note, and an
+instrument track without its instrument plays ryolune Synth. ryolune's own instruments and
+effects travel as named devices: another app keeps their place, but chooses its own sound.
+What does not travel: clip gain, fade curves (the other app uses its own), automation of plugin
+parameters, the clip launcher, looped clips (written out repeat by repeat), time-stretched audio
+(ryolune plays audio at its own speed) and meter changes (ryolune keeps one meter).
+
+How to bring a song over and take it back, app by app:
+
+| App | Bring your song to ryolune | Take it back |
+|---|---|---|
+| **Bitwig Studio** (5.0.9+) | Export the project as a DAWproject from the File menu, then Import from Another App… in ryolune. | Export for Another App… › Bitwig Studio writes a `.dawproject`; open it in Bitwig with File › Open…. |
+| **Studio One** (6.5+) | Export the song as a DAWproject from the File menu, then import it. | Export for Another App… › Studio One, then open the `.dawproject` in Studio One. |
+| **Cubase** (14+) | File › Export › DAWproject…, then import it. Older Cubase: Audio Mixdown with Channel Batch Export for stems, File › Export › MIDI File… for the notes. | Export for Another App… › Cubase, then File › Import › DAWproject… in Cubase. |
+| **Ableton Live** | File › Export Audio/Video… with Rendered Track set to All Individual Tracks (one WAV per track); Export MIDI Clip… on a clip for its notes. Import the WAVs together, or the `.mid`. | Export for Another App… › Ableton Live: a folder with the MIDI and one WAV per track; drag them into the Arrangement at bar 1. |
+| **Logic Pro** | File › Export › All Tracks as Audio Files…, and File › Export › Selection as MIDI File… for the MIDI regions. | Export for Another App… › Logic Pro, then File › Import › MIDI File… and drag the WAVs in at bar 1. |
+| **FL Studio** | File › Export › Wave file… with Split mixer tracks, and File › Export › MIDI file…. | Export for Another App… › FL Studio, then File › Import › MIDI file… and drag the WAVs into the Playlist. |
+| **REAPER** | File › Render… with Source set to Stems (selected tracks), and File › Export project MIDI…. (The free ProjectConverter turns a `.rpp` into a `.dawproject`.) | Export for Another App… › REAPER, then Insert › Media file… for each at the project start. |
+| **Pro Tools** | Bounce each track (Track Bounce), and File › Export › MIDI…. | Export for Another App… › Pro Tools, then File › Import › Audio… and File › Import › MIDI…. |
+| **GarageBand** | Share › Export Song to Disk… exports the mix only: solo each track and export it in turn, or open the project in Logic Pro for MIDI and stems. | Export for Another App… › GarageBand, then drag the `.mid` and the WAVs into the tracks area. |
+
+Audio files and MIDI carry no mix and no plugins, and audio files no tempo: after importing stems,
+set the tempo they were made at before editing to the grid.
+
 ## The agent
 
 The panel at the right edge is a music assistant that works inside your song. Choose a service in
 Settings > Agent: Codex or Claude Code (they use their own sign-in); an API key for Anthropic,
 OpenAI, Google Gemini, OpenRouter, Mistral, Groq, DeepSeek or xAI; Ollama or LM Studio running on
-this computer; or any OpenAI-compatible server. Then describe what you want in your own words and
+this computer; any OpenAI-compatible server; or **Zenith · lsuite**, the agents you use in zenith.
+Then describe what you want in your own words and
 language: "a busier bass line in the second verse", "glue the drums a little", "why is the keys
 track silent?".
 
 - Each step the agent takes appears in the conversation in plain words; the **Changes** tab lists
   every edit it made with Undo and Redo. Everything it does is an ordinary undo step.
+- **Conversations** belong to the song and come back when you open it again. Click the title at
+  the top of the panel to switch between them, start a new one (the **+** does too, and keeps the
+  old one), rename or delete one, or edit the song's **Project memory**: notes the agent reads
+  before every request (its key, the style, what to leave alone; up to 32 KB). Only you can change
+  the memory.
+- **Steer** while the agent works: type and press Enter (the Send button becomes Steer, with Stop
+  beside it). The agent reads it at its next step and keeps what it has already done; Claude Code
+  restarts its run with your note, the others take it without stopping.
 - **Ask Agent About Selection** (`⇧⌘J`, or right-click a region, lane or track) sends what you
   selected along with your message.
 - **Takes A/B** keeps a protected original while the agent explores a variation.
@@ -270,16 +325,26 @@ Scripts and external AI tools control ryolune through the same commands: see
 ## Appearance
 
 ryolune has one theme, in a dark and a light mode. Settings > Interface shows each as a live
-miniature: **Dark** (graphite, for long sessions), **Light** (porcelain, for daylight) and
-**Auto**, which follows the system while the window is open.
+miniature: **Dark** (white ink on black, for long sessions), **Light** (black ink on paper, for
+daylight) and **Auto**, which follows the system while the window is open.
 
-ryolune wears the lsuite design system, shared with kimchi and zenith: frosted glass for the
-chrome (title bar, transport, browser, inspector, agent panel, menus and dialogs) over a window
-that blurs your desktop behind it, and solid surfaces for the work (arrangement, editors, mixer
-strips). One accent, ryolune teal, marks the playhead, selection, focus, lit keys and what the
-agent touched. Channel keys light in their own colours: mute blue, solo yellow, record arm red,
-and meters keep mint and amber. Knobs show their value as a ring; a centred knob such as pan
-fills from the top. With macOS's Reduce transparency setting on, the glass turns opaque.
+ryolune wears the lsuite design system (v2), shared with kimchi and zenith: black and white,
+cut square, with grain. The chrome (title bar, transport, browser, inspector, agent panel) sits
+on a page of film grain and dithered light; the work (arrangement, editors, mixer strips) stays
+solid. The accent is the ink of the mode, white in the dark and black in the light: it marks the
+playhead, selection and focus, and whatever you choose is inverted (the open tab, the lit
+switch, the selected tool, the menu item under the pointer). Red is kept for recording, record
+arm and errors. Menus, popovers and dialogs cast a hard shadow, and dialogs sit inside corner
+brackets like a viewfinder. Your track colours stay on your clips and notes, and the logos of
+other services keep their own colours.
+
+Every area has a title bar with its name, what it shows and its tools, boxed by kind: undo and
+redo, the views (mixer, automation, commands), the agent and the app in the title bar; the edit
+tools, follow and cycle, the tempo track and markers, and zoom over the arrangement. In a narrow
+window the tools keep their icons and drop their labels (the tooltip still names them). Track
+headers show the track's number and its whole name, on two lines if needed, with the mute, solo,
+arm and monitoring keys always in view. Knobs show their value as a ring; a centred knob such
+as pan fills from the top. With macOS's Reduce transparency setting on, the chrome turns opaque.
 
 Scripts and the agent switch the mode too (`settings.set` with `interface.mode` set to `dark`,
 `light` or `auto`). Themes chosen in earlier versions (Modern, Skeuomorphic, Frutiger Aero,
@@ -302,7 +367,10 @@ Settings (`⌘,`) is organised in sections:
   the configurations for outside agents.
 - **Generation**: the sound service, its key, the fal.ai model or your endpoint's address.
 - **Control**: the local bridge that `ryolune-cli` and `ryolune-mcp` use to reach the window.
-- **Updates**: check at start, install automatically.
+- **Updates**: check at start (and every six hours while ryolune is open), install
+  automatically, What's new.
+- **Diagnostics**: crash reports, this run's log, the data folder, Copy diagnostics and Report a
+  Problem (see below).
 
 Settings live in `settings.json` in ryolune's data folder, readable only by you; keys are never
 shown in full once saved.
@@ -310,6 +378,29 @@ shown in full once saved.
 ryolune is free, every update included. Help > Support ryolune… (also in Settings > About) opens
 the page where you can donate, once or monthly, if you want to; nothing is locked either way. The window asks one time, after your
 third export, and never again. It counts exports in `settings.json` only; nothing is sent.
+
+## Updates, what's new and problems
+
+- **Updates**: ryolune asks GitHub for a newer release when it starts and again every six hours
+  while it stays open (Settings > Updates turns this off; so do `--no-update-check` and
+  `RYOLUNE_NO_UPDATE=1`). An update is offered in a sheet with its notes; while the song plays,
+  the offer waits until you stop. Installing downloads the release and checks its signature
+  before anything is replaced; **Restart now** (in the sheet or Settings > Updates) starts the
+  new version, asking to save first. Every update is free.
+- **What's new**: the first time a new version starts, a sheet lists what changed in every
+  release since the one you had. Help > What's New, the command palette and Settings > Updates
+  open it again; Earlier versions lists every release this copy carries.
+- **When something goes wrong**: ryolune keeps a log of each run and writes a crash report when it
+  runs into a bug. If it did not quit properly last time (a crash, a forced quit, a power cut), it
+  says so at the next start and writes a report too; File > Recover session… has the snapshots of
+  an edited song. Settings > Diagnostics (Help > Logs and Crash Reports…) lists the reports (View,
+  Copy report, Delete all), shows the end of this run's log and opens the folders.
+- **Report a Problem** (Help menu, or Settings > Diagnostics) opens a new GitHub issue with the
+  version and system filled in. Nothing is sent automatically: read it, add what happened and
+  submit it yourself. **Copy diagnostics** copies what a report needs (version, system, audio
+  device, plugin scan, recent crash reports) without keys, prompts or songs, to paste into it.
+- Logs live in `logs/` and reports in `crashes/` in ryolune's data folder, and never leave your
+  computer. The last four runs' logs are kept, each up to 8 MB.
 
 ## Limits
 

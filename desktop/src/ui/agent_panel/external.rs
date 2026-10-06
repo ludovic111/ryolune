@@ -201,7 +201,6 @@ impl Render for ExternalAgents {
                                 .h(px(24.0))
                                 .flex()
                                 .items_center()
-                                .rounded_full()
                                 .border_1()
                                 .border_color(if on { theme.accent } else { theme.line })
                                 .bg(if on { theme.accent_soft } else { theme.control.opacity(0.0) })

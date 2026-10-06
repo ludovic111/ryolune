@@ -3,9 +3,12 @@ mod agent;
 mod agents;
 mod app;
 mod control;
+mod conversations;
+mod diagnostics;
 mod discovery;
 mod export;
 mod generate;
+mod interop;
 mod native;
 mod plugins;
 mod recovery;
@@ -157,7 +160,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
+    // The window process logs to `<data>/logs`, writes crash reports and notices a previous
+    // run that ended without quitting; the one-shot modes above only print.
+    let started = ryolune_engine::diagnostics::init(&ryolune_engine::host::scan::data_dir());
     update::cleanup();
-    ui::run(path, screenshot, control, check_updates, show_agents);
+    ui::run(
+        path,
+        screenshot,
+        control,
+        check_updates,
+        show_agents,
+        started.unclean,
+    );
+    ryolune_engine::diagnostics::clean_exit();
     Ok(())
 }

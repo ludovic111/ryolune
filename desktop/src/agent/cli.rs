@@ -188,10 +188,61 @@ pub(crate) fn run_claude(turn: Turn) -> Result<()> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     group(&mut command);
-    let prompt = prompt_with_context(&turn, &turn_prefix(&turn));
-    let result = run_child(command, prompt, &turn, parse_claude_event, "Claude Code");
+    let result = run_steerable(&mut command, &turn, parse_claude_event, "Claude Code");
     let _ = fs::remove_file(&config_path);
     result
+}
+
+/// A CLI turn that the person can steer. `claude -p` reads its whole prompt before it
+/// starts and keeps no session here, so steering stops the run (its edits are already in
+/// the song and in Undo) and starts it again with the request, what it had answered so far
+/// and the steering. Codex and zenith steer their running turn instead.
+fn run_steerable(
+    command: &mut Command,
+    turn: &Turn,
+    parse: fn(&Value, &mut Transcript, &mpsc::SyncSender<Event>),
+    label: &str,
+) -> Result<()> {
+    let request = prompt_with_context(turn, &turn_prefix(turn));
+    let mut prompt = request.clone();
+    let mut steering: Vec<String> = vec![];
+    let mut earlier: Vec<String> = vec![];
+    loop {
+        let run = spawn_and_wait(command, prompt, turn, parse, label, true)?;
+        let Some(text) = run.steered else {
+            return report(turn, run, label, &steering);
+        };
+        let _ = turn.events.send(Event::TextEnd);
+        let _ = turn.events.send(Event::Steered);
+        let _ = turn.events.send(Event::Status(format!(
+            "{label} restarts with your steering…"
+        )));
+        if !run.transcript.response.trim().is_empty() {
+            earlier.push(bounded(run.transcript.response.trim(), 4000));
+        }
+        steering.push(text);
+        prompt = restarted_prompt(&request, &earlier, &steering);
+    }
+}
+
+/// The request again, after the person steered a run that was stopped for it.
+fn restarted_prompt(request: &str, earlier: &[String], steering: &[String]) -> String {
+    let said = if earlier.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "\n\nWhat you had answered so far:\n{}",
+            earlier.join("\n\n")
+        )
+    };
+    let texts: Vec<&str> = steering
+        .iter()
+        .map(|t| t.strip_prefix(super::STEERING_HEADER).unwrap_or(t).trim())
+        .collect();
+    format!(
+        "{request}\n\nYou had already started on this request; your run was stopped so you could read the person's steering. The edits you made are in the song now (call session_overview: the overview above is from before you started), so do not redo them.{said}\n\n{}",
+        super::steering_message(&texts.join("\n\n"))
+    )
 }
 
 pub(super) fn turn_prefix(turn: &Turn) -> String {
@@ -223,6 +274,7 @@ struct Transcript {
 }
 
 /// Spawn the CLI, feed the prompt on stdin, stream its JSON lines into events and wait.
+#[cfg(all(test, unix))]
 fn run_child(
     mut command: Command,
     prompt: String,
@@ -230,6 +282,28 @@ fn run_child(
     parse: fn(&Value, &mut Transcript, &mpsc::SyncSender<Event>),
     label: &str,
 ) -> Result<()> {
+    let run = spawn_and_wait(&mut command, prompt, turn, parse, label, false)?;
+    report(turn, run, label, &[])
+}
+
+/// How one CLI run ended.
+struct ChildRun {
+    /// `None` when it was stopped: by the person, or for their steering (`steered`).
+    status: Option<std::process::ExitStatus>,
+    steered: Option<String>,
+    input: std::io::Result<()>,
+    transcript: Transcript,
+    stderr: String,
+}
+
+fn spawn_and_wait(
+    command: &mut Command,
+    prompt: String,
+    turn: &Turn,
+    parse: fn(&Value, &mut Transcript, &mpsc::SyncSender<Event>),
+    label: &str,
+    steerable: bool,
+) -> Result<ChildRun> {
     let mut child = command.spawn().map_err(|e| {
         format!("Could not start {label}: {e}. Check its executable in Settings > Agent and sign in there.")
     })?;
@@ -249,10 +323,18 @@ fn run_child(
     let _ = turn.events.send(Event::Status(format!(
         "{label} is connecting to this session…"
     )));
+    let mut steered = None;
     let status = loop {
         if turn.cancel.load(Ordering::Acquire) {
             terminate_tree(&mut child);
             break None;
+        }
+        if steerable {
+            if let Some(text) = super::take_steering(&turn.steer) {
+                terminate_tree(&mut child);
+                steered = Some(text);
+                break None;
+            }
         }
         match child.try_wait() {
             Ok(Some(status)) => {
@@ -278,6 +360,24 @@ fn run_child(
     let stderr = err_reader
         .join()
         .map_err(|_| "CLI error reader stopped")??;
+    Ok(ChildRun {
+        status,
+        steered,
+        input: input_result,
+        transcript,
+        stderr,
+    })
+}
+
+/// End the turn: what went wrong, if anything, and the history for the next prompt.
+fn report(turn: &Turn, run: ChildRun, label: &str, steering: &[String]) -> Result<()> {
+    let ChildRun {
+        status,
+        input: input_result,
+        transcript,
+        stderr,
+        ..
+    } = run;
     let cancelled = status.is_none();
     let error = if cancelled {
         None
@@ -309,9 +409,11 @@ fn run_child(
         )));
     }
     let mut history = turn.history.clone();
+    let mut parts = vec![super::Part::Text(turn.prompt.clone())];
+    parts.extend(steering.iter().cloned().map(super::Part::Text));
     history.push(super::Message {
         role: "user",
-        parts: vec![super::Part::Text(turn.prompt.clone())],
+        parts,
     });
     history.push(super::Message {
         role: "assistant",
@@ -527,15 +629,74 @@ mod tests {
     #[cfg(unix)]
     fn turn(prompt: &str, events: mpsc::SyncSender<Event>, cancel: Arc<AtomicBool>) -> Turn {
         Turn {
-            prompt: prompt.into(),
-            history: vec![],
-            settings: ryolune_engine::settings::Settings::default(),
-            session_summary: json!({"name": "Test"}),
-            discovery: PathBuf::from("/tmp/user's control.json"),
             mcp_executable: "C:\\ryolune tools\\ryolune-mcp.exe".into(),
             cancel,
-            events,
+            ..Turn::test(prompt, Default::default(), events)
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn steering_restarts_a_cli_run_with_the_request_the_answer_so_far_and_the_steering() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let binary = dir.path().join("fake-claude");
+        // Each run keeps its prompt; the first one never ends on its own.
+        fs::write(
+            &binary,
+            "#!/bin/sh\nn=$(ls prompt-* 2>/dev/null | wc -l | tr -d ' ')\ncat > prompt-$n\nif [ \"$n\" = 0 ]; then\n  printf '%s\\n' '{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Adding drums\"}]}}'\n  sleep 30\nfi\nprintf '%s\\n' '{\"type\":\"result\",\"result\":\"Slower drums added.\",\"is_error\":false}'\n",
+        )
+        .unwrap();
+        fs::set_permissions(&binary, fs::Permissions::from_mode(0o755)).unwrap();
+        let (tx, rx) = mpsc::sync_channel(64);
+        let turn = turn("Make a beat", tx, Arc::new(AtomicBool::new(false)));
+        let steer = turn.steer.clone();
+        let first = dir.path().join("prompt-0");
+        std::thread::spawn(move || {
+            let waiting = Instant::now();
+            while !first.exists() && waiting.elapsed() < Duration::from_secs(10) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            std::thread::sleep(Duration::from_millis(200));
+            steer.lock().unwrap().push_back("Slower, please".into());
+        });
+        // Through sh: executing a file just written races other tests' forks (ETXTBSY).
+        let mut command = Command::new("/bin/sh");
+        command.arg(&binary);
+        command
+            .current_dir(dir.path())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        group(&mut command);
+        let started = Instant::now();
+        run_steerable(&mut command, &turn, parse_claude_event, "Fake").unwrap();
+        assert!(
+            started.elapsed() < Duration::from_secs(10),
+            "the first run was stopped"
+        );
+        let second = fs::read_to_string(dir.path().join("prompt-1")).unwrap();
+        assert!(second.starts_with("Make a beat"));
+        assert!(second.contains("Adding drums"));
+        assert!(second.contains("do not redo them"));
+        assert!(second.ends_with("Slower, please"));
+        let events: Vec<Event> = rx.try_iter().collect();
+        assert!(events.iter().any(|e| matches!(e, Event::Steered)));
+        let history = events
+            .into_iter()
+            .find_map(|e| match e {
+                Event::Done { history, error, .. } => {
+                    assert!(error.is_none(), "{error:?}");
+                    Some(history)
+                }
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(history[0].parts.len(), 2, "the request and the steering");
+        assert_eq!(
+            history[1].parts[0],
+            super::super::Part::Text("Slower drums added.".into())
+        );
     }
 
     #[test]
@@ -655,7 +816,9 @@ mod tests {
         let (tx, rx) = mpsc::sync_channel(64);
         let cancel = Arc::new(AtomicBool::new(false));
         let turn = turn("Make a bass line", tx, cancel);
-        let mut command = Command::new(&binary);
+        // Through sh: executing a file just written races other tests' forks (ETXTBSY).
+        let mut command = Command::new("/bin/sh");
+        command.arg(&binary);
         command
             .current_dir(dir.path())
             .stdin(Stdio::piped())
@@ -715,7 +878,9 @@ mod tests {
         });
         let (tx, rx) = mpsc::sync_channel(64);
         let turn = turn("Test", tx, cancel);
-        let mut command = Command::new(&binary);
+        // Through sh: executing a file just written races other tests' forks (ETXTBSY).
+        let mut command = Command::new("/bin/sh");
+        command.arg(&binary);
         command
             .current_dir(dir.path())
             .stdin(Stdio::piped())

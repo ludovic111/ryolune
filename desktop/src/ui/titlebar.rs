@@ -1,13 +1,14 @@
-//! The title bar: menus at the left (after the traffic lights on macOS), the song name in the
-//! middle, the status line and a quiet Sponsor key at the right. Glass tier 1. Dragging the
-//! empty bar moves the window; a double click zooms it.
+//! The title bar: the mark and the menus at the left (after the traffic lights on macOS), the
+//! song name in the middle, then the status line and the window's tools boxed by kind
+//! (history · views · agent · app), a quiet Sponsor key and Export, the primary action, at the
+//! right. Glass tier 1. Dragging the empty bar moves the window; a double click zooms it.
 
 use super::{
-    actions::MENUS,
+    actions::{self, Do, MENUS},
     daw::Daw,
     platform,
-    theme::{radius, size, Theme},
-    widgets::{icon, MenuHost, MenuItem},
+    theme::{layout, radius, size, Theme, FONT_MONO},
+    widgets::{group, icon, Button, MenuHost, MenuItem},
 };
 use gpui::{div, prelude::*, px, Context, Entity, MouseButton, Window};
 use serde_json::json;
@@ -54,8 +55,12 @@ impl TitleBar {
             );
         }
         self.open_title = Some(title);
-        self.menu
-            .open(items, gpui::point(px(x), px(32.0)), window, cx);
+        self.menu.open(
+            items,
+            gpui::point(px(x), px(layout::TITLE_BAR - 4.0)),
+            window,
+            cx,
+        );
     }
 }
 
@@ -83,7 +88,8 @@ impl Render for TitleBar {
         } else {
             12.0
         };
-        let mut x = left_inset;
+        // The mark (18 px and its margin) comes before the menus.
+        let mut x = left_inset + 26.0;
         let menus: Vec<_> = MENUS
             .iter()
             .map(|(title, _)| {
@@ -99,9 +105,16 @@ impl Render for TitleBar {
                     .items_center()
                     .rounded(px(radius::SM))
                     .text_size(px(size::BASE))
-                    .text_color(if open { theme.text } else { theme.text_2 })
-                    .when(open, |d| d.bg(theme.hover))
-                    .hover(|s| s.bg(theme.hover).text_color(theme.text))
+                    .text_color(if open {
+                        theme.text_on_accent
+                    } else {
+                        theme.text_2
+                    })
+                    // The open menu's title is inverted, like every chosen thing.
+                    .when(open, |d| d.bg(theme.accent_fill))
+                    .when(!open, |d| {
+                        d.hover(|s| s.bg(theme.hover).text_color(theme.text))
+                    })
                     .cursor_pointer()
                     .child(title)
                     .on_mouse_down(
@@ -126,6 +139,57 @@ impl Render for TitleBar {
             })
             .collect();
         let menu = self.menu.render(window, cx);
+        // Narrow windows keep the tools' icons and drop their labels.
+        let wide = f32::from(window.viewport_size().width) >= 1560.0;
+        let daw = self.daw.read(cx);
+        let agent_running = daw.app.agents.runtime.running();
+        let history = group(
+            [
+                actions::tool("undo", "undo", "Undo", false, daw).into_any_element(),
+                actions::tool("redo", "redo", "Redo", false, daw).into_any_element(),
+            ],
+            cx,
+        );
+        let views = group(
+            [
+                actions::tool("toggleMixer", "mixer", "Mixer", wide, daw).into_any_element(),
+                actions::tool("toggleAutomation", "sliders", "Automation", wide, daw)
+                    .into_any_element(),
+                actions::tool("commandPalette", "search", "Commands", wide, daw).into_any_element(),
+            ],
+            cx,
+        );
+        let agent = group(
+            [actions::tool(
+                "toggleAgentPanel",
+                "sparkles",
+                if agent_running {
+                    "Agent · working"
+                } else {
+                    "Agent"
+                },
+                true,
+                daw,
+            )
+            .into_any_element()],
+            cx,
+        );
+        let app_tools = group(
+            [
+                actions::tool("settings", "gear", "Settings", false, daw).into_any_element(),
+                actions::tool("showShortcuts", "keys", "Shortcuts and Help", false, daw)
+                    .into_any_element(),
+            ],
+            cx,
+        );
+        let export = Button::new("export", "Export")
+            .with_icon("arrow-up-right")
+            .primary()
+            .compact()
+            .tooltip(actions::tip("exportAudio"))
+            .on_click(|_, window, cx| {
+                window.dispatch_action(Box::new(Do { id: "exportAudio" }), cx)
+            });
         div()
             .id("title-bar")
             .size_full()
@@ -144,23 +208,38 @@ impl Render for TitleBar {
                     platform::start_window_drag(window);
                 }
             })
+            .child(
+                div()
+                    .flex_none()
+                    .mr(px(8.0))
+                    .child(icon("mark", 18.0, theme.text)),
+            )
             .children(menus)
             .child(
                 div()
                     .flex_1()
+                    .min_w_0()
                     .flex()
                     .justify_center()
-                    .text_size(px(size::BASE))
-                    .text_color(theme.text)
-                    .font_weight(gpui::FontWeight::MEDIUM)
-                    .child(name),
+                    .items_baseline()
+                    .gap(px(8.0))
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .child(
+                        div()
+                            .text_size(px(size::BASE))
+                            .text_color(theme.text)
+                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                            .child(name),
+                    ),
             )
             .child(
                 div()
-                    .max_w(px(320.0))
+                    .max_w(px(260.0))
                     .overflow_hidden()
                     .whitespace_nowrap()
-                    .text_size(px(size::SM))
+                    .font_family(FONT_MONO)
+                    .text_size(px(size::XS))
                     .text_color(theme.text_3)
                     .mr(px(10.0))
                     .child(status),
@@ -174,10 +253,11 @@ impl Render for TitleBar {
                         .flex()
                         .items_center()
                         .mr(px(8.0))
-                        .rounded_full()
+                        .rounded(px(radius::SM))
                         .bg(theme.accent_fill)
                         .text_color(theme.text_on_accent)
                         .text_size(px(size::SM))
+                        .font_weight(gpui::FontWeight::SEMIBOLD)
                         .cursor_pointer()
                         .child(label)
                         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
@@ -189,37 +269,48 @@ impl Render for TitleBar {
                         })),
                 )
             })
-            // ryolune is free; donations through GitHub Sponsors are the only money it takes.
             .child(
                 div()
-                    .id("sponsor")
                     .flex()
+                    .flex_none()
                     .items_center()
                     .gap(px(6.0))
-                    .px(px(10.0))
-                    .h(px(22.0))
-                    .rounded_full()
-                    .border_1()
-                    .border_color(theme.line)
-                    .text_size(px(size::SM))
-                    .text_color(theme.text_2)
-                    .cursor_pointer()
-                    .hover(|s| s.bg(theme.hover).text_color(theme.text))
-                    .child(icon("heart", 10.0, theme.danger))
-                    .child("Sponsor")
-                    .tooltip(|_, cx| {
-                        super::widgets::tip(
-                            "Sponsor ryolune on GitHub: donate once or monthly, nothing is locked"
-                                .into(),
-                            cx,
-                        )
-                    })
+                    // The tools take their own clicks; the rest of the bar moves the window.
                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                    .on_click(cx.listener(|this, _, _, cx| {
-                        this.daw.update(cx, |daw, cx| {
-                            daw.run("app.openGuide", json!({"guide": "support"}), cx);
-                        })
-                    })),
+                    .child(history)
+                    .child(views)
+                    .child(agent)
+                    .child(app_tools)
+                    // ryolune is free; donations through GitHub Sponsors are the only money it
+                    // takes.
+                    .child(
+                        div()
+                            .id("sponsor")
+                            .flex()
+                            .items_center()
+                            .gap(px(6.0))
+                            .px(px(10.0))
+                            .h(px(22.0))
+                            .text_size(px(size::SM))
+                            .text_color(theme.text_2)
+                            .cursor_pointer()
+                            .hover(|s| s.bg(theme.hover).text_color(theme.text))
+                            .child(icon("heart", 10.0, theme.text_2))
+                            .when(wide, |d| d.child("Sponsor"))
+                            .tooltip(|_, cx| {
+                                super::widgets::tip(
+                                    "Sponsor ryolune on GitHub: donate once or monthly, nothing is locked"
+                                        .into(),
+                                    cx,
+                                )
+                            })
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.daw.update(cx, |daw, cx| {
+                                    daw.run("app.openGuide", json!({"guide": "support"}), cx);
+                                })
+                            })),
+                    )
+                    .child(export),
             )
             .children(menu)
     }

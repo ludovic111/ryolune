@@ -10,7 +10,7 @@
 
 use super::{modal, Dialogs};
 use crate::{
-    export::{Mode, CONTAINERS, FORMATS, OGG_QUALITIES, SAMPLE_RATES},
+    export::{best_format, Mode, APP_FORMATS, CONTAINERS, FORMATS, OGG_QUALITIES, SAMPLE_RATES},
     ui::{
         daw::Daw,
         theme::{size, Theme},
@@ -200,18 +200,23 @@ impl ExportForm {
             Mode::Audio => "Export audio",
             Mode::MidiImport => "Import MIDI",
             Mode::MidiExport => "Export MIDI",
+            Mode::AppImport => "Import from another app",
+            Mode::AppExport => "Export for another app",
         };
         let primary = match (mode, busy, choosing) {
             (_, true, true) => "Choosing a file…",
-            (Mode::MidiImport, true, false) => "Importing…",
+            (Mode::MidiImport | Mode::AppImport, true, false) => "Importing…",
             (_, true, false) => "Exporting…",
             (Mode::MidiImport, false, _) => "Import…",
+            (Mode::AppImport, false, _) => "Choose file…",
             _ => "Export…",
         };
         let rows = match mode {
             Mode::Audio => self.audio_rows(daw, window, cx),
             Mode::MidiImport => self.import_rows(daw, window, cx),
             Mode::MidiExport => self.track_rows(daw, true, cx),
+            Mode::AppImport => self.app_rows(daw, true, cx),
+            Mode::AppExport => self.app_rows(daw, false, cx),
         };
         let mut body = modal::body("export-body").children(rows);
         if blocked {
@@ -507,6 +512,85 @@ impl ExportForm {
                 cx,
             ),
         ]
+    }
+
+    /// Import from or export for another app: the app (it decides the steps shown and, for
+    /// an export, the format), the format, and that app's steps.
+    fn app_rows(
+        &mut self,
+        daw: &Entity<Daw>,
+        import: bool,
+        cx: &mut Context<Dialogs>,
+    ) -> Vec<AnyElement> {
+        let apps = ryolune_engine::interop::apps::APPS;
+        let draft = &daw.read(cx).app.export;
+        let chosen = draft.app.and_then(|i| apps.get(i));
+        let format = draft.app_format.min(APP_FORMATS.len() - 1);
+        let mut items: Vec<MenuItem> = apps
+            .iter()
+            .enumerate()
+            .map(|(i, app)| {
+                MenuItem::new(
+                    app.name,
+                    pick(daw, move |d| {
+                        d.app = Some(i);
+                        d.app_format = best_format(Some(i));
+                    }),
+                )
+                .checked(draft.app == Some(i))
+            })
+            .collect();
+        items.push(
+            MenuItem::new(
+                "Another app",
+                pick(daw, |d| {
+                    d.app = None;
+                    d.app_format = best_format(None);
+                }),
+            )
+            .checked(draft.app.is_none()),
+        );
+        let label = chosen.map_or("Another app", |a| a.name);
+        let mut rows = vec![row(
+            if import { "Coming from" } else { "For" },
+            None,
+            self.select("interop-app", label, items, cx),
+            cx,
+        )];
+        if !import {
+            let formats = APP_FORMATS
+                .iter()
+                .enumerate()
+                .map(|(i, (_, name))| {
+                    MenuItem::new(*name, pick(daw, move |d| d.app_format = i)).checked(i == format)
+                })
+                .collect();
+            let carries = ryolune_engine::interop::format(APP_FORMATS[format].0)
+                .map(|f| SharedString::from(f.carries));
+            rows.push(row(
+                "Format",
+                carries,
+                self.select("interop-format", APP_FORMATS[format].1, formats, cx),
+                cx,
+            ));
+        }
+        let steps = match (chosen, import) {
+            (Some(app), true) => app.bring,
+            (Some(app), false) => app.take,
+            (None, true) => "Export a DAWproject from the other app if it has one (Bitwig Studio, Studio One, Cubase 14 and later do); otherwise export one audio file per track (stems) and the MIDI. Then choose them here: several audio files at once each become a track.",
+            (None, false) => "DAWproject keeps the most when the other app opens it; MIDI and stems work everywhere.",
+        };
+        rows.push(modal::text(steps, cx).into_any_element());
+        if import {
+            rows.push(
+                modal::note(
+                    "It opens as a new song in place of this one; ryolune asks to save this one first if it changed. A report says what came across.",
+                    cx,
+                )
+                .into_any_element(),
+            );
+        }
+        rows
     }
 
     /// The tracks to export: stems, or the MIDI tracks of a MIDI file.

@@ -21,6 +21,7 @@ pub fn provider_name(provider: Provider) -> &'static str {
         Provider::Ollama => "Ollama",
         Provider::LmStudio => "LM Studio",
         Provider::Compatible => "Other compatible server",
+        Provider::Zenith => "Zenith · lsuite",
     }
 }
 

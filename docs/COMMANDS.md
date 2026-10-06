@@ -2,17 +2,17 @@
 
 <!-- Generated from the command registry by tools/tests/command_docs.rs. Do not edit by hand: run `RYOLUNE_BLESS=1 cargo test -p ryolune-tools --test command_docs`. -->
 
-ryolune has 203 commands. The window, `ryolune-cli`, `ryolune-mcp` and the built-in agent all run these same commands, with the same undo history. On the CLI a command is `ryolune-cli <name> --param value`; in MCP it is the tool `<name>` with the dot replaced by an underscore (`track.add` is `track_add`); the agent sees the same tools.
+ryolune has 224 commands. The window, `ryolune-cli`, `ryolune-mcp` and the built-in agent all run these same commands, with the same undo history. On the CLI a command is `ryolune-cli <name> --param value`; in MCP it is the tool `<name>` with the dot replaced by an underscore (`track.add` is `track_add`); the agent sees the same tools.
 
 Conventions: bars and beats are zero-based; note `start` and `length` are beats relative to their clip; pitch 60 is C4; velocity is 1–127; a fader value of 0.75 is unity gain. Strip commands accept a track id or `master`, `bus-a`, `bus-b`; insert slots are 0–7.
 
 **Edits** marks a command that can change the song, the transport, settings or files (it is one undo step when it changes the song). **Needs the app** marks a command only the running window can serve; the others also work on a file (`ryolune-cli --file song.ryolune …`).
 
-Names shared across the lsuite apps are accepted too, and run the ryolune command beside them: `app.version` → `app.info`, `project.overview` → `session.overview`, `export.audio` → `session.exportAudio`, `export.stems` → `session.exportStems`, `export.midi` → `session.exportMidi`.
+Names shared across the lsuite apps are accepted too, and run the ryolune command beside them: `app.version` → `app.info`, `project.overview` → `session.overview`, `export.audio` → `session.exportAudio`, `export.stems` → `session.exportStems`, `export.midi` → `session.exportMidi`, `app.restart` → `app.relaunch`, `project.formats` → `session.formats`, `project.importFrom` → `session.importFrom`, `project.exportTo` → `session.exportTo`.
 
 ## Families
 
-- [session](#session) — `session.info`, `session.get`, `session.inspect`, `session.catalog`, `session.commands`, `session.new`, `session.open`, `session.save`, `session.rename`, `session.bounce`, `session.importAudio`, `session.importMidi`, `session.exportMidi`, `session.exportAudio`, `session.exportStems`, `session.batch`, `session.saveRecoveredTake`, `session.snapshots`, `session.restoreSnapshot`, `session.overview`, `session.scoreCut`
+- [session](#session) — `session.info`, `session.get`, `session.inspect`, `session.catalog`, `session.commands`, `session.new`, `session.open`, `session.save`, `session.rename`, `session.bounce`, `session.importAudio`, `session.importMidi`, `session.exportMidi`, `session.exportAudio`, `session.exportStems`, `session.batch`, `session.saveRecoveredTake`, `session.snapshots`, `session.restoreSnapshot`, `session.overview`, `session.scoreCut`, `session.formats`, `session.importFrom`, `session.exportTo`
 - [plugin](#plugin) — `plugin.list`, `plugin.scan`, `plugin.folders`, `plugin.setFavorite`, `plugin.setFolder`, `plugin.scaffold`, `plugin.install`, `plugin.describe`
 - [transport](#transport) — `transport.play`, `transport.record`, `transport.stop`, `transport.locate`, `transport.returnToStart`, `transport.setTempo`, `transport.setTimeSignature`, `transport.setKey`, `transport.setCycle`, `transport.setMetronome`, `transport.setSnap`, `transport.punch`
 - [track](#track) — `track.list`, `track.add`, `track.remove`, `track.rename`, `track.setMute`, `track.setSolo`, `track.setArmed`, `track.setMonitor`, `track.setVolume`, `track.setPan`, `track.setColor`, `track.move`, `track.select`, `track.setOutput`, `track.group`, `track.duplicate`
@@ -33,8 +33,8 @@ Names shared across the lsuite apps are accepted too, and run the ryolune comman
 - [settings](#settings) — `settings.get`, `settings.set`, `settings.reset`
 - [audio](#audio) — `audio.devices`, `audio.status`, `audio.allowSpeakerMonitoring`, `audio.setOutput`, `audio.setInput`, `audio.setMidiInput`, `audio.reconnect`
 - [ui](#ui) — `ui.screenshot`, `ui.showPanel`, `ui.openPluginWindow`, `ui.closePluginWindow`, `ui.dismissError`, `ui.closePluginWindows`, `ui.musicalTyping`, `ui.setTool`, `ui.status`, `ui.state`
-- [app](#app) — `app.info`, `app.checkUpdates`, `app.installUpdate`, `app.quit`, `app.confirm`, `app.openGuide`, `app.relaunch`, `app.suite`
-- [agent](#agent) — `agent.status`, `agent.configure`, `agent.providers`, `agent.mcp`, `agent.openClient`, `agent.models`, `agent.connection`, `agent.send`, `agent.stop`, `agent.transcript`, `agent.changes`, `agent.revert`, `agent.clear`
+- [app](#app) — `app.info`, `app.checkUpdates`, `app.installUpdate`, `app.quit`, `app.confirm`, `app.openGuide`, `app.relaunch`, `app.logs`, `app.crashReports`, `app.clearCrashReports`, `app.diagnostics`, `app.reportProblem`, `app.whatsNew`, `app.suite`, `app.onboarding`, `app.finishOnboarding`, `app.recent`, `app.openRecent`
+- [agent](#agent) — `agent.status`, `agent.configure`, `agent.providers`, `agent.mcp`, `agent.openClient`, `agent.models`, `agent.connection`, `agent.send`, `agent.stop`, `agent.transcript`, `agent.changes`, `agent.revert`, `agent.clear`, `agent.conversations`, `agent.newConversation`, `agent.selectConversation`, `agent.renameConversation`, `agent.deleteConversation`, `agent.memory`, `agent.setMemory`, `agent.steer`
 - [generate](#generate) — `generate.services`, `generate.audio`, `generate.list`, `generate.preview`, `generate.place`, `generate.delete`
 - [export](#export) — `export.toKimchi`
 - [handoff](#handoff) — `handoff.inbox`
@@ -251,6 +251,37 @@ Score a cut from kimchi: put its audio on a new audio track at bar 1 and its mar
 | `name` | string |  | Name for the audio track (default: the cut's name). |
 | `markers` | array |  | Markers of the cut: objects with `time` (seconds) and `label`. |
 | `durationSeconds` | number |  | Length of the cut; sets the cycle over it when given. |
+
+### `session.formats`
+
+What ryolune opens from and writes for other music apps: DAWproject (Bitwig Studio, Studio One, Cubase…), MIDI files, audio files and stems, each with what survives the trip; and every app ryolune knows (Ableton Live, Logic Pro, FL Studio, Bitwig Studio, REAPER, Cubase, Studio One, Pro Tools, GarageBand) with the formats it exchanges, how to bring a song over and take it back, and whether it is installed on this computer.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `app` | string |  | Only this app: ableton, logic, fl, bitwig, reaper, cubase, studioone, protools or garageband. |
+
+### `session.importFrom`
+
+*Edits*
+
+Open a song from another app as a new, unsaved song that replaces the open one (unsaved changes are discarded): a DAWproject (.dawproject, with tracks, buses, clips, notes, audio, the mix, markers, tempo and installed plugins), a MIDI file (an instrument track per channel, with its tempo), or audio files (one audio track per file from bar 1, for stems). Returns a report of what came across, what changed and what was left out. Runs as a job in the app.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `path` | string |  | The file to open (.dawproject, .mid, or an audio file). |
+| `paths` | array |  | Several audio files (stems), each on its own track. |
+
+### `session.exportTo`
+
+*Edits*
+
+Write the song for another app: dawproject (Bitwig Studio, Studio One, Cubase), midi, audio (the mix), stems (a new folder, one WAV per track) or package (a new folder with the MIDI file and one WAV per track, for apps without DAWproject). Files are replaced atomically and folders must be new. Returns a report of what the format could not carry. Runs as a job in the app.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `path` | string | yes | Destination file, or the new folder for stems and package. |
+| `format` | string |  | dawproject, midi, audio, stems or package. Default: the app's best, else from the extension (.dawproject, .mid, .wav…; none makes a package). |
+| `app` | string |  | The app it is for (see session.formats); picks its best format. |
 
 ## plugin
 
@@ -1797,13 +1828,13 @@ Capture the window to a PNG so an agent can see the interface. Returns the file 
 
 *Edits · Needs the app*
 
-Show or hide an interface panel: agent, automation, mixer (every channel, in place of the region editor), controllers (the controller lane under the piano roll), tempo (the tempo track under the ruler), palette (the command palette), settings, help, export, recovery, or master / bus-a / bus-b in the inspector.
+Show or hide an interface panel: agent, automation, mixer (every channel, in place of the region editor), controllers (the controller lane under the piano roll), tempo (the tempo track under the ruler), palette (the command palette), settings, help, export, recovery, whatsNew (the release notes of this version), diagnostics (Settings › Diagnostics), or master / bus-a / bus-b in the inspector.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `panel` | string | yes | agent, automation, mixer, controllers, settings, help, export, recovery, master, bus-a or bus-b. |
+| `panel` | string | yes | agent, automation, mixer, controllers, tempo, palette, settings, help, export, recovery, whatsNew, diagnostics, master, bus-a or bus-b. |
 | `visible` | boolean |  | Show (default) or hide. |
-| `section` | string |  | Settings section: general, audio, interface, agent, generation, plugins, control, updates or about. |
+| `section` | string |  | Settings section: general, audio, interface, agent, generation, plugins, control, updates, diagnostics or about. |
 
 ### `ui.openPluginWindow`
 
@@ -1925,9 +1956,84 @@ Open one of ryolune's pages, or a sound service's key page, in the web browser.
 
 Relaunch the app, for example after an update was installed. Unsaved changes prompt first.
 
+### `app.logs`
+
+The last lines of ryolune's log (this run's by default, or an earlier run's), with the log folder and every log file. Logs stay on this computer and never hold API keys.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `lines` | integer |  | Lines from the end, 1-2000 (default 100). |
+| `file` | string |  | A log file name from `files`, such as ryolune.1.log for the run before. |
+
+### `app.crashReports`
+
+Crash reports newest first: panics that stopped ryolune (crash), panics a background job survived (recovered) and runs that ended without quitting (unclean). With id, one report's full text.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | string |  | A report's file name from the list, to read its text. |
+
+### `app.clearCrashReports`
+
+*Edits*
+
+Delete every crash report in the crashes folder. Logs and recovery snapshots are kept.
+
+### `app.diagnostics`
+
+What a bug report needs: version and build, system, audio device, plugin scan summary, folders, the log file, counts and recent crash reports. Holds no API keys, prompts or songs.
+
+### `app.reportProblem`
+
+*Edits · Needs the app*
+
+Open a new GitHub issue for ryolune in the web browser, with the version, the system and the last crash's summary filled in. Nothing is sent: the person reads and submits it. Only a person can do this.
+
+### `app.whatsNew`
+
+Release notes built into this copy, newest first, in Markdown: this version's by default, one version's (version), every release after one (since), or all of them (all). ui.showPanel panel=whatsNew shows them in the window.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `version` | string |  | One release, such as 0.12.0. |
+| `since` | string |  | Every release after this version, up to this copy. |
+| `all` | boolean |  | Every release this copy carries (default false). |
+
 ### `app.suite`
 
 The lsuite apps installed on this computer (ryolune, kimchi, zenith…) from their discovery files in ~/.lsuite/apps: version, paths of each app and its CLI and MCP server, whether it is running and on which bridge port, and the hand-offs it accepts.
+
+### `app.onboarding`
+
+The first-run setup: whether it was done, the app the person came from and the steps to bring a song from it, whether they want AI features, the agent providers ready to use, the music apps found on this computer, and the steps the setup walks through.
+
+### `app.finishOnboarding`
+
+*Edits*
+
+Finish (or skip) the first-run setup with the person's choices: the app they come from (it decides which steps the import shows first), whether they want AI features, and the agent provider to use. Saved in settings.onboarding. Only a person can do this, from the window or the CLI.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `comingFrom` | string | yes | App id from session.formats (ableton, logic, fl, bitwig, reaper, cubase, studioone, protools, garageband), or none. |
+| `ai` | boolean | yes | Whether they want AI features (the agent and sound generation). |
+| `agentProvider` | string |  | Agent provider to select when ai is true (agent.providers): codex, claude, anthropic, openai, gemini… |
+| `skipped` | boolean |  | They skipped the setup; the choices given still apply. |
+
+### `app.recent`
+
+Songs opened recently, newest first: name, folder, path, and whether the file is still there.
+
+### `app.openRecent`
+
+*Edits*
+
+Open a recent song, replacing the open one (unsaved changes are discarded). Give its index in app.recent or its path.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `index` | integer |  | Position in app.recent, 0 for the most recent. |
+| `path` | string |  | A path from app.recent. |
 
 ## agent
 
@@ -1945,7 +2051,7 @@ Select the agent provider, model and reasoning effort together. Only while idle.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `provider` | string | yes | codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio or compatible. |
+| `provider` | string | yes | codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio, compatible or zenith. |
 | `model` | string | yes | Model ID; empty uses the provider default. |
 | `reasoningEffort` | string | yes | Provider effort level; empty uses its default. |
 
@@ -2031,6 +2137,75 @@ Undo back to just before one agent change, or redo up to it. Same as the buttons
 *Edits · Needs the app*
 
 Clear the agent conversation; the edits it made stay in Undo.
+
+### `agent.conversations`
+
+*Needs the app*
+
+The agent's saved conversations for the open song, newest first: id, title, when it last changed, how many requests and which one is open; also the size of the song's project memory and any error saving them.
+
+### `agent.newConversation`
+
+*Edits · Needs the app*
+
+Start a new agent conversation for this song; the open one is kept and agent.selectConversation goes back to it. Only while the agent is idle.
+
+### `agent.selectConversation`
+
+*Edits · Needs the app*
+
+Open one of the song's saved agent conversations in the panel, as agent.conversations lists them. Only while the agent is idle.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes | Conversation id from agent.conversations. |
+
+### `agent.renameConversation`
+
+*Edits · Needs the app*
+
+Rename an agent conversation (the open one by default). New conversations are titled from their first request.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `title` | string | yes | The new title, 1 to 120 characters on one line. |
+| `id` | string |  | Conversation id from agent.conversations; default the open one. |
+
+### `agent.deleteConversation`
+
+*Edits · Needs the app*
+
+Delete one of the song's agent conversations for good (its edits stay in the song). Deleting the open one opens the newest other. Only a person can do this.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes | Conversation id from agent.conversations. |
+
+### `agent.memory`
+
+*Needs the app*
+
+The song's project memory: notes the person keeps for the agent (style, key, what to avoid), sent ahead of every request to every provider.
+
+### `agent.setMemory`
+
+*Edits · Needs the app*
+
+Replace the song's project memory, at most 32 KB; empty clears it. It goes ahead of every request as user-maintained context, so only a person can change it.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `text` | string | yes | The whole memory text, plain language. |
+
+### `agent.steer`
+
+*Edits · Needs the app*
+
+Steer the agent while it works: the text joins the conversation now and reaches the agent at its next step, after the tool calls under way, instead of stopping it (Claude Code restarts its run with it).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `text` | string | yes | What to change or add, in plain language. |
 
 ## generate
 

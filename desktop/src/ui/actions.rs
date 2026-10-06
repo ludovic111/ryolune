@@ -140,6 +140,7 @@ pub const ACTIONS: &[ActionDef] = &[
         &["secondary-shift-j"],
     ),
     a("stopAgent", "Stop Current Agent Action", &[]),
+    a("newAgentConversation", "New Agent Conversation", &[]),
     g("musicalTyping", "Musical Typing", &["secondary-k"]),
     // File.
     g("newSession", "New Session", &["secondary-n"]),
@@ -176,6 +177,14 @@ pub const ACTIONS: &[ActionDef] = &[
     a("checkUpdates", "Check for Updates…", &[]),
     a("pluginGuide", "Native Plugin SDK…", &[]),
     a("support", "Support ryolune…", &[]),
+    a("whatsNew", "What's New", &[]),
+    a("diagnostics", "Logs and Crash Reports…", &[]),
+    a("reportProblem", "Report a Problem…", &[]),
+    // Other apps, recent songs and the first-run setup.
+    a("openRecent", "Open Recent…", &[]),
+    a("importFromApp", "Import from Another App…", &[]),
+    a("exportForApp", "Export for Another App…", &[]),
+    a("firstRunSetup", "Set Up ryolune…", &[]),
 ];
 
 pub fn def(id: &str) -> Option<&'static ActionDef> {
@@ -189,6 +198,7 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
         &[
             Some("newSession"),
             Some("openSession"),
+            Some("openRecent"),
             Some("openDemo"),
             None,
             Some("save"),
@@ -197,6 +207,8 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
             Some("importMidi"),
             Some("exportAudio"),
             Some("exportMidi"),
+            Some("importFromApp"),
+            Some("exportForApp"),
             None,
             Some("recoverSession"),
             None,
@@ -271,6 +283,7 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
             Some("toggleAgentPanel"),
             Some("askAgent"),
             Some("stopAgent"),
+            Some("newAgentConversation"),
             Some("agentSettings"),
         ],
     ),
@@ -298,8 +311,13 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
         "Help",
         &[
             Some("showShortcuts"),
+            Some("whatsNew"),
             Some("checkUpdates"),
             Some("pluginGuide"),
+            Some("firstRunSetup"),
+            None,
+            Some("diagnostics"),
+            Some("reportProblem"),
             None,
             Some("support"),
         ],
@@ -309,6 +327,31 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
 /// The shortcut text a menu or the palette shows: ⌘⇧Z on macOS, Ctrl+Shift+Z elsewhere.
 pub fn shortcut_label(id: &str) -> Option<String> {
     label_for(def(id)?.keys.first()?, cfg!(target_os = "macos"))
+}
+
+/// An action's name with its shortcut, for tooltips: "Undo (⌘Z)".
+pub fn tip(id: &str) -> String {
+    let label = def(id).map_or(id, |d| d.label);
+    match shortcut_label(id) {
+        Some(keys) => format!("{label} ({keys})"),
+        None => label.to_string(),
+    }
+}
+
+/// A tool in a toolbar group that runs table action `id`: lit while the action is on,
+/// greyed while it cannot run, its name and shortcut in the tooltip. `label` shows beside
+/// the icon when `labelled` (there is room), otherwise only in the tooltip.
+pub fn tool(
+    id: &'static str,
+    icon: &'static str,
+    label: &'static str,
+    labelled: bool,
+    daw: &Daw,
+) -> super::widgets::Button {
+    super::widgets::tool(id, icon, label, labelled, tip(id))
+        .lit(checked(id, daw).unwrap_or(false))
+        .disabled(!enabled(id, daw))
+        .on_click(move |_, window, cx| window.dispatch_action(Box::new(Do { id }), cx))
 }
 
 /// One keystroke as text, in macOS symbols or spelled out for Windows and Linux.
@@ -466,6 +509,9 @@ pub fn enabled(id: &str, daw: &Daw) -> bool {
         "armSelectedTrack" => selected_track(s).is_some_and(|t| t.kind != "bus"),
         "cycleMonitorSelectedTrack" => selected_track(s).is_some_and(|t| t.kind == "audio"),
         "stopAgent" => app.agents.runtime.running(),
+        "newAgentConversation" => {
+            !app.agents.runtime.running() && !app.agents.runtime.transcript.is_empty()
+        }
         "addMarker" => !marker_here,
         "previousMarker" => s.markers.iter().any(|m| m.bar < bar - 1e-6),
         "nextMarker" => s.markers.iter().any(|m| m.bar > bar + 1e-6),
@@ -773,6 +819,10 @@ pub fn perform(id: &str, daw: &mut Daw, cx: &mut Context<Daw>) -> bool {
         "stopAgent" => {
             daw.fire("agent.stop", cx);
         }
+        "newAgentConversation" => {
+            daw.fire("agent.newConversation", cx);
+            panel(daw, "agent", true, cx);
+        }
         "musicalTyping" => {
             let enabled = !daw.app.musical_typing;
             daw.run("ui.musicalTyping", json!({ "enabled": enabled }), cx);
@@ -807,6 +857,18 @@ pub fn perform(id: &str, daw: &mut Daw, cx: &mut Context<Daw>) -> bool {
         }
         "exportMidi" => {
             daw.app.export_midi_dialog();
+            cx.notify();
+        }
+        "openRecent" => {
+            daw.app.interop.show_recent = true;
+            cx.notify();
+        }
+        "importFromApp" | "exportForApp" => {
+            daw.app.app_dialog(id == "importFromApp");
+            cx.notify();
+        }
+        "firstRunSetup" => {
+            daw.app.show_onboarding();
             cx.notify();
         }
         "recoverSession" => panel(daw, "recovery", true, cx),
@@ -861,6 +923,11 @@ pub fn perform(id: &str, daw: &mut Daw, cx: &mut Context<Daw>) -> bool {
         }
         "support" => {
             daw.run("app.openGuide", json!({"guide": "support"}), cx);
+        }
+        "whatsNew" => panel(daw, "whatsNew", true, cx),
+        "diagnostics" => panel(daw, "diagnostics", true, cx),
+        "reportProblem" => {
+            daw.fire("app.reportProblem", cx);
         }
         // Window-only: the workspace opens the composer.
         "askAgent" => return false,
