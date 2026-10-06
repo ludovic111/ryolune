@@ -644,7 +644,7 @@ mod tests {
         // Each run keeps its prompt; the first one never ends on its own.
         fs::write(
             &binary,
-            "#!/bin/sh\nn=$(ls prompt-* 2>/dev/null | wc -l)\ncat > prompt-$n\nif [ \"$n\" = 0 ]; then\n  printf '%s\\n' '{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Adding drums\"}]}}'\n  sleep 30\nfi\nprintf '%s\\n' '{\"type\":\"result\",\"result\":\"Slower drums added.\",\"is_error\":false}'\n",
+            "#!/bin/sh\nn=$(ls prompt-* 2>/dev/null | wc -l | tr -d ' ')\ncat > prompt-$n\nif [ \"$n\" = 0 ]; then\n  printf '%s\\n' '{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Adding drums\"}]}}'\n  sleep 30\nfi\nprintf '%s\\n' '{\"type\":\"result\",\"result\":\"Slower drums added.\",\"is_error\":false}'\n",
         )
         .unwrap();
         fs::set_permissions(&binary, fs::Permissions::from_mode(0o755)).unwrap();
