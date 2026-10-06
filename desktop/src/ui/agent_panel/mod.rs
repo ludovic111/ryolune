@@ -543,6 +543,9 @@ impl AgentPanel {
                     .on_mouse_down(
                         gpui::MouseButton::Left,
                         cx.listener(|this, e: &gpui::MouseDownEvent, window, cx| {
+                            // The window takes focus on a mouse-down that reaches it, and the
+                            // menu closes when it loses focus.
+                            cx.stop_propagation();
                             this.conversations_menu(e.position, window, cx)
                         }),
                     )
