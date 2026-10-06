@@ -325,6 +325,8 @@ pub struct Plugins {
     pub extra_clap_paths: Vec<String>,
     pub extra_vst3_paths: Vec<String>,
     pub extra_native_paths: Vec<String>,
+    pub extra_lv2_paths: Vec<String>,
+    pub extra_ladspa_paths: Vec<String>,
     /// Plugin ids starred in the browser.
     pub favorites: Vec<String>,
     /// Plugin id to the sound folder the user filed it under, overriding the automatic one.
@@ -727,6 +729,8 @@ impl Settings {
             &self.plugins.extra_clap_paths,
             &self.plugins.extra_vst3_paths,
             &self.plugins.extra_native_paths,
+            &self.plugins.extra_lv2_paths,
+            &self.plugins.extra_ladspa_paths,
         ] {
             if paths.len() > 64 || paths.iter().any(|p| p.is_empty() || p.len() > 4096) {
                 return Err("Plugin search paths must be 1-64 non-empty entries".into());
@@ -759,6 +763,8 @@ impl Settings {
             Format::Clap => &self.plugins.extra_clap_paths,
             Format::Vst3 => &self.plugins.extra_vst3_paths,
             Format::Native => &self.plugins.extra_native_paths,
+            Format::Lv2 => &self.plugins.extra_lv2_paths,
+            Format::Ladspa => &self.plugins.extra_ladspa_paths,
             _ => return vec![],
         }
         .iter()

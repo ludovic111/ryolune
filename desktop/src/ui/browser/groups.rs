@@ -120,6 +120,8 @@ impl Plugin {
             "clap" => "CLAP",
             "vst3" => "VST3",
             "au" => "AU",
+            "lv2" => "LV2",
+            "ladspa" => "LADSPA",
             other => other,
         };
         format!("{format} · {}", self.vendor)
@@ -132,6 +134,8 @@ pub fn format_label(format: &str) -> &str {
         "clap" => "CLAP",
         "vst3" => "VST3",
         "au" => "Audio Unit",
+        "lv2" => "LV2",
+        "ladspa" => "LADSPA",
         "native" => "ryolune plugin",
         other => other,
     }
@@ -461,6 +465,7 @@ mod tests {
         assert_eq!(p.formats[1], ("vst3:abc".to_string(), "vst3".to_string()));
         assert_eq!(p.meta(), "CLAP · u-he");
         assert_eq!(format_label("au"), "Audio Unit");
+        assert_eq!(format_label("ladspa"), "LADSPA");
         assert!(Plugin::from_json(&json!({"name": "no id"})).is_none());
     }
 

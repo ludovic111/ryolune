@@ -19,6 +19,8 @@ fs2 = "0.4.3"
 clap-sys = "0.5"
 vst3 = "0.3"
 libloading = "0.8"
+# Messages LV2 plugins log (log:log) go to `tracing`, which kimchi writes to its log file.
+tracing = "0.1"
 # 0.10 (coremidi 0.8, core-foundation 0.9): gpui pins core-foundation =0.10.0, which
 # coremidi 0.9 (midir 0.11) cannot share.
 midir = "0.10.3"

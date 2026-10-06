@@ -1,10 +1,12 @@
 //! Plugin hosting: scanning, instantiation and the per-format hosts. ryolune native plugins
-//! (and the stock library, which is linked in) go through `native`; CLAP, VST3 and Audio
-//! Units through their own hosts.
+//! (and the stock library, which is linked in) go through `native`; CLAP, VST3, Audio
+//! Units, LV2 and LADSPA through their own hosts.
 
 #[cfg(target_os = "macos")]
 pub mod au;
 pub mod clap;
+pub mod ladspa;
+pub mod lv2;
 pub mod native;
 pub mod scan;
 pub mod vst3;
@@ -37,6 +39,8 @@ pub fn instantiate(plugin_id: &str, name: &str, rate: u32) -> Result<Instance> {
         Some((Format::AudioUnit, _)) => au::instantiate(plugin_id, rate),
         #[cfg(not(target_os = "macos"))]
         Some((Format::AudioUnit, _)) => Err(format!("Audio Units are macOS only: {name}")),
+        Some((Format::Lv2, _)) => lv2::instantiate(plugin_id, name, rate),
+        Some((Format::Ladspa, _)) => ladspa::instantiate(plugin_id, name, rate),
         None => stock::create(name, rate).ok_or_else(|| format!("Unknown plugin: {plugin_id}")),
     }
 }

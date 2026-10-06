@@ -1,6 +1,11 @@
-//! Plugin discovery. ryolune native, CLAP and VST3 bundles are probed in a child process so
-//! a crashing plugin cannot take the session down; Audio Units come from the system
-//! registry. Results are cached next to the user's application data.
+//! Plugin discovery. ryolune native, CLAP, VST3, LV2 and LADSPA bundles are probed in a child
+//! process so a crashing plugin cannot take the session down; Audio Units come from the
+//! system registry. Results are cached next to the user's application data.
+//!
+//! LV2 and LADSPA results are kept in a file of their own, [`open_cache_path`]: the cache is
+//! shared with kimchi and with older versions of both apps, and a version that does not know
+//! a format would fail to read the whole file (and rescan, dropping the new formats). Old
+//! versions never open the second file and never write it.
 
 use crate::plugin::{Descriptor, Format};
 use serde::{Deserialize, Serialize};
@@ -128,14 +133,28 @@ fn adopt_legacy(legacy: PathBuf, current: PathBuf) -> PathBuf {
 pub fn cache_path() -> PathBuf {
     data_dir().join("plugins.json")
 }
-/// Standard bundle directories per format, plus `CLAP_PATH` / `VST3_PATH` /
-/// `RYOLUNE_PLUGIN_PATH` overrides and the extra paths from Settings > Plugins.
+/// Where LV2 and LADSPA scan results live (see the module notes).
+pub fn open_cache_path() -> PathBuf {
+    data_dir().join("plugins-lv2-ladspa.json")
+}
+/// Both cache files, for callers that watch them for changes.
+pub fn cache_paths() -> [PathBuf; 2] {
+    [cache_path(), open_cache_path()]
+}
+/// Formats stored in [`open_cache_path`].
+fn in_open_cache(format: Option<Format>) -> bool {
+    matches!(format, Some(Format::Lv2) | Some(Format::Ladspa))
+}
+/// Standard bundle directories per format, plus `CLAP_PATH` / `VST3_PATH` / `LV2_PATH` /
+/// `LADSPA_PATH` / `RYOLUNE_PLUGIN_PATH` and the extra paths from Settings > Plugins.
 pub fn directories(format: Format) -> Vec<PathBuf> {
     let mut dirs = vec![];
     let env = match format {
         Format::Clap => Some("CLAP_PATH"),
         Format::Vst3 => Some("VST3_PATH"),
         Format::Native => Some("RYOLUNE_PLUGIN_PATH"),
+        Format::Lv2 => Some("LV2_PATH"),
+        Format::Ladspa => Some("LADSPA_PATH"),
         _ => None,
     };
     if let Some(var) = env.and_then(std::env::var_os) {
@@ -223,17 +242,83 @@ pub fn directories(format: Format) -> Vec<PathBuf> {
                 dirs.push(PathBuf::from("/usr/local/lib/vst3"));
             }
         }
+        Format::Lv2 => {
+            if let Some(h) = &home {
+                dirs.push(h.join(".lv2"));
+            }
+            #[cfg(target_os = "macos")]
+            {
+                if let Some(h) = &home {
+                    dirs.push(h.join("Library/Audio/Plug-Ins/LV2"));
+                }
+                dirs.push(PathBuf::from("/Library/Audio/Plug-Ins/LV2"));
+            }
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(p) = std::env::var_os("APPDATA") {
+                    dirs.push(PathBuf::from(p).join("LV2"));
+                }
+                if let Some(p) = std::env::var_os("COMMONPROGRAMFILES") {
+                    dirs.push(PathBuf::from(p).join("LV2"));
+                }
+            }
+            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+            dirs.extend(unix_lib_dirs("lv2"));
+        }
+        Format::Ladspa => {
+            if let Some(h) = &home {
+                dirs.push(h.join(".ladspa"));
+            }
+            #[cfg(target_os = "macos")]
+            {
+                if let Some(h) = &home {
+                    dirs.push(h.join("Library/Audio/Plug-Ins/LADSPA"));
+                }
+                dirs.push(PathBuf::from("/Library/Audio/Plug-Ins/LADSPA"));
+            }
+            #[cfg(target_os = "windows")]
+            {
+                if let Some(p) = std::env::var_os("COMMONPROGRAMFILES") {
+                    dirs.push(PathBuf::from(p).join("LADSPA"));
+                }
+            }
+            #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+            dirs.extend(unix_lib_dirs("ladspa"));
+        }
         _ => {}
     }
     let _ = home;
     dirs.retain(|d| !d.as_os_str().is_empty());
     dirs
 }
+/// The system library folders for LV2 or LADSPA on Linux and the BSDs, most local first.
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn unix_lib_dirs(name: &str) -> Vec<PathBuf> {
+    let multiarch = if cfg!(target_arch = "aarch64") {
+        "aarch64-linux-gnu"
+    } else {
+        "x86_64-linux-gnu"
+    };
+    [
+        format!("/usr/local/lib/{name}"),
+        format!("/usr/lib/{name}"),
+        format!("/usr/lib/{multiarch}/{name}"),
+        format!("/usr/local/lib64/{name}"),
+        format!("/usr/lib64/{name}"),
+    ]
+    .into_iter()
+    .map(PathBuf::from)
+    .collect()
+}
 fn extensions(format: Format) -> Vec<&'static str> {
     match format {
         Format::Clap => vec!["clap"],
         Format::Vst3 => vec!["vst3"],
         Format::Native => vec!["onplug", super::native::library_extension()],
+        Format::Lv2 => vec!["lv2"],
+        // LADSPA libraries on macOS are as often `.so` as `.dylib`.
+        Format::Ladspa if cfg!(target_os = "macos") => vec!["so", "dylib"],
+        Format::Ladspa => vec![super::native::library_extension()],
         _ => vec![],
     }
 }
@@ -244,8 +329,17 @@ pub fn candidates(format: Format) -> Vec<PathBuf> {
     for dir in directories(format) {
         walk(&dir, &extensions, 0, &mut found);
     }
+    if format == Format::Lv2 {
+        // A bundle is a folder with a manifest; `.lv2` files are something else.
+        found.retain(|p| p.join("manifest.ttl").is_file());
+    } else if format == Format::Ladspa {
+        found.retain(|p| p.is_file());
+    }
     found.sort();
     found.dedup();
+    // The same bundle reached through two folders (a symlinked system folder) once.
+    let mut seen = std::collections::HashSet::new();
+    found.retain(|p| seen.insert(std::fs::canonicalize(p).unwrap_or_else(|_| p.clone())));
     found
 }
 fn walk(dir: &Path, extensions: &[&str], depth: usize, found: &mut Vec<PathBuf>) {
@@ -265,11 +359,15 @@ fn walk(dir: &Path, extensions: &[&str], depth: usize, found: &mut Vec<PathBuf>)
     }
 }
 fn modified(path: &Path) -> u64 {
-    std::fs::metadata(path)
-        .and_then(|m| m.modified())
-        .ok()
-        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-        .map_or(0, |d| d.as_secs())
+    let of = |p: &Path| {
+        std::fs::metadata(p)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map_or(0, |d| d.as_secs())
+    };
+    // An LV2 bundle changes when its manifest does, even if the folder itself does not.
+    of(path).max(of(&path.join("manifest.ttl")))
 }
 fn now() -> u64 {
     SystemTime::now()
@@ -289,23 +387,43 @@ pub fn cache() -> Cache {
     }
     guard.clone().unwrap_or_default()
 }
-pub fn load_cache() -> Cache {
-    std::fs::read_to_string(cache_path())
+fn read_cache(path: &Path) -> Option<Cache> {
+    std::fs::read_to_string(path)
         .ok()
         .and_then(|s| serde_json::from_str::<Cache>(&s).ok())
         .filter(|c| c.version == CACHE_VERSION)
-        .unwrap_or_default()
 }
-pub fn store_cache(cache: &Cache) -> crate::Result<()> {
-    let path = cache_path();
+/// Both cache files as one cache. Each file only contributes the formats it holds.
+pub fn load_cache() -> Cache {
+    let mut cache = read_cache(&cache_path()).unwrap_or_default();
+    cache.entries.retain(|e| !in_open_cache(e.format));
+    if let Some(open) = read_cache(&open_cache_path()) {
+        cache.version = CACHE_VERSION;
+        cache.entries.extend(open.entries.into_iter().filter(|e| in_open_cache(e.format)));
+        cache.scanned_at = cache.scanned_at.max(open.scanned_at);
+    }
+    cache
+}
+fn write_cache(path: &Path, cache: &Cache) -> crate::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
     let json = serde_json::to_string_pretty(cache).map_err(|e| e.to_string())?;
-    crate::document::atomic_write(&path, |f| {
+    crate::document::atomic_write(path, |f| {
         use std::io::Write;
         f.write_all(json.as_bytes()).map_err(|e| e.to_string())
-    })?;
+    })
+}
+pub fn store_cache(cache: &Cache) -> crate::Result<()> {
+    let (open, main): (Vec<CacheEntry>, Vec<CacheEntry>) =
+        cache.entries.iter().cloned().partition(|e| in_open_cache(e.format));
+    let part = |entries| Cache {
+        version: cache.version,
+        entries,
+        scanned_at: cache.scanned_at,
+    };
+    write_cache(&cache_path(), &part(main))?;
+    write_cache(&open_cache_path(), &part(open))?;
     *cell().lock().unwrap_or_else(|e| e.into_inner()) = Some(cache.clone());
     Ok(())
 }
@@ -326,7 +444,9 @@ pub fn probe(format: Format, path: &Path) -> crate::Result<Vec<Descriptor>> {
         Format::Native => super::native::scan(path),
         Format::Clap => super::clap::scan(path),
         Format::Vst3 => super::vst3::scan(path),
-        _ => Err("Only native, CLAP and VST3 bundles are probed by path".into()),
+        Format::Lv2 => super::lv2::scan(path),
+        Format::Ladspa => super::ladspa::scan(path),
+        _ => Err("Only native, CLAP, VST3, LV2 and LADSPA bundles are probed by path".into()),
     }
 }
 /// Probe a bundle in a child process with a timeout.
@@ -388,7 +508,13 @@ pub fn scan_all(mut progress: impl FnMut(&str)) -> Cache {
         .map(|e| (e.path.clone(), e))
         .collect();
     let mut entries = vec![];
-    for format in [Format::Native, Format::Clap, Format::Vst3] {
+    for format in [
+        Format::Native,
+        Format::Clap,
+        Format::Vst3,
+        Format::Lv2,
+        Format::Ladspa,
+    ] {
         for path in candidates(format) {
             let key = path.to_string_lossy().to_string();
             let stamp = modified(&path);

@@ -1,5 +1,5 @@
 //! Plugin abstraction shared by the stock ryolune processors and the external
-//! CLAP, VST3 and Audio Unit hosts.
+//! CLAP, VST3, Audio Unit, LV2 and LADSPA hosts.
 //!
 //! Every insert and instrument is an `Instance`: an `Editor` half that stays on
 //! the main thread (parameters, state, GUI) and a `Processor` half that is
@@ -19,6 +19,8 @@ pub enum Format {
     Vst3,
     #[serde(rename = "au")]
     AudioUnit,
+    Lv2,
+    Ladspa,
 }
 impl Format {
     pub fn label(self) -> &'static str {
@@ -28,6 +30,8 @@ impl Format {
             Format::Clap => "CLAP",
             Format::Vst3 => "VST3",
             Format::AudioUnit => "AU",
+            Format::Lv2 => "LV2",
+            Format::Ladspa => "LADSPA",
         }
     }
     pub fn prefix(self) -> &'static str {
@@ -37,6 +41,8 @@ impl Format {
             Format::Clap => "clap",
             Format::Vst3 => "vst3",
             Format::AudioUnit => "au",
+            Format::Lv2 => "lv2",
+            Format::Ladspa => "ladspa",
         }
     }
     pub fn parse(id: &str) -> Option<(Format, &str)> {
@@ -47,6 +53,8 @@ impl Format {
             "clap" => Format::Clap,
             "vst3" => Format::Vst3,
             "au" => Format::AudioUnit,
+            "lv2" => Format::Lv2,
+            "ladspa" => Format::Ladspa,
             _ => return None,
         };
         Some((format, rest))
@@ -54,8 +62,8 @@ impl Format {
 }
 
 /// A plugin known to the browser. `id` is stable across scans:
-/// `stock:<name>`, `native:<plugin id>`, `clap:<plugin id>`, `vst3:<class id hex>` or
-/// `au:<type>:<subtype>:<manufacturer>`.
+/// `stock:<name>`, `native:<plugin id>`, `clap:<plugin id>`, `vst3:<class id hex>`,
+/// `au:<type>:<subtype>:<manufacturer>`, `lv2:<plugin URI>` or `ladspa:<unique id or label>`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Descriptor {
     pub id: String,
@@ -684,5 +692,14 @@ mod tests {
             Some((Format::Clap, "org.x.y"))
         );
         assert_eq!(Format::parse("bogus"), None);
+        // An LV2 URI keeps its own colons.
+        assert_eq!(
+            Format::parse("lv2:http://lsp-plug.in/plugins/lv2/comp_delay_x2"),
+            Some((Format::Lv2, "http://lsp-plug.in/plugins/lv2/comp_delay_x2"))
+        );
+        assert_eq!(Format::parse("ladspa:1181"), Some((Format::Ladspa, "1181")));
+        assert_eq!(Format::Lv2.label(), "LV2");
+        assert_eq!(Format::Ladspa.label(), "LADSPA");
+        assert_eq!(serde_json::to_string(&Format::Ladspa).unwrap(), "\"ladspa\"");
     }
 }

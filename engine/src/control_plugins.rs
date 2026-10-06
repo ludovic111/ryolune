@@ -902,6 +902,8 @@ impl AutoFolders {
             crate::plugin::Format::Clap => 1,
             crate::plugin::Format::Vst3 => 2,
             crate::plugin::Format::AudioUnit => 3,
+            crate::plugin::Format::Lv2 => 4,
+            crate::plugin::Format::Ladspa => 5,
         };
         let mut ordered: Vec<&Descriptor> = installed.iter().collect();
         ordered.sort_by_key(|d| rank(d));
@@ -1126,13 +1128,16 @@ fn format_rank(d: &Descriptor) -> u8 {
         "native" => 1,
         "clap" => 2,
         "vst3" => 3,
-        _ => 4,
+        "au" => 4,
+        "lv2" => 5,
+        _ => 6,
     }
 }
 
 /// The plugin an agent means: an exact descriptor id, else a name search among plugins that
 /// fit the slot (instruments for an instrument, effects for an insert). A plugin installed in
-/// several formats or channel layouts is one match, loaded as CLAP, then VST3, then AU, in
+/// several formats or channel layouts is one match, loaded as CLAP, then VST3, AU, LV2 and
+/// LADSPA, in
 /// the layout a stereo track wants; two different plugins matching equally is an error that
 /// lists them.
 pub fn choose(
@@ -1260,8 +1265,10 @@ pub fn choose(
 
 pub(crate) fn page(args: &Args, library: &Plugins) -> Result<Value> {
     let format = args.opt_str("format");
-    if format.is_some_and(|format| !["stock", "native", "clap", "vst3", "au"].contains(&format)) {
-        return Err("Plugin format must be stock, native, clap, vst3 or au".into());
+    if format.is_some_and(|format| {
+        !["stock", "native", "clap", "vst3", "au", "lv2", "ladspa"].contains(&format)
+    }) {
+        return Err("Plugin format must be stock, native, clap, vst3, au, lv2 or ladspa".into());
     }
     let kind = args.opt_str("kind");
     if kind.is_some_and(|kind| !["instrument", "effect"].contains(&kind)) {

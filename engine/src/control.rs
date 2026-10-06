@@ -137,7 +137,7 @@ pub const BASE_COMMANDS: &[Spec] = &[
     query("plugin.list", "Search a page of installed plugins from the scanner cache. Use query/kind/format to avoid returning a large library; follow nextOffset for more. Channel layouts that a vendor registers as separate plugins (\"C1 comp (m)\", \"(s)\", \"(m->s)\") are one row: its id is the layout a stereo track wants and `layouts` lists the others.", &[
         opt("everyLayout", Kind::Boolean, "List each channel layout as its own row instead (default false)."),
         opt("query",Kind::String,"Case-insensitive name, vendor or plugin ID search."),
-        opt("format",Kind::String,"stock, native, clap, vst3 or au."),
+        opt("format",Kind::String,"stock, native, clap, vst3, au, lv2 or ladspa."),
         opt("kind",Kind::String,"instrument or effect."),
         opt("folder",Kind::String,"Sound folder from plugin.folders, for example Synths, Drums, Dynamics or Space & Time."),
         opt("favorite",Kind::Boolean,"Only favourites."),

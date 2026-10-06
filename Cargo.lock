@@ -5277,6 +5277,7 @@ dependencies = [
  "serde_json",
  "symphonia",
  "tempfile",
+ "tracing",
  "vorbis_rs",
  "vst3",
 ]

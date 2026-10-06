@@ -198,6 +198,20 @@ pub(crate) const FIELDS: [Field; 22] = [
     ),
     f(
         "plugins",
+        "plugins.extraLv2Paths",
+        "LV2 folders",
+        "Searched besides LV2_PATH and the system's LV2 folders.",
+        Kind::Paths,
+    ),
+    f(
+        "plugins",
+        "plugins.extraLadspaPaths",
+        "LADSPA folders",
+        "Searched besides LADSPA_PATH and the system's LADSPA folders.",
+        Kind::Paths,
+    ),
+    f(
+        "plugins",
         "plugins.extraNativePaths",
         "Native plugin folders",
         "ryolune plugins built with the Rust SDK.",
