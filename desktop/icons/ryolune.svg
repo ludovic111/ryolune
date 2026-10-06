@@ -1,43 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- ryolune's app icon, from the lsuite template (lsuite design/DESIGN.md, "App icons"):
-       the macOS grid's 824 px squircle in the app's 300 → 600 → 800 teal, a white ring and
-       dot at 58 % of the tile with a soft shadow, and a glass sheen over the top half. -->
+  <!-- ryolune app icon (lsuite v2): the macOS icon grid (824 px continuous-corner tile on 1024)
+       in near black, a corner of dithered light like the app's page, and the mark
+       (desktop/icons/mark.svg) in white at about 58 % of the tile. scripts/gen-mark.py writes
+       this file; scripts/make-icon.sh renders every size from it. -->
   <defs>
-    <linearGradient id="tile" x1="0.16" y1="0" x2="0.84" y2="1">
-      <stop offset="0" stop-color="#37d8c9"/>
-      <stop offset="0.7" stop-color="#009586"/>
-      <stop offset="1" stop-color="#00584f"/>
-    </linearGradient>
-    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
-      <stop offset="0.48" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
-    <filter id="drop" x="-20%" y="-20%" width="140%" height="150%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
-      <feOffset dy="12"/>
-      <feComponentTransfer><feFuncA type="linear" slope="0.35"/></feComponentTransfer>
-      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <filter id="glyph" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="6"/>
-      <feOffset dy="6"/>
-      <feComponentTransfer><feFuncA type="linear" slope="0.25"/></feComponentTransfer>
-      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-    <clipPath id="shape"><rect x="100" y="100" width="824" height="824" rx="184.3"/></clipPath>
+    <path id="tile" d="M383.41 100 L640.59 100 C722.19 100 763 100 799.79 112.14 L806.92 113.89 C854.88 131.34 892.66 169.12 910.11 217.08 C924 261 924 301.81 924 383.41 L924 640.59 C924 722.19 924 763 911.86 799.79 L910.11 806.92 C892.66 854.88 854.88 892.66 806.92 910.11 C763 924 722.19 924 640.59 924 L383.41 924 C301.81 924 261 924 224.21 911.86 L217.08 910.11 C169.12 892.66 131.34 854.88 113.89 806.92 C100 763 100 722.19 100 640.59 L100 383.41 C100 301.81 100 261 112.14 224.21 L113.89 217.08 C131.34 169.12 169.12 131.34 217.08 113.89 C261 100 301.81 100 383.41 100 Z"/>
+    <clipPath id="tile-clip"><use href="#tile"/></clipPath>
   </defs>
-  <g filter="url(#drop)">
-    <rect x="100" y="100" width="824" height="824" rx="184.3" fill="url(#tile)"/>
-  </g>
-  <g clip-path="url(#shape)">
-    <rect x="100" y="100" width="824" height="824" fill="url(#sheen)"/>
-    <rect x="100.5" y="100.5" width="823" height="823" rx="184" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="2"/>
-  </g>
-  <!-- The ring and the dot (lsuite's 32-unit glyph) at 478 px. -->
-  <g filter="url(#glyph)">
-    <g transform="translate(273 273) scale(14.9375)">
-      <circle cx="16" cy="16" r="11" fill="none" stroke="#ffffff" stroke-width="5"/>
-      <circle cx="16" cy="16" r="3.4" fill="#ffffff"/>
-    </g>
-  </g>
+  <use href="#tile" fill="#0b0b0b"/>
+  <g clip-path="url(#tile-clip)" fill="#fff" fill-opacity="0.16"><rect x="100" y="100" width="11" height="11"/><rect x="116" y="100" width="11" height="11"/><rect x="132" y="100" width="11" height="11"/><rect x="148" y="100" width="11" height="11"/><rect x="164" y="100" width="11" height="11"/><rect x="180" y="100" width="11" height="11"/><rect x="196" y="100" width="11" height="11"/><rect x="228" y="100" width="11" height="11"/><rect x="260" y="100" width="11" height="11"/><rect x="292" y="100" width="11" height="11"/><rect x="324" y="100" width="11" height="11"/><rect x="356" y="100" width="11" height="11"/><rect x="100" y="116" width="11" height="11"/><rect x="116" y="116" width="11" height="11"/><rect x="148" y="116" width="11" height="11"/><rect x="180" y="116" width="11" height="11"/><rect x="212" y="116" width="11" height="11"/><rect x="244" y="116" width="11" height="11"/><rect x="100" y="132" width="11" height="11"/><rect x="116" y="132" width="11" height="11"/><rect x="132" y="132" width="11" height="11"/><rect x="148" y="132" width="11" height="11"/><rect x="164" y="132" width="11" height="11"/><rect x="196" y="132" width="11" height="11"/><rect x="228" y="132" width="11" height="11"/><rect x="260" y="132" width="11" height="11"/><rect x="292" y="132" width="11" height="11"/><rect x="324" y="132" width="11" height="11"/><rect x="116" y="148" width="11" height="11"/><rect x="148" y="148" width="11" height="11"/><rect x="180" y="148" width="11" height="11"/><rect x="212" y="148" width="11" height="11"/><rect x="100" y="164" width="11" height="11"/><rect x="116" y="164" width="11" height="11"/><rect x="132" y="164" width="11" height="11"/><rect x="148" y="164" width="11" height="11"/><rect x="164" y="164" width="11" height="11"/><rect x="180" y="164" width="11" height="11"/><rect x="196" y="164" width="11" height="11"/><rect x="228" y="164" width="11" height="11"/><rect x="260" y="164" width="11" height="11"/><rect x="292" y="164" width="11" height="11"/><rect x="324" y="164" width="11" height="11"/><rect x="356" y="164" width="11" height="11"/><rect x="116" y="180" width="11" height="11"/><rect x="148" y="180" width="11" height="11"/><rect x="180" y="180" width="11" height="11"/><rect x="212" y="180" width="11" height="11"/><rect x="244" y="180" width="11" height="11"/><rect x="100" y="196" width="11" height="11"/><rect x="132" y="196" width="11" height="11"/><rect x="164" y="196" width="11" height="11"/><rect x="196" y="196" width="11" height="11"/><rect x="228" y="196" width="11" height="11"/><rect x="260" y="196" width="11" height="11"/><rect x="292" y="196" width="11" height="11"/><rect x="324" y="196" width="11" height="11"/><rect x="116" y="212" width="11" height="11"/><rect x="148" y="212" width="11" height="11"/><rect x="180" y="212" width="11" height="11"/><rect x="212" y="212" width="11" height="11"/><rect x="100" y="228" width="11" height="11"/><rect x="132" y="228" width="11" height="11"/><rect x="164" y="228" width="11" height="11"/><rect x="196" y="228" width="11" height="11"/><rect x="228" y="228" width="11" height="11"/><rect x="260" y="228" width="11" height="11"/><rect x="292" y="228" width="11" height="11"/><rect x="356" y="228" width="11" height="11"/><rect x="116" y="244" width="11" height="11"/><rect x="148" y="244" width="11" height="11"/><rect x="180" y="244" width="11" height="11"/><rect x="100" y="260" width="11" height="11"/><rect x="132" y="260" width="11" height="11"/><rect x="164" y="260" width="11" height="11"/><rect x="196" y="260" width="11" height="11"/><rect x="228" y="260" width="11" height="11"/><rect x="260" y="260" width="11" height="11"/><rect x="100" y="292" width="11" height="11"/><rect x="132" y="292" width="11" height="11"/><rect x="164" y="292" width="11" height="11"/><rect x="196" y="292" width="11" height="11"/><rect x="228" y="292" width="11" height="11"/><rect x="292" y="292" width="11" height="11"/><rect x="132" y="324" width="11" height="11"/><rect x="196" y="324" width="11" height="11"/><rect x="100" y="356" width="11" height="11"/><rect x="164" y="356" width="11" height="11"/><rect x="228" y="356" width="11" height="11"/></g>
+  <use href="#tile" fill="none" stroke="#fff" stroke-opacity="0.16" stroke-width="3"/>
+  <g transform="translate(512 512) scale(10.8636) translate(-32.0 -32.0)"><g fill="#fff"><path fill-rule="evenodd" d="M21.00 10.00 L43.00 10.00 L54.00 21.00 L54.00 43.00 L45.86 51.14 L12.86 18.14 Z M25.69 18.00 L38.31 18.00 L46.00 25.69 L46.00 38.31 L39.52 44.80 L19.20 24.48 Z"/><rect x="27.0" y="27.0" width="10.0" height="10.0"/><rect x="12.20" y="18.80" width="1.75" height="1.75"/><rect x="12.20" y="21.00" width="1.75" height="1.75"/><rect x="10.00" y="23.20" width="1.75" height="1.75"/><rect x="12.20" y="23.20" width="1.75" height="1.75"/><rect x="14.40" y="23.20" width="1.75" height="1.75"/><rect x="16.60" y="23.20" width="1.75" height="1.75"/><rect x="12.20" y="25.40" width="1.75" height="1.75"/><rect x="16.60" y="25.40" width="1.75" height="1.75"/><rect x="10.00" y="27.60" width="1.75" height="1.75"/><rect x="12.20" y="27.60" width="1.75" height="1.75"/><rect x="14.40" y="27.60" width="1.75" height="1.75"/><rect x="16.60" y="27.60" width="1.75" height="1.75"/><rect x="12.20" y="29.80" width="1.75" height="1.75"/><rect x="16.60" y="29.80" width="1.75" height="1.75"/><rect x="10.00" y="32.00" width="1.75" height="1.75"/><rect x="14.40" y="32.00" width="1.75" height="1.75"/><rect x="16.60" y="32.00" width="1.75" height="1.75"/><rect x="16.60" y="34.20" width="1.75" height="1.75"/><rect x="10.00" y="36.40" width="1.75" height="1.75"/><rect x="14.40" y="36.40" width="1.75" height="1.75"/><rect x="14.40" y="40.80" width="1.75" height="1.75"/><rect x="18.80" y="40.80" width="1.75" height="1.75"/><rect x="18.80" y="45.20" width="1.75" height="1.75"/><rect x="23.20" y="45.20" width="1.75" height="1.75"/><rect x="27.60" y="45.20" width="1.75" height="1.75"/><rect x="29.80" y="45.20" width="1.75" height="1.75"/><rect x="32.00" y="45.20" width="1.75" height="1.75"/><rect x="34.20" y="45.20" width="1.75" height="1.75"/><rect x="36.40" y="45.20" width="1.75" height="1.75"/><rect x="38.60" y="45.20" width="1.75" height="1.75"/><rect x="29.80" y="47.40" width="1.75" height="1.75"/><rect x="34.20" y="47.40" width="1.75" height="1.75"/><rect x="38.60" y="47.40" width="1.75" height="1.75"/><rect x="23.20" y="49.60" width="1.75" height="1.75"/><rect x="27.60" y="49.60" width="1.75" height="1.75"/><rect x="32.00" y="49.60" width="1.75" height="1.75"/><rect x="34.20" y="49.60" width="1.75" height="1.75"/><rect x="36.40" y="49.60" width="1.75" height="1.75"/><rect x="38.60" y="49.60" width="1.75" height="1.75"/><rect x="40.80" y="49.60" width="1.75" height="1.75"/><rect x="43.00" y="49.60" width="1.75" height="1.75"/><rect x="34.20" y="51.80" width="1.75" height="1.75"/><rect x="38.60" y="51.80" width="1.75" height="1.75"/></g></g>
 </svg>

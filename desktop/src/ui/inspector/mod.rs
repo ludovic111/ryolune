@@ -454,7 +454,6 @@ impl Inspector {
             .id(SharedString::from(format!("insert-led-{slot}")))
             .flex_none()
             .size(px(7.0))
-            .rounded_full()
             .map(|d| {
                 if empty {
                     d.border_1().border_color(theme.line_strong)
@@ -1022,7 +1021,8 @@ impl Inspector {
     }
 }
 
-/// A panel section: a caps title with a detail at the right, then its body.
+/// A panel section: a caps title running into a hairline, a detail at the right, then its
+/// body.
 fn section(title: &'static str, detail: AnyElement, cx: &App) -> gpui::Div {
     let theme = Theme::get(cx);
     div()
@@ -1039,9 +1039,10 @@ fn section(title: &'static str, detail: AnyElement, cx: &App) -> gpui::Div {
             div()
                 .flex()
                 .items_center()
-                .justify_between()
+                .gap(px(8.0))
                 .h(px(20.0))
-                .child(caps(title, cx))
+                .child(caps(title, cx).text_color(theme.text_2).flex_none())
+                .child(div().flex_1().h(px(1.0)).bg(theme.line))
                 .child(detail),
         )
 }
@@ -1060,7 +1061,17 @@ impl Render for Inspector {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = Theme::get(cx).clone();
         let menu = self.menu.render(window, cx);
-        let body = match self.shown(cx) {
+        let shown = self.shown(cx);
+        let what = match &shown {
+            Shown::Nothing => "nothing selected".to_string(),
+            Shown::Track(track, index) => format!(
+                "track {} · {}",
+                index + 1,
+                super::strip::kind_caps(&track.kind).to_lowercase()
+            ),
+            Shown::Fixed(_) => "output".to_string(),
+        };
+        let body = match shown {
             Shown::Nothing => vec![self
                 .header(theme.text_3, "Select a track".into(), String::new(), cx)
                 .into_any_element()],
@@ -1068,15 +1079,36 @@ impl Render for Inspector {
             Shown::Fixed(id) => self.fixed_view(id, cx),
         };
         div()
-            .id("inspector")
             .size_full()
             .flex()
             .flex_col()
-            .overflow_y_scroll()
             .bg(theme.glass(1))
             .border_l_1()
             .border_color(theme.line)
-            .children(body)
+            // Titled like every area: its name, what it shows in mono.
+            .child(
+                div()
+                    .h(px(super::theme::layout::TOOLBAR))
+                    .flex_none()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.0))
+                    .px(px(14.0))
+                    .border_b_1()
+                    .border_color(theme.line)
+                    .child(super::widgets::panel_title("Inspector", cx))
+                    .child(super::widgets::panel_info(what, cx)),
+            )
+            .child(
+                div()
+                    .id("inspector")
+                    .flex_1()
+                    .min_h_0()
+                    .flex()
+                    .flex_col()
+                    .overflow_y_scroll()
+                    .children(body),
+            )
             .children(menu)
     }
 }

@@ -6,10 +6,11 @@
 //! work surfaces; the same commands as the inspector move them.
 
 use super::{
+    actions,
     daw::Daw,
     format, strip,
     theme::{radius, size, Theme, FONT_MONO},
-    widgets::{tip, Button, Knob},
+    widgets::{group, panel_info, panel_title, tip, Button, Knob},
 };
 use gpui::{
     div, prelude::*, px, AnyElement, App, Context, Entity, MouseButton, SharedString, Window,
@@ -22,10 +23,9 @@ use ryolune_engine::{
 use serde_json::json;
 
 /// Fader box of a strip: the editor pane's height less the strip's labels, keys and pan.
-const FADER_H: f32 = 214.0;
+const FADER_H: f32 = 206.0;
 const STRIP_W: f32 = 84.0;
 const MASTER_W: f32 = 96.0;
-const HEADER_H: f32 = 34.0;
 
 pub struct Mixer {
     daw: Entity<Daw>,
@@ -128,7 +128,13 @@ impl Mixer {
             .font_weight(gpui::FontWeight::SEMIBOLD)
             .text_color(theme.text)
             .when_some(color, |d, c| {
-                d.child(div().flex_none().size(px(8.0)).rounded(px(2.0)).bg(c))
+                d.child(
+                    div()
+                        .flex_none()
+                        .size(px(8.0))
+                        .rounded(px(radius::XS))
+                        .bg(c),
+                )
             })
             .child(div().min_w_0().truncate().child(name))
     }
@@ -343,33 +349,35 @@ impl Render for Mixer {
         let is = |id: &str| selected.as_deref() == Some(id);
         let daw = self.daw.clone();
 
+        let tools = {
+            let d = self.daw.read(cx);
+            group(
+                [
+                    actions::tool("addBusTrack", "plus", "Bus", true, d).into_any_element(),
+                    actions::tool("showMaster", "sliders", "Master", true, d).into_any_element(),
+                ],
+                cx,
+            )
+        };
         let header = div()
             .flex()
             .flex_none()
             .items_center()
-            .gap(px(12.0))
-            .h(px(HEADER_H))
-            .px(px(10.0))
+            .gap(px(10.0))
+            .h(px(super::theme::layout::TOOLBAR))
+            .px(px(12.0))
             .bg(theme.glass(1))
             .border_b_1()
             .border_color(theme.line)
             .text_size(px(size::BASE))
-            .child(
-                div()
-                    .font_weight(gpui::FontWeight::BOLD)
-                    .text_color(theme.text)
-                    .child("Mixer"),
-            )
-            .child(
-                div()
-                    .text_color(theme.text_3)
-                    .child(channel_count(tracks.len())),
-            )
+            .child(panel_title("Mixer", cx))
+            .child(panel_info(channel_count(tracks.len()), cx))
             .child(div().flex_1())
-            .child(
-                Button::new("show-editor", "Show editor")
-                    .ghost()
-                    .compact()
+            .child(tools)
+            .child(group(
+                [Button::new("show-editor", "Editor")
+                    .with_icon("pencil")
+                    .flush()
                     .tooltip("Back to the region editor (X)")
                     .on_click(move |_, _, cx| {
                         strip::fire(
@@ -378,8 +386,10 @@ impl Render for Mixer {
                             json!({ "panel": "mixer", "visible": false }),
                             cx,
                         )
-                    }),
-            );
+                    })
+                    .into_any_element()],
+                cx,
+            ));
 
         let strips = div()
             .id("mixer-strips")
