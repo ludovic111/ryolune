@@ -636,7 +636,9 @@ impl PluginPanels {
     ) -> AnyElement {
         let theme = Theme::get(cx).clone();
         let this = cx.entity().downgrade();
-        let trim = family.unwrap_or(theme.accent);
+        // v2: the chrome is ink, whatever the plugin's family.
+        let trim = theme.accent;
+        let _ = family;
         let bypassed = info.is_some_and(|i| i.bypassed);
         let native = self
             .daw
@@ -944,7 +946,6 @@ impl PluginPanels {
                         .flex()
                         .items_center()
                         .justify_center()
-                        .rounded_full()
                         .bg(theme.hover)
                         .font_family(FONT_MONO)
                         .text_size(px(8.5))
@@ -985,7 +986,7 @@ impl PluginPanels {
         let k = key.to_string();
         let control = if p.labels.len() == 2 && p.labels[0] == "Off" {
             let on = index == 1;
-            let mut b = Button::new(cid(key, "switch", id), if on { "ON" } else { "OFF" })
+            let b = Button::new(cid(key, "switch", id), if on { "ON" } else { "OFF" })
                 .compact()
                 .lit(on)
                 .on_click(move |_, _, cx| {
@@ -993,9 +994,7 @@ impl PluginPanels {
                         this.pick(&k, id, if on { 0.0 } else { 1.0 }, cx)
                     });
                 });
-            if let Some(c) = family {
-                b = b.lit_color(c);
-            }
+            let _ = family;
             b.into_any_element()
         } else if p.labels.len() <= 4 {
             Segmented::new(cid(key, "tabs", id), p.labels.clone(), index)

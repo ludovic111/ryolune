@@ -560,9 +560,10 @@ pub struct Inks {
 }
 
 impl Inks {
-    pub fn new(theme: &Theme, family: Option<Hsla>) -> Self {
+    pub fn new(theme: &Theme, _family: Option<Hsla>) -> Self {
         Self {
-            trace: family.unwrap_or(theme.accent),
+            // The trace is ink in v2, whatever the plugin's family.
+            trace: theme.accent,
             well: theme.display,
             grid: theme.display_grid,
             zero: theme.display_zero,
@@ -645,7 +646,6 @@ pub fn paint(
                         Bounds::centered_at(c, gpui::size(r * 2.0, r * 2.0)),
                         inks.well,
                     )
-                    .corner_radii(r)
                     .border_widths(px(1.5))
                     .border_color(inks.trace),
                 );
@@ -658,8 +658,7 @@ pub fn paint(
                 } else {
                     with_alpha(inks.trace, 0.85)
                 };
-                window
-                    .paint_quad(gpui::fill(Bounds::new(origin, size), color).corner_radii(px(1.5)));
+                window.paint_quad(gpui::fill(Bounds::new(origin, size), color));
             }
             Mark::Field {
                 cx: x,

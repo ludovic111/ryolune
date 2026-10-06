@@ -7,7 +7,10 @@ pub mod menu;
 pub mod secret_input;
 pub mod text_input;
 
-pub use controls::{caps, dot, icon, tip, Button, Key, Segmented, Switch};
+pub use controls::{
+    caps, dot, group, heading, icon, panel_info, panel_title, tip, tool, Button, Key, Segmented,
+    Switch,
+};
 pub use dial::{Fader, Knob, Meter, NumberDrag, Phase, Slider};
 pub use menu::{select_button, MenuHost, MenuItem};
 pub use text_input::{field, InputEvent, TextInput};
@@ -15,7 +18,7 @@ pub use text_input::{field, InputEvent, TextInput};
 use super::theme::{radius, Theme};
 use gpui::{div, prelude::*, px, App};
 
-/// A floating or modal surface: glass with its edge, top highlight and drop.
+/// A floating or modal surface: glass with its edge and the hard offset shadow.
 pub fn surface(tier: u8, cx: &App) -> gpui::Div {
     let theme = Theme::get(cx);
     div()
@@ -23,12 +26,7 @@ pub fn surface(tier: u8, cx: &App) -> gpui::Div {
         .rounded(px(if tier >= 3 { radius::LG } else { radius::MD }))
         .border_1()
         .border_color(theme.glass_edge)
-        .shadow(vec![gpui::BoxShadow {
-            color: theme.glass_shadow,
-            offset: gpui::point(px(0.0), px(if tier >= 3 { 28.0 } else { 12.0 })),
-            blur_radius: px(if tier >= 3 { 80.0 } else { 32.0 }),
-            spread_radius: px(0.0),
-        }])
+        .shadow(theme.float_shadow())
 }
 
 pub fn bind(cx: &mut App) {

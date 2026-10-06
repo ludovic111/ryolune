@@ -1,13 +1,14 @@
-//! Dark, Light or Auto for the one ryolune theme, each shown as the window it gives: a
-//! miniature painted with the real tokens of that mode. Auto is split down the middle.
+//! Dark, Light or Auto for the one ryolune theme (lsuite v2: black and white), each shown as
+//! the window it gives: a miniature painted with the real tokens of that mode. Auto is split
+//! down the middle. The chosen card is outlined in ink and its name inverted.
 
 use crate::ui::theme::{radius, size, Mode, Theme, FONT_MONO};
 use gpui::{div, prelude::*, px, relative, AnyElement, App, Hsla, Window};
 use std::rc::Rc;
 
 pub(crate) const CHOICES: [(&str, &str, &str); 3] = [
-    ("dark", "Dark", "Graphite, for long sessions"),
-    ("light", "Light", "Porcelain, for daylight"),
+    ("dark", "Dark", "White ink on black, for long sessions"),
+    ("light", "Light", "Black ink on paper, for daylight"),
     ("auto", "Auto", "Follows the system"),
 ];
 
@@ -20,7 +21,7 @@ fn preview(mode: Mode) -> gpui::Div {
     let key = |color: Hsla| {
         div()
             .size(px(9.0))
-            .rounded(px(2.0))
+            .rounded(px(radius::XS))
             .bg(color)
             .border_1()
             .border_color(t.control_edge)
@@ -47,7 +48,7 @@ fn preview(mode: Mode) -> gpui::Div {
                 .child(
                     div()
                         .px(px(4.0))
-                        .rounded(px(2.0))
+                        .rounded(px(radius::XS))
                         .bg(t.display)
                         .font_family(FONT_MONO)
                         .text_size(px(7.5))
@@ -55,6 +56,7 @@ fn preview(mode: Mode) -> gpui::Div {
                         .child("004·2·1"),
                 )
                 .child(
+                    // A knob, round like the real one.
                     div()
                         .size(px(10.0))
                         .rounded_full()
@@ -76,7 +78,7 @@ fn preview(mode: Mode) -> gpui::Div {
                         .bottom(px(3.0))
                         .left(relative(*left))
                         .w(relative(*width))
-                        .rounded(px(2.0))
+                        .rounded(px(radius::XS))
                         .bg(t.track("", *track).opacity(0.85)),
                 )
         }))
@@ -146,14 +148,10 @@ pub(crate) fn picker(
                 .flex_1()
                 .p(px(8.0))
                 .rounded(px(radius::MD))
-                .bg(if selected {
-                    theme.accent_soft
-                } else {
-                    theme.bg_raised
-                })
+                .bg(theme.bg_raised)
                 .border_1()
                 .border_color(if selected {
-                    theme.accent_ring
+                    theme.accent_fill
                 } else {
                     theme.line
                 })
@@ -162,10 +160,16 @@ pub(crate) fn picker(
                 .child(miniature)
                 .child(
                     div()
-                        .pt(px(4.0))
+                        .mt(px(4.0))
+                        .px(px(4.0))
                         .text_size(px(size::BASE))
                         .font_weight(gpui::FontWeight::SEMIBOLD)
-                        .text_color(theme.text)
+                        .text_color(if selected {
+                            theme.text_on_accent
+                        } else {
+                            theme.text
+                        })
+                        .when(selected, |d| d.bg(theme.accent_fill))
                         .child(*name),
                 )
                 .child(

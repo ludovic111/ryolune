@@ -26,23 +26,42 @@ Window captures (`ui.screenshot`, `--screenshot`) use CoreGraphics (`ui/capture.
 Check with `cargo test -p ryolune` (scratch profile env vars), then look at the real window
 (`--screenshot`, or the app driven by `ryolune-cli` with `RYOLUNE_CONTROL` in a scratch folder).
 
-Theme (0.13, lsuite design system, owner's decision 2026-10-01): `desktop/src/ui/theme.rs` is the
-only place visual values live, built on `../lsuite/design/tokens.json`: ryolune teal (hue 185,
-`#00c5b4` dark / `#009586` light; `accent_fill` is one step darker by day so white text keeps
-4.5:1), lsuite neutrals, three glass tiers (`theme.glass(1|2|3)`: chrome, floating, modal) over a
-translucent backdrop with two teal glows, and the window is `WindowBackgroundAppearance::Blurred`
-(opaque with macOS Reduce transparency). Work surfaces (lanes, editors, mixer strips) stay solid.
-App tokens kept: meters mint/amber, `mute`/`solo`/`record`, families (`theme.family(folder)`),
-the track palette. Add a token to both modes, never a colour in a view; the contrast test in
-`theme.rs` covers every surface and glass tier over white and black desktops: fix the palette,
-not the threshold. `engine/src/settings.rs` `THEMES` is still `["ryolune"]` with
-`interface.mode` dark/light/auto. Fonts: Manrope and IBM Plex Mono TTFs in `desktop/assets/fonts`
-(the files must carry the plain family names; the old ones said "Manrope ExtraLight"). Icons are
-SVGs in `desktop/assets/icons` (tinted by GPUI); the app icon's source is
-`desktop/icons/ryolune.svg` (`scripts/make-icon.sh`). The public page is lsuite.xyz/ryolune, in
+Theme (design system v2, owner's decision 2026-10-06: "the whole suite looks like kimchi now";
+branch `design-v2`, not released yet): `desktop/src/ui/theme.rs` is the only place visual values
+live, on lsuite's v2 tokens (`desktop/assets/lsuite/tokens.json` + `tokens.css`, copies of
+`../lsuite/design/`; a test checks the palette against the JSON, copy the file again when the
+suite changes). Black and white: the accent is the ink of the mode (white dark, black light), a
+chosen thing is inverted (`accent_fill` + `text_on_accent`), red (`record`/`danger`) only for
+record, arm and errors, warnings/success are greys; mute/solo keys light in ink, meters are greys
+with red for clipping, `Theme::family` is grey (plugin panels draw in ink). The work keeps its
+colours (track palette on clips and notes) and makers' logos keep theirs. Radii are zero; only
+knobs and score note heads are round. Floating surfaces: hard offset shadow
+(`Theme::float_shadow`, `chip_shadow` for the primary button). The page is `ui/grain.rs`
+(ported from kimchi: grain tiles and Bayer-dither corners as RenderImages at device pixels, the
+strength baked into the alpha because GPUI 0.2.2 images ignore element opacity), under glass
+tier 1 chrome; work surfaces stay solid, lanes past the song end are hatched; dialogs sit in
+`grain::brackets` (`dialogs::modal::sheet`), so does the agent composer. Organization (owner liked
+it in kimchi): every area has a title bar (`widgets::panel_title`/`panel_info`), tools are boxed
+by kind in `widgets::group` with `Button::flush` / `actions::tool` (lit when on, shortcut in the
+tooltip, label only when `ui::centre_width` leaves room), track headers show a number chip, the
+whole name on two lines and always-visible boxed keys. The title bar holds history · views
+(mixer, automation, commands) · agent · app groups, Sponsor and Export (primary); the transport
+keeps locate/keys/click+snap groups and the meters. The contrast test covers every surface and
+tier over the page at its densest grain + dither and over white and black desktops: fix the
+palette, not the threshold. `engine/src/settings.rs` `THEMES` is still `["ryolune"]` with
+`interface.mode` dark/light/auto (no coloured themes left to remap). Fonts: Chakra Petch
+(UI, 400-700) and IBM Plex Mono TTFs in `desktop/assets/fonts` (Manrope is gone). Icons are SVGs in
+`desktop/assets/icons` (tinted by GPUI; a few Lucide ones, ISC). The mark (the ring and the dot cut
+square, the ring's shadow side dissolving into dither) and the app icon are written by
+`scripts/gen-mark.py` (`desktop/icons/mark.svg`, `desktop/icons/ryolune.svg`,
+`desktop/assets/icons/mark.svg` in currentColor); `scripts/make-icon.sh` renders the .icns, png and
+.ico with resvg. The window is still `WindowBackgroundAppearance::Blurred` (opaque with macOS
+Reduce transparency). The public page is lsuite.xyz/ryolune, in
 the lsuite repo (ludovic111/lsuite); ryolune.com redirects there with the same path, so
 `/support` and `/download/<platform>` links keep working. `site/` is the former standalone site,
 no longer deployed; its launch film (`site/video/`) is made in `marketing/` (see its README).
+When v2 is released, update lsuite's DESIGN.md ("ryolune and zenith still wear v1") and the
+captures on lsuite.xyz/ryolune.
 
 The owner requested a complete Rust rewrite on 2026-09-12, including the interface.
 This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.md`.
@@ -269,8 +288,9 @@ Porkbun 301 there with the path kept.
 
 Still to do:
 
-- [x] **Design system** (0.13, 2026-10-02: done in the GPUI window; see Theme above). The app
-      icon is redrawn from the lsuite template.
+- [x] **Design system** (0.13, 2026-10-02: done in the GPUI window). v2 (black and white, grain,
+      square, kimchi's organization; new mark and icon) on branch `design-v2` (2026-10-06), to be
+      released separately; see Theme above.
 - [x] **Discovery** (0.13: `~/.lsuite/apps/ryolune.json`, format 1 in `engine/src/lsuite.rs`,
       written by `desktop/src/discovery.rs`; `app.suite` reads every app's. Documented in lsuite's
       STANDARD.md on branch `claude/ryolune-discovery-handoffs` of the lsuite repo, not merged.)

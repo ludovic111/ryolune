@@ -51,21 +51,20 @@ impl Pen {
 pub fn fill(window: &mut Window, bounds: Bounds<Pixels>, color: Hsla) {
     window.paint_quad(gpui::fill(bounds, color));
 }
-pub fn fill_round(window: &mut Window, bounds: Bounds<Pixels>, radius: f32, color: Hsla) {
-    window.paint_quad(gpui::fill(bounds, color).corner_radii(px(radius)));
+/// A filled box. v2 corners are square, so the radius the callers pass is not drawn; it stays
+/// in the signature as the step they asked for.
+pub fn fill_round(window: &mut Window, bounds: Bounds<Pixels>, _radius: f32, color: Hsla) {
+    window.paint_quad(gpui::fill(bounds, color));
 }
+/// An outlined box (square, like [`fill_round`]).
 pub fn stroke_round(
     window: &mut Window,
     bounds: Bounds<Pixels>,
-    radius: f32,
+    _radius: f32,
     width: f32,
     color: Hsla,
 ) {
-    window.paint_quad(
-        gpui::outline(bounds, color, BorderStyle::Solid)
-            .corner_radii(px(radius))
-            .border_widths(px(width)),
-    );
+    window.paint_quad(gpui::outline(bounds, color, BorderStyle::Solid).border_widths(px(width)));
 }
 fn glow(window: &mut Window, bounds: Bounds<Pixels>, radius: f32, color: Hsla, blur: f32) {
     window.paint_shadows(
@@ -104,6 +103,25 @@ fn polygon(window: &mut Window, points: &[Point<Pixels>], color: Hsla) {
     path.close();
     if let Ok(path) = path.build() {
         window.paint_path(path, color);
+    }
+}
+
+/// Diagonal hatching over a box: 1 px stripes every 9 px, leaning right.
+fn hatch(window: &mut Window, pen: &Pen, x: f64, y: f64, w: f64, h: f64, color: Hsla) {
+    const STEP: f64 = 9.0;
+    let mut k = 0.0;
+    while k < w + h {
+        // A stripe from the box's bottom edge up to its top, clipped to the box.
+        let (x0, x1) = (x + k - h, x + k);
+        let clamp = |v: f64| v.clamp(x, x + w);
+        let pts = [
+            pen.at(clamp(x0), y + h - (clamp(x0) - x0)),
+            pen.at(clamp(x1), y + (x1 - clamp(x1))),
+            pen.at(clamp(x1 + 1.0), y + (x1 + 1.0 - clamp(x1 + 1.0))),
+            pen.at(clamp(x0 + 1.0), y + h - (clamp(x0 + 1.0) - x0 - 1.0)),
+        ];
+        polygon(window, &pts, color);
+        k += STEP;
     }
 }
 
@@ -292,6 +310,19 @@ fn lanes(bounds: Bounds<Pixels>, scene: &LaneScene, window: &mut Window, cx: &mu
         t.time_signature.numerator,
         theme,
     );
+    // Past the song's end the lanes are hatched, so the end reads at a glance.
+    let end = geo.x(s.end_bar()).max(0.0);
+    if end < w && tracks_bottom > top {
+        hatch(
+            window,
+            &pen,
+            end,
+            top,
+            w - end,
+            tracks_bottom - top,
+            ink.hatch,
+        );
+    }
 
     // A bus lane names what it sums.
     for (i, track) in s.tracks.iter().enumerate() {
@@ -889,17 +920,16 @@ fn ruler(bounds: Bounds<Pixels>, scene: &RulerScene, window: &mut Window, cx: &m
     let bubble = pen.rect(bx, by, bw, bh);
     window.paint_shadows(
         bubble,
-        Corners::all(px(5.0)),
+        Corners::all(px(0.0)),
         &[BoxShadow {
-            color: theme.glass_shadow,
-            offset: point(px(0.0), px(2.0)),
-            blur_radius: px(6.0),
+            color: theme.drop,
+            offset: point(px(2.0), px(2.0)),
+            blur_radius: px(0.0),
             spread_radius: px(0.0),
         }],
     );
     window.paint_quad(
         gpui::fill(bubble, theme.glass(2))
-            .corner_radii(px(5.0))
             .border_widths(px(1.0))
             .border_color(theme.glass_edge),
     );

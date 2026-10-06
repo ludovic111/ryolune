@@ -311,6 +311,31 @@ pub fn shortcut_label(id: &str) -> Option<String> {
     label_for(def(id)?.keys.first()?, cfg!(target_os = "macos"))
 }
 
+/// An action's name with its shortcut, for tooltips: "Undo (⌘Z)".
+pub fn tip(id: &str) -> String {
+    let label = def(id).map_or(id, |d| d.label);
+    match shortcut_label(id) {
+        Some(keys) => format!("{label} ({keys})"),
+        None => label.to_string(),
+    }
+}
+
+/// A tool in a toolbar group that runs table action `id`: lit while the action is on,
+/// greyed while it cannot run, its name and shortcut in the tooltip. `label` shows beside
+/// the icon when `labelled` (there is room), otherwise only in the tooltip.
+pub fn tool(
+    id: &'static str,
+    icon: &'static str,
+    label: &'static str,
+    labelled: bool,
+    daw: &Daw,
+) -> super::widgets::Button {
+    super::widgets::tool(id, icon, label, labelled, tip(id))
+        .lit(checked(id, daw).unwrap_or(false))
+        .disabled(!enabled(id, daw))
+        .on_click(move |_, window, cx| window.dispatch_action(Box::new(Do { id }), cx))
+}
+
 /// One keystroke as text, in macOS symbols or spelled out for Windows and Linux.
 pub fn label_for(keys: &str, mac: bool) -> Option<String> {
     let mut out = String::new();

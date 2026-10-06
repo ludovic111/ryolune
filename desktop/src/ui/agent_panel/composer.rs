@@ -213,14 +213,19 @@ impl AgentPanel {
                         .rounded(px(radius::SM))
                         .text_size(px(size::SM))
                         .cursor_pointer()
-                        .when(i == selected, |d| d.bg(theme.accent_soft))
-                        .hover(|s| s.bg(theme.hover))
+                        // The chosen command is inverted, paper on ink.
+                        .when(i == selected, |d| d.bg(theme.accent_fill))
+                        .when(i != selected, |d| d.hover(|s| s.bg(theme.hover)))
                         .child(
                             div()
                                 .min_w(px(75.0))
                                 .flex_none()
                                 .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(theme.accent_text)
+                                .text_color(if i == selected {
+                                    theme.text_on_accent
+                                } else {
+                                    theme.accent_text
+                                })
                                 .child(format!("/{}", command.name)),
                         )
                         .child(
@@ -230,7 +235,11 @@ impl AgentPanel {
                                 .whitespace_nowrap()
                                 .overflow_hidden()
                                 .text_ellipsis()
-                                .text_color(theme.text_2)
+                                .text_color(if i == selected {
+                                    theme.text_on_accent
+                                } else {
+                                    theme.text_2
+                                })
                                 .child(command.label),
                         )
                         .on_click(cx.listener(move |this, _, _, cx| this.choose_slash(command, cx)))
@@ -244,17 +253,12 @@ impl AgentPanel {
             .flex()
             .items_center()
             .justify_center()
-            .rounded_full()
             .when(can_send, |d| {
                 d.bg(theme.accent_fill)
                     .cursor_pointer()
                     .hover(|s| s.bg(theme.accent_hover))
-                    .shadow(vec![gpui::BoxShadow {
-                        color: theme.accent_glow,
-                        offset: gpui::point(px(0.0), px(1.0)),
-                        blur_radius: px(6.0),
-                        spread_radius: px(0.0),
-                    }])
+                    // The primary action stands on a small hard shadow.
+                    .shadow(theme.chip_shadow())
             })
             .when(!can_send, |d| {
                 d.bg(theme.control)
@@ -291,12 +295,12 @@ impl AgentPanel {
             } else {
                 theme.glass_edge
             })
-            .shadow(vec![gpui::BoxShadow {
-                color: theme.glass_shadow.opacity(0.5),
-                offset: gpui::point(px(0.0), px(2.0)),
-                blur_radius: px(8.0),
-                spread_radius: px(0.0),
-            }])
+            // The composer sits in viewfinder brackets, like the suite's other composers.
+            .child(crate::ui::grain::brackets(
+                10.0,
+                -6.0,
+                if focused { theme.text_2 } else { theme.text_3 },
+            ))
             .child(
                 div()
                     .text_size(px(size::SM))
