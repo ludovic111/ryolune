@@ -140,7 +140,7 @@ Musical typing plays the letter keys while it is on (`note.hold`, `note.releaseA
 | `rescanPlugins` | Mix › Rescan plugins | `plugin.scan` | covered |
 | `agentSettings` | Agent › Agent settings… | `ui.showPanel` panel=settings section=agent | covered |
 | `toggleAutomation` | View › Automation | `ui.showPanel` panel=automation | covered |
-| `checkUpdates` | Help › Check for updates… | `app.checkUpdates`, `app.installUpdate`, `app.relaunch` (also `app.restart`, the lsuite name) | covered; an open window also checks every six hours |
+| `checkUpdates` | Help › Check for updates… | `app.checkUpdates`, `app.installUpdate`, `app.relaunch` (also app.restart, the lsuite name for it) | covered; an open window also checks every six hours |
 | `pluginGuide` | Help › Native plugin SDK… | `app.openGuide` guide=plugins | covered |
 | `support` | Help › Support ryolune…, Settings › About, the one-time ask after the third export | `app.openGuide` guide=support; the ask is `settings.get`/`settings.set path=general.exportsCompleted` and `general.supportAsked` | covered |
 | `whatsNew` | Help › What's New, Settings › Updates, and by itself once after an update | `ui.showPanel` panel=whatsNew; the text is `app.whatsNew` (version, since, all); the version that ran last is `general.lastRunVersion` | added in 0.14 |
