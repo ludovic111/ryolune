@@ -160,8 +160,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     // The window process logs to `<data>/logs`, writes crash reports and notices a previous
     // run that ended without quitting; the one-shot modes above only print.
-    let started =
-        ryolune_engine::diagnostics::init(&ryolune_engine::host::scan::data_dir());
+    let started = ryolune_engine::diagnostics::init(&ryolune_engine::host::scan::data_dir());
     update::cleanup();
     ui::run(
         path,

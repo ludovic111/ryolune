@@ -728,7 +728,9 @@ pub(crate) fn call(host: &mut dyn Host, name: &str, a: &Args, agent: bool) -> Re
         "app.crashReports" => {
             let data = plugin_host::scan::data_dir();
             match a.get("id").and_then(Value::as_str) {
-                Some(id) => Ok(json!({ "id": id, "text": crate::diagnostics::read_report(&data, id)? })),
+                Some(id) => {
+                    Ok(json!({ "id": id, "text": crate::diagnostics::read_report(&data, id)? }))
+                }
                 None => Ok(json!({
                     "folder": crate::diagnostics::crashes_dir(&data),
                     "reports": crate::diagnostics::reports(&data),
@@ -752,7 +754,9 @@ pub(crate) fn call(host: &mut dyn Host, name: &str, a: &Args, agent: bool) -> Re
                 }
                 crate::release_notes::since(since)
             } else {
-                crate::release_notes::find(crate::release_notes::CURRENT).into_iter().collect()
+                crate::release_notes::find(crate::release_notes::CURRENT)
+                    .into_iter()
+                    .collect()
             };
             Ok(json!({ "current": crate::release_notes::CURRENT, "releases": releases }))
         }
@@ -812,7 +816,9 @@ fn app_logs(a: &Args) -> Result<Value> {
             .iter()
             .map(|(p, _)| p.clone())
             .find(|p| p.file_name().is_some_and(|n| n == name))
-            .ok_or_else(|| format!("No log file named `{name}`. app.logs lists them in `files`."))?,
+            .ok_or_else(|| {
+                format!("No log file named `{name}`. app.logs lists them in `files`.")
+            })?,
         None => diagnostics::current_log()
             .filter(|p| p.is_file())
             .or_else(|| files.first().map(|(p, _)| p.clone()))
@@ -843,7 +849,11 @@ fn app_diagnostics(host: &mut dyn Host) -> Value {
     let cache = plugin_host::scan::cache();
     let reports = diagnostics::reports(&data);
     let snapshots = recovery::list(&recovery::directory()).map_or(0, |s| s.len());
-    let build = if cfg!(debug_assertions) { "debug" } else { "release" };
+    let build = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
     let mut value = json!({
         "version": env!("CARGO_PKG_VERSION"),
         "build": build,
@@ -893,7 +903,13 @@ fn app_diagnostics(host: &mut dyn Host) -> Value {
         },
     });
     if let Ok(live) = host.live("audio.status", &json!({})) {
-        for key in ["device", "sampleRate", "bufferFrames", "cpuLoad", "monitoring"] {
+        for key in [
+            "device",
+            "sampleRate",
+            "bufferFrames",
+            "cpuLoad",
+            "monitoring",
+        ] {
             value["audio"]["active"][key] = live[key].clone();
         }
     }

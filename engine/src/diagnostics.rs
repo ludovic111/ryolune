@@ -311,11 +311,7 @@ fn timestamp() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     let base = crate::lsuite::rfc3339(now.as_secs() as i64);
-    format!(
-        "{}.{:03}Z",
-        base.trim_end_matches('Z'),
-        now.subsec_millis()
-    )
+    format!("{}.{:03}Z", base.trim_end_matches('Z'), now.subsec_millis())
 }
 
 /// `20261006-120000`, for file names.
@@ -923,7 +919,11 @@ mod tests {
             version: "0.13.0".into(),
             started: "2026-10-06T10:00:00Z".into(),
         };
-        fs::write(marker_path(&logs, pid), serde_json::to_vec(&marker).unwrap()).unwrap();
+        fs::write(
+            marker_path(&logs, pid),
+            serde_json::to_vec(&marker).unwrap(),
+        )
+        .unwrap();
         // A live process (this one) is left alone.
         fs::write(marker_path(&logs, std::process::id()), "{}").unwrap();
         let found = collect_unclean(&data);

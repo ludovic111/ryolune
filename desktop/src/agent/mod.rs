@@ -310,14 +310,13 @@ impl Runtime {
         std::thread::Builder::new()
             .name("ryolune-agent".into())
             .spawn(move || {
-                let outcome =
-                    ryolune_engine::diagnostics::catch("agent turn", || match provider {
-                        ryolune_engine::settings::Provider::Anthropic => anthropic::run(turn),
-                        ryolune_engine::settings::Provider::Codex => codex::run(turn),
-                        ryolune_engine::settings::Provider::Claude => cli::run_claude(turn),
-                        // OpenAI, the hosted and local services and the custom endpoint.
-                        _ => openai::run(turn),
-                    });
+                let outcome = ryolune_engine::diagnostics::catch("agent turn", || match provider {
+                    ryolune_engine::settings::Provider::Anthropic => anthropic::run(turn),
+                    ryolune_engine::settings::Provider::Codex => codex::run(turn),
+                    ryolune_engine::settings::Provider::Claude => cli::run_claude(turn),
+                    // OpenAI, the hosted and local services and the custom endpoint.
+                    _ => openai::run(turn),
+                });
                 if let Err(_) | Ok(Err(_)) = &outcome {
                     let message = match outcome {
                         Ok(Err(e)) => e,

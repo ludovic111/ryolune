@@ -2205,8 +2205,13 @@ mod tests {
             .run_control_command("ui.state", &json!({}), true, "test")
             .unwrap();
         assert_eq!(state["panels"]["whatsNew"], true);
-        app.run_control_command("ui.showPanel", &json!({"panel": "diagnostics"}), true, "test")
-            .unwrap();
+        app.run_control_command(
+            "ui.showPanel",
+            &json!({"panel": "diagnostics"}),
+            true,
+            "test",
+        )
+        .unwrap();
         assert!(app.settings_ui.open);
         assert_eq!(
             crate::settings::SECTION_KEYS[app.settings_ui.section],

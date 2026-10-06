@@ -1210,7 +1210,9 @@ impl Ryolune {
                 Err(e) => Err(e.clone()),
             };
             match &result {
-                Ok(Some(release)) => log::info!("update check: ryolune {} is available", release.version),
+                Ok(Some(release)) => {
+                    log::info!("update check: ryolune {} is available", release.version)
+                }
                 Ok(None) => log::info!("update check: ryolune {} is up to date", current_version()),
                 Err(e) => log::warn!("update check failed: {e}"),
             }
@@ -1279,7 +1281,10 @@ mod tests {
         let mut updates = super::Updates::default();
         assert!(!updates.due(true, start), "off without periodic checks");
         updates.periodic = true;
-        assert!(!updates.due(false, start), "off when Settings turns checks off");
+        assert!(
+            !updates.due(false, start),
+            "off when Settings turns checks off"
+        );
         assert!(updates.due(true, start), "never checked: check now");
         updates.last_check = Some(start);
         assert!(!updates.due(true, start + std::time::Duration::from_secs(60)));

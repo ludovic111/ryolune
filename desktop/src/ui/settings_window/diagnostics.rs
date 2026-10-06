@@ -49,7 +49,8 @@ impl SettingsWindow {
             .update(cx, |daw, cx| daw.request("app.crashReports", json!({}), cx))
         {
             Ok(v) => {
-                self.diag.reports = serde_json::from_value(v["reports"].clone()).unwrap_or_default();
+                self.diag.reports =
+                    serde_json::from_value(v["reports"].clone()).unwrap_or_default();
             }
             Err(error) => self.show_error(error, cx),
         }
@@ -95,9 +96,9 @@ impl SettingsWindow {
     }
 
     fn clear_reports(&mut self, cx: &mut Context<Self>) {
-        let result = self
-            .daw
-            .update(cx, |daw, cx| daw.request("app.clearCrashReports", json!({}), cx));
+        let result = self.daw.update(cx, |daw, cx| {
+            daw.request("app.clearCrashReports", json!({}), cx)
+        });
         match result {
             Ok(_) => {
                 self.diag.open = None;
@@ -160,8 +161,11 @@ impl SettingsWindow {
             out.push(modal::note("Loading…", cx).into_any_element());
         } else if !has_reports {
             out.push(
-                modal::note("No crash reports. ryolune has not crashed on this computer.", cx)
-                    .into_any_element(),
+                modal::note(
+                    "No crash reports. ryolune has not crashed on this computer.",
+                    cx,
+                )
+                .into_any_element(),
             );
         }
         for (i, report) in self.diag.reports.clone().into_iter().enumerate() {
@@ -182,63 +186,76 @@ impl SettingsWindow {
                 theme.warning
             };
             let id = report.id.clone();
-            let mut row = div()
-                .flex()
-                .flex_col()
-                .gap(px(6.0))
-                .py(px(6.0))
-                .border_b_1()
-                .border_color(theme.hairline)
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(10.0))
-                        .child(crate::ui::widgets::icon("warning", 11.0, color))
-                        .child(
-                            div()
-                                .flex()
-                                .flex_col()
-                                .gap(px(1.0))
-                                .flex_1()
-                                .min_w_0()
-                                .child(
-                                    div()
-                                        .flex()
-                                        .gap(px(8.0))
-                                        .text_size(px(size::BASE))
-                                        .text_color(theme.text)
-                                        .child(what)
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(size::SM))
-                                                .text_color(theme.text_3)
-                                                .child(report.at.replace('T', " ").replace('Z', " UTC")),
-                                        ),
+            let mut row =
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.0))
+                    .py(px(6.0))
+                    .border_b_1()
+                    .border_color(theme.hairline)
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .gap(px(10.0))
+                            .child(crate::ui::widgets::icon("warning", 11.0, color))
+                            .child(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(1.0))
+                                    .flex_1()
+                                    .min_w_0()
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .gap(px(8.0))
+                                            .text_size(px(size::BASE))
+                                            .text_color(theme.text)
+                                            .child(what)
+                                            .child(
+                                                div()
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(size::SM))
+                                                    .text_color(theme.text_3)
+                                                    .child(
+                                                        report
+                                                            .at
+                                                            .replace('T', " ")
+                                                            .replace('Z', " UTC"),
+                                                    ),
+                                            ),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(px(size::SM))
+                                            .text_color(theme.text_2)
+                                            .overflow_hidden()
+                                            .whitespace_nowrap()
+                                            .text_ellipsis()
+                                            .child(report.summary.clone()),
+                                    ),
+                            )
+                            .child(
+                                Button::new(
+                                    ("report-view", i),
+                                    if open.is_some() { "Hide" } else { "View" },
                                 )
-                                .child(
-                                    div()
-                                        .text_size(px(size::SM))
-                                        .text_color(theme.text_2)
-                                        .overflow_hidden()
-                                        .whitespace_nowrap()
-                                        .text_ellipsis()
-                                        .child(report.summary.clone()),
-                                ),
-                        )
-                        .child(
-                            Button::new(("report-view", i), if open.is_some() { "Hide" } else { "View" })
                                 .compact()
                                 .ghost()
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.toggle_report(id.clone(), cx)
-                                })),
-                        ),
-                );
+                                .on_click(cx.listener(
+                                    move |this, _, _, cx| this.toggle_report(id.clone(), cx),
+                                )),
+                            ),
+                    );
             if let Some(text) = open {
                 let copy_text = text.clone();
-                let key = if copied == Some("copy-report") { "Copied" } else { "Copy report" };
+                let key = if copied == Some("copy-report") {
+                    "Copied"
+                } else {
+                    "Copy report"
+                };
                 row = row
                     .child(
                         div()
@@ -291,7 +308,11 @@ impl SettingsWindow {
                     .child(
                         Button::new(
                             "logs-copy",
-                            if copied == Some("copy-log") { "Copied" } else { "Copy" },
+                            if copied == Some("copy-log") {
+                                "Copied"
+                            } else {
+                                "Copy"
+                            },
                         )
                         .compact()
                         .ghost()

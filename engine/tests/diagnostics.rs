@@ -37,8 +37,13 @@ fn logs_reports_and_release_notes_are_commands() {
     assert_eq!(tail["files"].as_array().unwrap().len(), 2);
     let previous = call(&mut host, "app.logs", json!({"file": "ryolune.1.log"}));
     assert_eq!(previous["lines"], json!(["previous run"]));
-    assert!(control::call(&mut host, "app.logs", &json!({"file": "../settings.json"}), false)
-        .is_err());
+    assert!(control::call(
+        &mut host,
+        "app.logs",
+        &json!({"file": "../settings.json"}),
+        false
+    )
+    .is_err());
     assert!(control::call(&mut host, "app.logs", &json!({"lines": 0}), false).is_err());
 
     let listed = call(&mut host, "app.crashReports", json!({}));
@@ -75,7 +80,13 @@ fn logs_reports_and_release_notes_are_commands() {
     assert_eq!(one["releases"][0]["version"], "0.12.0");
     let since = call(&mut host, "app.whatsNew", json!({"since": "0.11.0"}));
     assert!(since["releases"].as_array().unwrap().len() >= 3);
-    assert!(control::call(&mut host, "app.whatsNew", &json!({"version": "0.0.1"}), false).is_err());
+    assert!(control::call(
+        &mut host,
+        "app.whatsNew",
+        &json!({"version": "0.0.1"}),
+        false
+    )
+    .is_err());
 
     // Opening a browser needs the window.
     assert!(control::call(&mut host, "app.reportProblem", &json!({}), false).is_err());

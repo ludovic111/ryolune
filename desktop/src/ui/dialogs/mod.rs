@@ -491,18 +491,18 @@ impl Dialogs {
             .child(
                 modal::footer(cx)
                     .when(!shown.all, |d| {
-                        d.child(Button::new("whats-new-all", "Earlier versions").ghost().on_click(
-                            cx.listener(move |this, _, _, cx| {
-                                let since = since.clone();
-                                this.daw.update(cx, |daw, cx| {
-                                    daw.app.whats_new = Some(crate::diagnostics::WhatsNew {
-                                        since,
-                                        all: true,
-                                    });
-                                    cx.notify();
-                                })
-                            }),
-                        ))
+                        d.child(
+                            Button::new("whats-new-all", "Earlier versions")
+                                .ghost()
+                                .on_click(cx.listener(move |this, _, _, cx| {
+                                    let since = since.clone();
+                                    this.daw.update(cx, |daw, cx| {
+                                        daw.app.whats_new =
+                                            Some(crate::diagnostics::WhatsNew { since, all: true });
+                                        cx.notify();
+                                    })
+                                })),
+                        )
                     })
                     .child(
                         Button::new("whats-new-web", "All releases")
