@@ -23,7 +23,8 @@ and in the app under Help > Shortcuts and Help (⌘/). ⌘ is Ctrl on Windows an
 13. [The agent](#the-agent)
 14. [Appearance](#appearance)
 15. [Settings](#settings)
-16. [Limits](#limits)
+16. [Updates, what's new and problems](#updates-whats-new-and-problems)
+17. [Limits](#limits)
 
 ## The window
 
@@ -302,7 +303,10 @@ Settings (`⌘,`) is organised in sections:
   the configurations for outside agents.
 - **Generation**: the sound service, its key, the fal.ai model or your endpoint's address.
 - **Control**: the local bridge that `ryolune-cli` and `ryolune-mcp` use to reach the window.
-- **Updates**: check at start, install automatically.
+- **Updates**: check at start (and every six hours while ryolune is open), install
+  automatically, What's new.
+- **Diagnostics**: crash reports, this run's log, the data folder, Copy diagnostics and Report a
+  Problem (see below).
 
 Settings live in `settings.json` in ryolune's data folder, readable only by you; keys are never
 shown in full once saved.
@@ -310,6 +314,29 @@ shown in full once saved.
 ryolune is free, every update included. Help > Support ryolune… (also in Settings > About) opens
 the page where you can donate, once or monthly, if you want to; nothing is locked either way. The window asks one time, after your
 third export, and never again. It counts exports in `settings.json` only; nothing is sent.
+
+## Updates, what's new and problems
+
+- **Updates**: ryolune asks GitHub for a newer release when it starts and again every six hours
+  while it stays open (Settings > Updates turns this off; so do `--no-update-check` and
+  `RYOLUNE_NO_UPDATE=1`). An update is offered in a sheet with its notes; while the song plays,
+  the offer waits until you stop. Installing downloads the release and checks its signature
+  before anything is replaced; **Restart now** (in the sheet or Settings > Updates) starts the
+  new version, asking to save first. Every update is free.
+- **What's new**: the first time a new version starts, a sheet lists what changed in every
+  release since the one you had. Help > What's New, the command palette and Settings > Updates
+  open it again; Earlier versions lists every release this copy carries.
+- **When something goes wrong**: ryolune keeps a log of each run and writes a crash report when it
+  runs into a bug. If it did not quit properly last time (a crash, a forced quit, a power cut), it
+  says so at the next start and writes a report too; File > Recover session… has the snapshots of
+  an edited song. Settings > Diagnostics (Help > Logs and Crash Reports…) lists the reports (View,
+  Copy report, Delete all), shows the end of this run's log and opens the folders.
+- **Report a Problem** (Help menu, or Settings > Diagnostics) opens a new GitHub issue with the
+  version and system filled in. Nothing is sent automatically: read it, add what happened and
+  submit it yourself. **Copy diagnostics** copies what a report needs (version, system, audio
+  device, plugin scan, recent crash reports) without keys, prompts or songs, to paste into it.
+- Logs live in `logs/` and reports in `crashes/` in ryolune's data folder, and never leave your
+  computer. The last four runs' logs are kept, each up to 8 MB.
 
 ## Limits
 

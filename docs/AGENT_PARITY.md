@@ -24,9 +24,9 @@ the missing capability to it; **window-only** means there is deliberately no com
 
 | | Count |
 |---|---|
-| Interactions audited (rows below, private handlers aside) | 213 |
+| Interactions audited (rows below, private handlers aside) | 219 |
 | Covered by an existing command | 184 |
-| Gap closed by a new command or a new capability of one | 17 |
+| Gap closed by a new command or a new capability of one | 23 |
 | Window-only by design | 12 |
 
 New commands: `session.overview`, `ui.state`, `strip.programs`, `strip.setProgram`,
@@ -140,9 +140,12 @@ Musical typing plays the letter keys while it is on (`note.hold`, `note.releaseA
 | `rescanPlugins` | Mix › Rescan plugins | `plugin.scan` | covered |
 | `agentSettings` | Agent › Agent settings… | `ui.showPanel` panel=settings section=agent | covered |
 | `toggleAutomation` | View › Automation | `ui.showPanel` panel=automation | covered |
-| `checkUpdates` | Help › Check for updates… | `app.checkUpdates`, `app.installUpdate`, `app.relaunch` | covered |
+| `checkUpdates` | Help › Check for updates… | `app.checkUpdates`, `app.installUpdate`, `app.relaunch` (also `app.restart`, the lsuite name) | covered; an open window also checks every six hours |
 | `pluginGuide` | Help › Native plugin SDK… | `app.openGuide` guide=plugins | covered |
 | `support` | Help › Support ryolune…, Settings › About, the one-time ask after the third export | `app.openGuide` guide=support; the ask is `settings.get`/`settings.set path=general.exportsCompleted` and `general.supportAsked` | covered |
+| `whatsNew` | Help › What's New, Settings › Updates, and by itself once after an update | `ui.showPanel` panel=whatsNew; the text is `app.whatsNew` (version, since, all); the version that ran last is `general.lastRunVersion` | added in 0.14 |
+| `diagnostics` | Help › Logs and Crash Reports… | `ui.showPanel` panel=diagnostics; `app.logs`, `app.crashReports`, `app.clearCrashReports`, `app.diagnostics` | added in 0.14 |
+| `reportProblem` | Help › Report a Problem…, Settings › Diagnostics | `app.reportProblem` | added in 0.14; refused to agents (it opens a GitHub issue for the person to submit), which read `app.diagnostics` instead |
 
 ## Arrangement
 
@@ -326,7 +329,10 @@ are not listed, as in the window.
 | Settings › Interface (theme, dark/light, scale, tooltips, follow) | `settings.set path=interface.appearance` (and mode, scale, agentPanelOpenOnStart, showTooltips, followPlayhead) | covered |
 | Settings › Plugins | `settings.set path=plugins.scanOnStart` (and extra paths), `plugin.scan` | covered |
 | Settings › Control | `settings.set path=control.enableBridge` | covered for people; refused to agents |
-| Settings › Updates | `settings.set path=general.checkUpdatesOnStart`, `app.checkUpdates`, `app.installUpdate`, `app.relaunch` | covered |
+| Settings › Updates | `settings.set path=general.checkUpdatesOnStart`, `app.checkUpdates`, `app.installUpdate`, `app.relaunch` (Restart now) | covered |
+| Settings › Diagnostics: crash reports (View, Copy, Show folder, Delete all), this run's log (Copy, Refresh, Show folder), data folder | `app.crashReports` (id), `app.clearCrashReports`, `app.logs` (lines, file), `app.diagnostics` (paths) | added in 0.14; Delete all needs fileOperations for agents; Show folder is window-only (opens the file manager for the person) |
+| Settings › Diagnostics: Copy diagnostics, Report a Problem… | `app.diagnostics`, `app.reportProblem` | added in 0.14; Report a Problem is refused to agents |
+| What's New sheet: Earlier versions, All releases, Continue | `app.whatsNew` all=true, `ui.showPanel` panel=whatsNew visible=false | added in 0.14; All releases opens the GitHub releases page for the person |
 | Settings › Agent: provider, model, effort, keys, permissions | `agent.configure`, `settings.set path=agent.…` | window-only for agents: connections and permissions are changed by the person (enforced in `run_control_command`); the CLI and MCP can |
 | Settings › Agent › Use another agent: recipes, Copy | `agent.mcp` | covered (Copy is the clipboard of the person's computer) |
 | Settings › Agent › Use another agent: Add to Cursor / VS Code | `agent.openClient` | refused to agents: it opens another app for the person |

@@ -33,6 +33,7 @@ pub(crate) enum Shown {
     Update,
     Export,
     Recovery,
+    WhatsNew,
     Help,
 }
 
@@ -76,6 +77,7 @@ impl Dialogs {
         } else if monitor && !self.monitor_dismissed {
             Some(Shown::Monitor)
         } else if app.updates.show
+            && !app.playing
             && (app.updates.available.is_some() || app.updates.installed.is_some())
         {
             Some(Shown::Update)
@@ -83,6 +85,8 @@ impl Dialogs {
             Some(Shown::Export)
         } else if app.recovery.open {
             Some(Shown::Recovery)
+        } else if app.whats_new.is_some() {
+            Some(Shown::WhatsNew)
         } else if app.show_help {
             Some(Shown::Help)
         } else {
@@ -122,6 +126,7 @@ impl Dialogs {
                 }
             }
             Some(Shown::Recovery) => self.panel("recovery", false, cx),
+            Some(Shown::WhatsNew) => self.panel("whatsNew", false, cx),
             Some(Shown::Help) => self.panel("help", false, cx),
             None => {}
         }
@@ -270,7 +275,7 @@ impl Dialogs {
         let mut body = modal::body("update-body");
         if installed {
             body = body.child(modal::text(
-                "Relaunch to start using it. If the session has unsaved changes, ryolune asks to save them first.",
+                "Restart to start using it. If the session has unsaved changes, ryolune asks to save them first. After the restart, What's New shows what changed.",
                 cx,
             ));
         } else if let Some(release) = &release {
@@ -312,7 +317,7 @@ impl Dialogs {
             }
         }
         let primary = if installed {
-            Some("Relaunch")
+            Some("Restart now")
         } else if installing {
             None
         } else {
@@ -449,6 +454,70 @@ impl Dialogs {
             )
     }
 
+    /// What's New: the release notes built into this copy, after an update every release
+    /// since the version that ran before.
+    fn whats_new_sheet(&mut self, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
+        let shown = self.daw.read(cx).app.whats_new.clone().unwrap_or_default();
+        let current = ryolune_engine::release_notes::CURRENT;
+        let updated = shown.since.is_some() && !shown.all;
+        let title = if updated {
+            format!("ryolune is now {current}")
+        } else {
+            "What's new".to_string()
+        };
+        let mut body = modal::body("whats-new-body").child(modal::text(
+            if updated {
+                "Here is what changed since you last opened it."
+            } else if shown.all {
+                "What changed in each version of ryolune."
+            } else {
+                "What changed in this version of ryolune."
+            },
+            cx,
+        ));
+        for release in shown.releases() {
+            body = body.child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.0))
+                    .child(modal::heading(format!("ryolune {}", release.version), cx))
+                    .child(modal::well(release.notes, cx)),
+            );
+        }
+        let since = shown.since.clone();
+        modal::sheet("whats-new", title, 640.0, Some(close(cx)), cx)
+            .child(body)
+            .child(
+                modal::footer(cx)
+                    .when(!shown.all, |d| {
+                        d.child(Button::new("whats-new-all", "Earlier versions").ghost().on_click(
+                            cx.listener(move |this, _, _, cx| {
+                                let since = since.clone();
+                                this.daw.update(cx, |daw, cx| {
+                                    daw.app.whats_new = Some(crate::diagnostics::WhatsNew {
+                                        since,
+                                        all: true,
+                                    });
+                                    cx.notify();
+                                })
+                            }),
+                        ))
+                    })
+                    .child(
+                        Button::new("whats-new-web", "All releases")
+                            .ghost()
+                            .with_icon("external")
+                            .on_click(|_, _, cx| {
+                                cx.open_url(ryolune_engine::release_notes::RELEASES_URL)
+                            }),
+                    )
+                    .child(Button::new("whats-new-ok", "Continue").primary().on_click(
+                        cx.listener(|this, _, window, cx| this.dismiss(&Dismiss, window, cx)),
+                    )),
+            )
+    }
+
     fn help_sheet(&mut self, cx: &mut Context<Self>) -> gpui::Stateful<gpui::Div> {
         modal::sheet("help", "Working in ryolune", 760.0, Some(close(cx)), cx)
             .child(modal::body("help-body").children(help::content(cx)))
@@ -527,10 +596,11 @@ impl Render for Dialogs {
                 self.export.sheet(&daw, window, cx)
             }
             Shown::Recovery => self.recovery_sheet(cx),
+            Shown::WhatsNew => self.whats_new_sheet(cx),
             Shown::Help => self.help_sheet(cx),
         };
         // Sheets that only inform close on a click outside; forms and questions do not.
-        let outside = matches!(shown, Shown::Help | Shown::Recovery);
+        let outside = matches!(shown, Shown::Help | Shown::Recovery | Shown::WhatsNew);
         modal::layer("dialogs", &self.focus.handle, cx)
             .on_action(cx.listener(Self::dismiss))
             .on_action(cx.listener(Self::accept))
@@ -586,6 +656,19 @@ mod tests {
                 daw.app.export.open = false;
             });
             assert_eq!(dialogs.read(cx).shown(cx), Some(Shown::Help));
+            daw.update(cx, |daw, _| {
+                daw.app.whats_new = Some(Default::default());
+            });
+            assert_eq!(dialogs.read(cx).shown(cx), Some(Shown::WhatsNew));
+            // An update offer waits while the song plays.
+            daw.update(cx, |daw, _| {
+                daw.app.updates.installed = Some(std::path::PathBuf::from("/x"));
+                daw.app.updates.show = true;
+                daw.app.playing = true;
+            });
+            assert_eq!(dialogs.read(cx).shown(cx), Some(Shown::WhatsNew));
+            daw.update(cx, |daw, _| daw.app.playing = false);
+            assert_eq!(dialogs.read(cx).shown(cx), Some(Shown::Update));
         });
     }
 

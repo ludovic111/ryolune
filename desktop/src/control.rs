@@ -187,6 +187,9 @@ impl Ryolune {
                 {
                     return Err("Agent connections and permissions must be changed by the person in Settings".into());
                 }
+                if method == "app.reportProblem" {
+                    return Err("Only a person can report a problem: app.reportProblem opens a GitHub issue for them to read and submit. app.diagnostics returns what a report needs.".into());
+                }
                 if let Some(denied) = control_app::denied_for_agent_request(
                     method,
                     params,
@@ -275,10 +278,10 @@ impl Ryolune {
                 };
                 let (tx, rx) = mpsc::sync_channel(1);
                 std::thread::spawn(move || {
-                    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let outcome = ryolune_engine::diagnostics::catch("file operation", || {
                         let result = control::call(&mut host, &method_owned, &params_owned, agent)?;
                         Ok((result, host, ownership))
-                    }))
+                    })
                     .unwrap_or_else(|_| {
                         Err("Agent file operation failed; the open document is intact.".into())
                     });
@@ -509,7 +512,7 @@ impl Ryolune {
         let (tx, rx) = mpsc::sync_channel(1);
         let wake = self.wake.clone();
         std::thread::spawn(move || {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
+            let result = ryolune_engine::diagnostics::catch("background job", work)
                 .unwrap_or_else(|_| Err("The background job failed".into()));
             let _ = tx.send(result);
             wake();
@@ -564,7 +567,7 @@ impl Ryolune {
                     })
                 };
                 send(
-                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
+                    ryolune_engine::diagnostics::catch("sound generation", work)
                         .unwrap_or_else(|_| Err("The generation stopped unexpectedly".into())),
                 );
             });
@@ -821,6 +824,7 @@ impl Ryolune {
             "settings": self.settings_ui.open,
             "settingsSection": crate::settings::SECTION_KEYS[self.settings_ui.section.min(crate::settings::SECTION_KEYS.len() - 1)],
             "help": self.show_help,
+            "whatsNew": self.whats_new.is_some(),
             "mixer": self.show_mixer,
             "controllers": self.show_controllers,
             "tempo": self.show_tempo,
@@ -923,6 +927,7 @@ impl Ryolune {
                 },
                 "export": self.export.is_open(),
                 "recovery": self.recovery.is_open(),
+                "whatsNew": self.whats_new.is_some(),
             },
             "prompt": self.intent.map(|intent| match intent {
                 crate::app::Intent::New => "new",
@@ -1349,6 +1354,13 @@ impl Host for Ryolune {
                 self.request(crate::app::Intent::Relaunch);
                 Ok(json!({ "prompt": self.intent.is_some() }))
             }
+            "app.reportProblem" => {
+                let url = ryolune_engine::diagnostics::issue_url(
+                    &ryolune_engine::host::scan::data_dir(),
+                );
+                crate::settings::reveal(Path::new(&url));
+                Ok(json!({ "opened": url }))
+            }
             "session.saveRecoveredTake" => {
                 let path = PathBuf::from(params["path"].as_str().unwrap_or(""));
                 if path
@@ -1458,6 +1470,19 @@ impl Host for Ryolune {
                             self.recovery.close();
                         }
                     }
+                    "whatsNew" => {
+                        self.whats_new = visible.then(crate::diagnostics::WhatsNew::default);
+                    }
+                    "diagnostics" => {
+                        if visible {
+                            let section = crate::settings::SECTION_KEYS
+                                .iter()
+                                .position(|key| *key == "diagnostics");
+                            self.open_settings(section);
+                        } else {
+                            self.settings_ui.open = false;
+                        }
+                    }
                     "master" | "bus-a" | "bus-b" => {
                         self.try_dispatch(Command::Select {
                             track: Some(panel.into()),
@@ -1467,7 +1492,7 @@ impl Host for Ryolune {
                     }
                     other => {
                         return Err(format!(
-                            "Unknown panel `{other}`. Panels: agent, automation, mixer, controllers, tempo, palette, settings, help, export, recovery, master, bus-a, bus-b."
+                            "Unknown panel `{other}`. Panels: agent, automation, mixer, controllers, tempo, palette, settings, help, export, recovery, whatsNew, diagnostics, master, bus-a, bus-b."
                         ))
                     }
                 }
@@ -2143,5 +2168,49 @@ mod tests {
         assert!(app
             .try_dispatch(Command::Rename("Take session".into()))
             .is_ok());
+    }
+
+    #[test]
+    fn diagnostics_are_readable_and_reporting_stays_with_the_person() {
+        let mut app = Ryolune::from_session(store::empty(), None);
+        let refused = app
+            .run_control_command("app.reportProblem", &json!({}), true, "MCP / agent")
+            .unwrap_err();
+        assert!(refused.contains("Only a person"), "{refused}");
+        let diagnostics = app
+            .run_control_command("app.diagnostics", &json!({}), true, "MCP / agent")
+            .unwrap();
+        assert_eq!(diagnostics["version"], env!("CARGO_PKG_VERSION"));
+        assert!(diagnostics["paths"]["crashes"].is_string(), "{diagnostics}");
+        assert!(!diagnostics.to_string().contains("ApiKey"));
+        app.settings.agent.permissions.file_operations = false;
+        assert!(app
+            .run_control_command("app.clearCrashReports", &json!({}), true, "MCP / agent")
+            .unwrap_err()
+            .contains("fileOperations"));
+        // The lsuite name for Relaunch keeps Relaunch's permission.
+        app.settings.agent.permissions.app_control = false;
+        assert!(app
+            .run_control_command("app.restart", &json!({}), true, "MCP / agent")
+            .unwrap_err()
+            .contains("appControl"));
+        let notes = app
+            .run_control_command("app.whatsNew", &json!({"since": "0.12.0"}), true, "test")
+            .unwrap();
+        assert_eq!(notes["releases"][0]["version"], env!("CARGO_PKG_VERSION"));
+        app.run_control_command("ui.showPanel", &json!({"panel": "whatsNew"}), true, "test")
+            .unwrap();
+        assert!(app.whats_new.is_some());
+        let state = app
+            .run_control_command("ui.state", &json!({}), true, "test")
+            .unwrap();
+        assert_eq!(state["panels"]["whatsNew"], true);
+        app.run_control_command("ui.showPanel", &json!({"panel": "diagnostics"}), true, "test")
+            .unwrap();
+        assert!(app.settings_ui.open);
+        assert_eq!(
+            crate::settings::SECTION_KEYS[app.settings_ui.section],
+            "diagnostics"
+        );
     }
 }

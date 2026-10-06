@@ -284,7 +284,7 @@ unsafe extern "C" fn log_log(
     msg: *const c_char,
 ) {
     if severity >= CLAP_LOG_ERROR && !IN_AUDIO_THREAD.with(Cell::get) {
-        eprintln!("[clap] {}", text(msg));
+        crate::diagnostics::warn(&format!("[clap] {}", text(msg)));
     }
 }
 unsafe extern "C" fn thread_is_main(host: *const clap_host) -> bool {

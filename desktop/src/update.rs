@@ -1119,12 +1119,33 @@ pub(crate) struct Updates {
     pub installing: Option<mpsc::Receiver<Result<PathBuf>>>,
     pub installed: Option<PathBuf>,
     pub show: bool,
+    /// Checks again every [`RECHECK`] while open (off for `--no-update-check`,
+    /// RYOLUNE_NO_UPDATE and capture runs; Settings › Updates can turn checks off too).
+    pub periodic: bool,
+    /// When the last check started.
+    pub last_check: Option<std::time::Instant>,
 }
 impl Updates {
     pub fn busy(&self) -> bool {
         self.checking.is_some() || self.installing.is_some()
     }
+    /// A background check is due: periodic checks are on, nothing is known or running yet,
+    /// and the last check is [`RECHECK`] old (or there was none, when the start check was off
+    /// and turned on later).
+    pub fn due(&self, enabled: bool, now: std::time::Instant) -> bool {
+        self.periodic
+            && enabled
+            && !self.busy()
+            && self.available.is_none()
+            && self.installed.is_none()
+            && self
+                .last_check
+                .is_none_or(|at| now.duration_since(at) >= RECHECK)
+    }
 }
+
+/// How often a window that stays open asks GitHub again.
+pub const RECHECK: std::time::Duration = std::time::Duration::from_secs(6 * 60 * 60);
 
 impl Ryolune {
     pub(crate) fn check_for_updates(&mut self, manual: bool) {
@@ -1136,6 +1157,7 @@ impl Ryolune {
             return;
         }
         self.updates.manual = manual;
+        self.updates.last_check = Some(std::time::Instant::now());
         let (tx, rx) = mpsc::sync_channel(1);
         self.updates.checking = Some(rx);
         if manual {
@@ -1160,6 +1182,15 @@ impl Ryolune {
         });
     }
     pub(crate) fn poll_updates(&mut self) {
+        if self.updates.due(
+            self.settings.general.check_updates_on_start,
+            std::time::Instant::now(),
+        ) {
+            if self.updates.last_check.is_some() {
+                log::info!("checking for updates again (every six hours while open)");
+            }
+            self.check_for_updates(false);
+        }
         if let Some(result) = self
             .updates
             .checking
@@ -1178,6 +1209,11 @@ impl Ryolune {
                 })),
                 Err(e) => Err(e.clone()),
             };
+            match &result {
+                Ok(Some(release)) => log::info!("update check: ryolune {} is available", release.version),
+                Ok(None) => log::info!("update check: ryolune {} is up to date", current_version()),
+                Err(e) => log::warn!("update check failed: {e}"),
+            }
             match result {
                 Ok(Some(release)) => {
                     self.status = format!("ryolune {} is available", release.version);
@@ -1214,9 +1250,13 @@ impl Ryolune {
                 ),
                 Err(e) => Err(e.clone()),
             };
+            match &result {
+                Ok(target) => log::info!("update installed at {}", target.display()),
+                Err(e) => log::warn!("update install failed: {e}"),
+            }
             match result {
                 Ok(target) => {
-                    self.status = "Update installed".into();
+                    self.status = "Update installed: restart ryolune to use it".into();
                     self.updates.installed = Some(target);
                     self.updates.show = true;
                 }
@@ -1233,6 +1273,24 @@ impl Ryolune {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn an_open_window_checks_again_every_six_hours() {
+        let start = std::time::Instant::now();
+        let mut updates = super::Updates::default();
+        assert!(!updates.due(true, start), "off without periodic checks");
+        updates.periodic = true;
+        assert!(!updates.due(false, start), "off when Settings turns checks off");
+        assert!(updates.due(true, start), "never checked: check now");
+        updates.last_check = Some(start);
+        assert!(!updates.due(true, start + std::time::Duration::from_secs(60)));
+        assert!(updates.due(true, start + super::RECHECK));
+        updates.installed = Some(std::path::PathBuf::from("/x"));
+        assert!(
+            !updates.due(true, start + super::RECHECK),
+            "an installed update waits for a restart"
+        );
+    }
+
     #[test]
     fn relaunch_without_an_update_starts_this_copy() {
         let installed = PathBuf::from("/Applications/ryolune.app");

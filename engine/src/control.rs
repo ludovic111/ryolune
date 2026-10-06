@@ -340,6 +340,7 @@ pub const ALIASES: &[(&str, &str)] = &[
     ("export.audio", "session.exportAudio"),
     ("export.stems", "session.exportStems"),
     ("export.midi", "session.exportMidi"),
+    ("app.restart", "app.relaunch"),
 ];
 
 /// The registry name for a command or one of its shared aliases.

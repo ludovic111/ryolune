@@ -137,7 +137,7 @@ impl Recovery {
         debug_assert!(self.worker.is_none());
         let (tx, receiver) = mpsc::sync_channel(1);
         std::thread::spawn(move || {
-            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(task))
+            let outcome = ryolune_engine::diagnostics::catch("recovery", task)
                 .unwrap_or_else(|_| Err("Recovery worker stopped unexpectedly".into()));
             let _ = tx.send(outcome);
         });

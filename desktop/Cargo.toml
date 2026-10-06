@@ -10,6 +10,7 @@ default-run = "ryolune"
 serde.workspace = true
 ryolune-engine = { path = "../engine" }
 serde_json.workspace = true
+log = "0.4"
 # The window: Zed's GPU interface framework (gpui.rs). Shaders are compiled when the window
 # opens, so the build needs no Metal toolchain.
 gpui = { version = "0.2.2", features = ["runtime_shaders"] }

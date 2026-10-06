@@ -18,6 +18,8 @@ pub struct Daw {
     pub app: Ryolune,
     /// The last state views were told about; a tick notifies only when it changed.
     fingerprint: u64,
+    /// The error last written to the log, so each one is logged once.
+    logged_error: Option<String>,
     _tick: Option<Task<()>>,
     _wake: Option<Task<()>>,
 }
@@ -76,6 +78,7 @@ fn fingerprint(app: &Ryolune) -> u64 {
     app.settings_ui.job.is_some().hash(&mut h);
     app.settings_ui.notice.as_ref().map(|n| &n.0).hash(&mut h);
     app.settings_ui.error.hash(&mut h);
+    app.whats_new.hash(&mut h);
     if let Some(device) = &app.device {
         // Meters move without anything else changing; a coarse step is enough to redraw.
         for peak in device.telemetry.peaks() {
@@ -94,6 +97,7 @@ impl Daw {
         Self {
             app,
             fingerprint: 0,
+            logged_error: None,
             _tick: None,
             _wake: None,
         }
@@ -138,9 +142,16 @@ impl Daw {
 
     pub fn tick(&mut self, cx: &mut Context<Self>) {
         self.app.tick();
+        if self.app.error != self.logged_error {
+            if let Some(error) = &self.app.error {
+                log::warn!("error shown: {error}");
+            }
+            self.logged_error = self.app.error.clone();
+        }
         if self.app.closing {
             self.app.publish_discovery(false);
             self.app.shutdown_audio();
+            ryolune_engine::diagnostics::clean_exit();
             cx.quit();
             return;
         }

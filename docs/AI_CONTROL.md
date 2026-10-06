@@ -116,11 +116,11 @@ switches for the rest:
 
 | Permission | Covers |
 | --- | --- |
-| File operations | open, save, import, export, bounce, plugin scan, writing a screenshot to a path |
+| File operations | open, save, import, export, bounce, plugin scan, writing a screenshot to a path, deleting crash reports |
 | Transport | play, record, stop, locate, marker navigation |
 | Replace the session | new session, open another song |
 | Settings | `settings.set`, `settings.reset` |
-| Application control | quit, install an update |
+| Application control | quit, install an update, restart (`app.relaunch`, also `app.restart`) |
 | Generate sounds | `generate.audio`, which spends the generation service's credits (on by default) |
 
 Connecting an AI service or a generation service, signing in and changing these permissions stay
@@ -180,8 +180,9 @@ apps it can drive and how.
   cycle over the cut, in one undo step. Without a manifest, give `path`, `markers` (`time` in
   seconds, `label`) and `durationSeconds` yourself.
 - **Shared names.** Commands that every lsuite app has keep one name across the suite:
-  `app.version`, `project.overview`, `export.audio`, `export.stems` and `export.midi` work here
-  too and run `app.info`, `session.overview` and `session.export*`.
+  `app.version`, `project.overview`, `export.audio`, `export.stems`, `export.midi` and
+  `app.restart` work here too and run `app.info`, `session.overview`, `session.export*` and
+  `app.relaunch`.
 
 ## Recipes
 
@@ -287,10 +288,21 @@ and the theme. `ui.showPanel` opens the mixer, automation, controller lane, temp
 settings, help, the command palette and more; `view.set` scrolls and zooms; `ui.setTool` picks a tool;
 `ui.screenshot` saves a PNG of the window, captured once running animations have settled.
 
+### When something goes wrong
+
+`app.diagnostics` returns what a bug report needs: version and build, system, audio device,
+plugin scan summary, folders, the log file and recent crash reports, with no keys, prompts or
+songs. `app.logs` (`lines`, `file`) reads the end of this run's log or an earlier one;
+`app.crashReports` lists crash reports (`crash`, `recovered`, `unclean`) and reads one with
+`id`. These work without the window too. `app.whatsNew` returns the release notes built into
+this copy (`version`, `since`, `all`). `app.reportProblem` is for people only: it opens a
+prefilled GitHub issue in their browser, and nothing is ever sent by itself.
+
 ## What only a person does
 
 A few things deliberately have no command: signing in to an AI service and changing the agent's
-connection or permissions or the generation service, the menu bar itself, the agent panel's own composer, and pure layout
+connection or permissions or the generation service, opening a GitHub issue
+(`app.reportProblem` is refused to agents), the menu bar itself, the agent panel's own composer, and pure layout
 (vertical track scroll, folding a browser folder). The reasons are listed in
 [AGENT_PARITY.md](AGENT_PARITY.md).
 

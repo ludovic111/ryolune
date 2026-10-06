@@ -70,6 +70,7 @@ pub fn run(
     control: bool,
     updates: bool,
     agents: bool,
+    unclean: Vec<PathBuf>,
 ) {
     Application::new()
         .with_assets(assets::Assets)
@@ -81,6 +82,7 @@ pub fn run(
             });
             let mut app = Ryolune::new(wake, path.clone(), screenshot.clone(), control, updates);
             app.agents.open |= agents;
+            app.previous_run_ended(&unclean);
             let opaque = reduce_transparency();
             let mode = resolve_mode(&app.settings.interface.mode, cx);
             cx.set_global(Theme::new(mode, opaque));
@@ -112,7 +114,7 @@ pub fn run(
                 cx.new(|cx| workspace::Workspace::new(daw.clone(), window, cx))
             });
             if let Err(error) = window {
-                eprintln!("ryolune could not open its window: {error}");
+                log::error!("ryolune could not open its window: {error}");
                 cx.quit();
                 return;
             }

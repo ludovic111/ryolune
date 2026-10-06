@@ -287,6 +287,21 @@
     ],
     "support": [
       "app.openGuide"
+    ],
+    "whatsNew": [
+      "ui.showPanel",
+      "app.whatsNew"
+    ],
+    "diagnostics": [
+      "ui.showPanel",
+      "app.logs",
+      "app.crashReports",
+      "app.clearCrashReports",
+      "app.diagnostics"
+    ],
+    "reportProblem": [
+      "app.reportProblem",
+      "app.diagnostics"
     ]
   }
 }

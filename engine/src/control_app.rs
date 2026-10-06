@@ -128,10 +128,10 @@ pub const SPECS: &[Spec] = &[
     edit("ui.screenshot", "Capture the window to a PNG so an agent can see the interface. Returns the file path and size.", &[
         opt("path", Kind::String, "Destination .png. Defaults to a timestamped file in the app data directory."),
     ]),
-    edit("ui.showPanel", "Show or hide an interface panel: agent, automation, mixer (every channel, in place of the region editor), controllers (the controller lane under the piano roll), tempo (the tempo track under the ruler), palette (the command palette), settings, help, export, recovery, or master / bus-a / bus-b in the inspector.", &[
-        req("panel", Kind::String, "agent, automation, mixer, controllers, settings, help, export, recovery, master, bus-a or bus-b."),
+    edit("ui.showPanel", "Show or hide an interface panel: agent, automation, mixer (every channel, in place of the region editor), controllers (the controller lane under the piano roll), tempo (the tempo track under the ruler), palette (the command palette), settings, help, export, recovery, whatsNew (the release notes of this version), diagnostics (Settings › Diagnostics), or master / bus-a / bus-b in the inspector.", &[
+        req("panel", Kind::String, "agent, automation, mixer, controllers, tempo, palette, settings, help, export, recovery, whatsNew, diagnostics, master, bus-a or bus-b."),
         opt("visible", Kind::Boolean, "Show (default) or hide."),
-        opt("section", Kind::String, "Settings section: general, audio, interface, agent, generation, plugins, control, updates or about."),
+        opt("section", Kind::String, "Settings section: general, audio, interface, agent, generation, plugins, control, updates, diagnostics or about."),
     ]),
     edit("ui.openPluginWindow", "Open a plugin's parameter panel in the window, or its native editor with native=true.", &[
         TRACK_ID, SLOT,
@@ -195,6 +195,21 @@ pub const SPECS: &[Spec] = &[
         opt("redo", Kind::Boolean, "Redo up to the change instead of undoing it (default false)."),
     ]),
     edit("agent.clear", "Clear the agent conversation; the edits it made stay in Undo.", &[]),
+    query("app.logs", "The last lines of ryolune's log (this run's by default, or an earlier run's), with the log folder and every log file. Logs stay on this computer and never hold API keys.", &[
+        opt("lines", Kind::Integer, "Lines from the end, 1-2000 (default 100)."),
+        opt("file", Kind::String, "A log file name from `files`, such as ryolune.1.log for the run before."),
+    ]),
+    query("app.crashReports", "Crash reports newest first: panics that stopped ryolune (crash), panics a background job survived (recovered) and runs that ended without quitting (unclean). With id, one report's full text.", &[
+        opt("id", Kind::String, "A report's file name from the list, to read its text."),
+    ]),
+    edit("app.clearCrashReports", "Delete every crash report in the crashes folder. Logs and recovery snapshots are kept.", &[]),
+    query("app.diagnostics", "What a bug report needs: version and build, system, audio device, plugin scan summary, folders, the log file, counts and recent crash reports. Holds no API keys, prompts or songs.", &[]),
+    edit("app.reportProblem", "Open a new GitHub issue for ryolune in the web browser, with the version, the system and the last crash's summary filled in. Nothing is sent: the person reads and submits it. Only a person can do this.", &[]),
+    query("app.whatsNew", "Release notes built into this copy, newest first, in Markdown: this version's by default, one version's (version), every release after one (since), or all of them (all). ui.showPanel panel=whatsNew shows them in the window.", &[
+        opt("version", Kind::String, "One release, such as 0.12.0."),
+        opt("since", Kind::String, "Every release after this version, up to this copy."),
+        opt("all", Kind::Boolean, "Every release this copy carries (default false)."),
+    ]),
 ];
 
 /// Commands that only a window can serve.
@@ -221,6 +236,7 @@ pub fn is_live_only(name: &str) -> bool {
                 | "app.installUpdate"
                 | "app.quit"
                 | "session.restoreSnapshot"
+                | "app.reportProblem"
         )
 }
 
@@ -308,6 +324,9 @@ pub fn denied_for_agent(name: &str, permissions: &settings::Permissions) -> Opti
         }
         "generate.audio" if !permissions.generation => deny("sound generation", "generation"),
         "generate.delete" if !permissions.file_operations => {
+            deny("file operations", "fileOperations")
+        }
+        "app.clearCrashReports" if !permissions.file_operations => {
             deny("file operations", "fileOperations")
         }
         _ => None,
@@ -705,6 +724,38 @@ pub(crate) fn call(host: &mut dyn Host, name: &str, a: &Args, agent: bool) -> Re
             "directory": recovery::directory(),
             "snapshots": recovery::list(&recovery::directory())?,
         })),
+        "app.logs" => app_logs(a),
+        "app.crashReports" => {
+            let data = plugin_host::scan::data_dir();
+            match a.get("id").and_then(Value::as_str) {
+                Some(id) => Ok(json!({ "id": id, "text": crate::diagnostics::read_report(&data, id)? })),
+                None => Ok(json!({
+                    "folder": crate::diagnostics::crashes_dir(&data),
+                    "reports": crate::diagnostics::reports(&data),
+                })),
+            }
+        }
+        "app.clearCrashReports" => Ok(json!({
+            "deleted": crate::diagnostics::clear_reports(&plugin_host::scan::data_dir()),
+        })),
+        "app.diagnostics" => Ok(app_diagnostics(host)),
+        "app.whatsNew" => {
+            let releases = if a.get("all").and_then(Value::as_bool).unwrap_or(false) {
+                crate::release_notes::all()
+            } else if let Some(version) = a.get("version").and_then(Value::as_str) {
+                vec![crate::release_notes::find(version).ok_or_else(|| {
+                    format!("No release notes for {version} in this copy; all=true lists the ones it has, {} has every release.", crate::release_notes::RELEASES_URL)
+                })?]
+            } else if let Some(since) = a.get("since").and_then(Value::as_str) {
+                if crate::release_notes::version_key(since).is_none() {
+                    return Err(format!("`{since}` is not a version such as 0.12.0"));
+                }
+                crate::release_notes::since(since)
+            } else {
+                crate::release_notes::find(crate::release_notes::CURRENT).into_iter().collect()
+            };
+            Ok(json!({ "current": crate::release_notes::CURRENT, "releases": releases }))
+        }
         _ => Err(format!(
             "Command `{name}` is registered but not implemented"
         )),
@@ -744,4 +795,112 @@ pub fn default_screenshot_path() -> PathBuf {
     plugin_host::scan::data_dir()
         .join("screenshots")
         .join(format!("ryolune-{stamp}.png"))
+}
+
+/// `app.logs`: the tail of this run's log, or of an earlier one named from the list. The
+/// CLI reads the window's log the same way (the newest file) when it logs nothing itself.
+fn app_logs(a: &Args) -> Result<Value> {
+    use crate::diagnostics;
+    let data = plugin_host::scan::data_dir();
+    let lines = a.get("lines").and_then(Value::as_i64).unwrap_or(100);
+    if !(1..=2000).contains(&lines) {
+        return Err("lines must be 1-2000".into());
+    }
+    let files = diagnostics::log_files(&data);
+    let path = match a.opt_str("file") {
+        Some(name) => files
+            .iter()
+            .map(|(p, _)| p.clone())
+            .find(|p| p.file_name().is_some_and(|n| n == name))
+            .ok_or_else(|| format!("No log file named `{name}`. app.logs lists them in `files`."))?,
+        None => diagnostics::current_log()
+            .filter(|p| p.is_file())
+            .or_else(|| files.first().map(|(p, _)| p.clone()))
+            .ok_or("ryolune has not written a log yet: the window starts one when it opens.")?,
+    };
+    let tail = diagnostics::tail(&path, lines as usize)
+        .map_err(|e| format!("Could not read {}: {e}", path.display()))?;
+    Ok(json!({
+        "folder": diagnostics::logs_dir(&data),
+        "file": path,
+        "lines": tail,
+        "files": files
+            .iter()
+            .map(|(p, bytes)| json!({
+                "name": p.file_name().map(|n| n.to_string_lossy().into_owned()),
+                "path": p,
+                "bytes": bytes,
+            }))
+            .collect::<Vec<_>>(),
+    }))
+}
+
+/// `app.diagnostics`: what a bug report needs, without secrets or song content.
+fn app_diagnostics(host: &mut dyn Host) -> Value {
+    use crate::diagnostics;
+    let data = plugin_host::scan::data_dir();
+    let settings = host.settings();
+    let cache = plugin_host::scan::cache();
+    let reports = diagnostics::reports(&data);
+    let snapshots = recovery::list(&recovery::directory()).map_or(0, |s| s.len());
+    let build = if cfg!(debug_assertions) { "debug" } else { "release" };
+    let mut value = json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "build": build,
+        "system": diagnostics::os_name(),
+        "os": std::env::consts::OS,
+        "arch": std::env::consts::ARCH,
+        "executable": std::env::current_exe().ok(),
+        "pid": std::process::id(),
+        "mode": host.mode(),
+        "pluginAbi": ryolune_plugin::ABI_VERSION,
+        "audio": {
+            "output": settings.audio.output_device,
+            "input": settings.audio.input_device,
+            "midiInput": settings.audio.midi_input,
+            "bufferFrames": settings.audio.buffer_frames,
+        },
+        "plugins": {
+            "stock": crate::stock::descriptors().len(),
+            "scanned": cache.descriptors().len(),
+            "bundles": cache.entries.len(),
+            "failed": cache.entries.iter().filter(|e| e.error.is_some()).count(),
+            "scannedAt": cache.scanned_at,
+        },
+        "paths": {
+            "data": data,
+            "settings": settings::Settings::path(),
+            "logs": diagnostics::logs_dir(&data),
+            "crashes": diagnostics::crashes_dir(&data),
+            "recovery": recovery::directory(),
+            "presets": preset::directory(),
+            "pluginCache": plugin_host::scan::cache_path(),
+        },
+        "logFile": diagnostics::current_log()
+            .or_else(|| diagnostics::log_files(&data).first().map(|(p, _)| p.clone())),
+        "counts": {
+            "crashReports": reports.len(),
+            "logFiles": diagnostics::log_files(&data).len(),
+            "recoverySnapshots": snapshots,
+            "tracks": host.store().session().tracks.len(),
+            "clips": host.store().session().clips.len(),
+        },
+        "crashReports": reports.into_iter().take(5).collect::<Vec<_>>(),
+        "agentProvider": settings.agent.provider.key(),
+        "updates": {
+            "checkOnStart": settings.general.check_updates_on_start,
+            "installAutomatically": settings.general.install_updates_automatically,
+        },
+    });
+    if let Ok(live) = host.live("audio.status", &json!({})) {
+        for key in ["device", "sampleRate", "bufferFrames", "cpuLoad", "monitoring"] {
+            value["audio"]["active"][key] = live[key].clone();
+        }
+    }
+    if let Ok(live) = host.live("app.status", &json!({})) {
+        value["updates"]["available"] = live["updateAvailable"].clone();
+        value["updates"]["installed"] = live["updateInstalled"].clone();
+        value["bridgePort"] = live["bridgePort"].clone();
+    }
+    value
 }

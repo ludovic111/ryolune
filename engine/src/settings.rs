@@ -42,6 +42,9 @@ pub struct General {
     pub exports_completed: u32,
     /// The one-time support request was shown; either answer ends it for good.
     pub support_asked: bool,
+    /// The version that ran last, so the window opens What's New once after an update.
+    /// Absent in files written before 0.14.
+    pub last_run_version: Option<String>,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -442,6 +445,7 @@ impl Default for General {
             recent_sessions: vec![],
             exports_completed: 0,
             support_asked: false,
+            last_run_version: None,
         }
     }
 }
@@ -598,9 +602,12 @@ impl Settings {
                             std::fs::Permissions::from_mode(0o600),
                         );
                     }
-                    eprintln!("{error}; kept a copy at {}", backup.display());
+                    crate::diagnostics::warn(&format!(
+                        "{error}; kept a copy at {}",
+                        backup.display()
+                    ));
                 } else {
-                    eprintln!("{error}");
+                    crate::diagnostics::warn(&error);
                 }
                 Self::default()
             }
@@ -841,6 +848,17 @@ impl Settings {
             }
         }
         value
+    }
+    /// The API keys these settings hold, so the log can mask them (`diagnostics::set_secrets`).
+    pub fn secrets(&self) -> Vec<String> {
+        let value = serde_json::to_value(self).unwrap_or(Value::Null);
+        SECRET_PATHS
+            .iter()
+            .filter_map(|path| lookup(&value, path)?.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect()
     }
     /// Read a dotted path (`agent.model`) or the whole document when `path` is `None`.
     pub fn get(&self, path: Option<&str>) -> Result<Value> {

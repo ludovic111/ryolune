@@ -1,0 +1,63 @@
+name: Bug report
+description: Something in ryolune does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Help › Report a Problem… in ryolune opens this form with the
+        version and system filled in. Nothing is sent automatically: you choose what to share.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the demo song
+        2. Add a Drum Machine track
+        3. Press Play
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: ryolune version
+      description: Settings › About, or `ryolune --version`.
+      placeholder: "0.13.0"
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Operating system and processor.
+      placeholder: "macOS 15.1 (aarch64)"
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        Settings › Diagnostics › Copy diagnostics, or the output of `ryolune-cli app.diagnostics`.
+        It holds the version, system, audio device, plugin scan summary and recent crash
+        reports; no API keys, prompts or songs.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: crash
+    attributes:
+      label: Crash report or log
+      description: |
+        If ryolune crashed, Settings › Diagnostics lists the report (View, then Copy report).
+        The log of this run is there too (`ryolune-cli app.logs`). Read it before pasting.
+      render: text
+    validations:
+      required: false

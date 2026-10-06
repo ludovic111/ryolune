@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: How do I…?
+    url: https://github.com/ludovic111/ryolune/blob/main/docs/USER_GUIDE.md
+    about: The user guide covers recording, editing, plugins, export, the agent and diagnostics.
+  - name: Driving ryolune from scripts and agents
+    url: https://github.com/ludovic111/ryolune/blob/main/docs/AI_CONTROL.md
+    about: ryolune-cli, the MCP server and every command they share with the window.
+  - name: Report a security problem privately
+    url: https://github.com/ludovic111/ryolune/security/advisories/new
+    about: Please do not open a public issue for a vulnerability; see SECURITY.md.
+  - name: ryolune on lsuite.xyz
+    url: https://lsuite.xyz/ryolune
+    about: Downloads, what is new, and how to support ryolune (optional; it unlocks nothing).

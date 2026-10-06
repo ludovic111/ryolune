@@ -6,6 +6,7 @@
 //! MCP and the agent open the same place.
 
 pub mod agent;
+pub mod diagnostics;
 pub mod fields;
 pub mod generation;
 pub mod theme_picker;
@@ -43,6 +44,8 @@ pub struct SettingsWindow {
     confirm_close: bool,
     /// The section and open state last seen, to load a section's data when it appears.
     seen: Option<usize>,
+    /// Settings › Diagnostics: the log tail and crash reports, as last read.
+    diag: diagnostics::DiagState,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -93,6 +96,7 @@ impl SettingsWindow {
             devices: Devices::default(),
             confirm_close: false,
             seen: None,
+            diag: Default::default(),
             _subscriptions: subscriptions,
             daw,
         }
@@ -104,6 +108,7 @@ impl SettingsWindow {
             Some("audio") => self.refresh_devices(cx),
             Some("agent") => self.agent.update(cx, |form, cx| form.refresh(cx)),
             Some("generation") => self.generation.update(cx, |form, cx| form.refresh(cx)),
+            Some("diagnostics") => self.load_diagnostics(cx),
             _ => {}
         }
     }
@@ -533,7 +538,7 @@ impl SettingsWindow {
                             )
                         })
                         .when(installed, |d| {
-                            d.child(Button::new("updates-relaunch", "Relaunch").primary().on_click(
+                            d.child(Button::new("updates-relaunch", "Restart now").primary().on_click(
                                 cx.listener(|this, _, _, cx| {
                                     this.daw.update(cx, |daw, cx| {
                                         daw.fire("app.relaunch", cx);
@@ -541,9 +546,17 @@ impl SettingsWindow {
                                 }),
                             ))
                         })
+                        .child(Button::new("updates-whats-new", "What's new").ghost().on_click(
+                            cx.listener(|this, _, _, cx| {
+                                this.daw.update(cx, |daw, cx| {
+                                    daw.run("ui.showPanel", json!({"panel": "whatsNew"}), cx);
+                                })
+                            }),
+                        ))
                         .into_any_element(),
                 ]
             }
+            "diagnostics" => self.diagnostics(cx),
             "about" => vec![
                 div()
                     .flex()

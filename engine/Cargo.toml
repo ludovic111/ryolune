@@ -19,6 +19,9 @@ fs2 = "0.4.3"
 clap-sys = "0.5"
 vst3 = "0.3"
 libloading = "0.8"
+# The logging facade (already built for GPUI); ryolune writes its own rotating file
+# (`diagnostics.rs`), so no logging framework is added.
+log = { version = "0.4", features = ["std"] }
 # 0.10 (coremidi 0.8, core-foundation 0.9): gpui pins core-foundation =0.10.0, which
 # coremidi 0.9 (midir 0.11) cannot share.
 midir = "0.10.3"

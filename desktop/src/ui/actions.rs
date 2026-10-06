@@ -176,6 +176,9 @@ pub const ACTIONS: &[ActionDef] = &[
     a("checkUpdates", "Check for Updates…", &[]),
     a("pluginGuide", "Native Plugin SDK…", &[]),
     a("support", "Support ryolune…", &[]),
+    a("whatsNew", "What's New", &[]),
+    a("diagnostics", "Logs and Crash Reports…", &[]),
+    a("reportProblem", "Report a Problem…", &[]),
 ];
 
 pub fn def(id: &str) -> Option<&'static ActionDef> {
@@ -298,8 +301,12 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
         "Help",
         &[
             Some("showShortcuts"),
+            Some("whatsNew"),
             Some("checkUpdates"),
             Some("pluginGuide"),
+            None,
+            Some("diagnostics"),
+            Some("reportProblem"),
             None,
             Some("support"),
         ],
@@ -861,6 +868,11 @@ pub fn perform(id: &str, daw: &mut Daw, cx: &mut Context<Daw>) -> bool {
         }
         "support" => {
             daw.run("app.openGuide", json!({"guide": "support"}), cx);
+        }
+        "whatsNew" => panel(daw, "whatsNew", true, cx),
+        "diagnostics" => panel(daw, "diagnostics", true, cx),
+        "reportProblem" => {
+            daw.fire("app.reportProblem", cx);
         }
         // Window-only: the workspace opens the composer.
         "askAgent" => return false,

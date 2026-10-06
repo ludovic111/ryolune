@@ -174,6 +174,8 @@ pub struct Ryolune {
     /// The user accepted built-in microphone to built-in speakers, until the app closes.
     pub(crate) monitor_speakers_ok: bool,
     pub(crate) bridge_wanted: bool,
+    /// The What's New sheet is open (by itself once after an update, or on request).
+    pub(crate) whats_new: Option<crate::diagnostics::WhatsNew>,
 }
 pub fn id(prefix: &str) -> String {
     ryolune_engine::control::new_id(prefix)
@@ -194,7 +196,9 @@ impl Ryolune {
         check_updates: bool,
     ) -> Self {
         let screenshot_run = screenshot.is_some();
+        let existing_profile = Settings::path().exists();
         let settings = Settings::load();
+        ryolune_engine::diagnostics::set_secrets(settings.secrets());
         let mut app = Self::from_session(store::demo(), screenshot);
         app.wake = wake;
         app.settings = settings.clone();
@@ -209,8 +213,15 @@ impl Ryolune {
         if control && settings.control.enable_bridge {
             app.start_control();
         }
+        // Startup and then every six hours while open (`update::RECHECK`), unless updates
+        // are off in Settings, `--no-update-check` / RYOLUNE_NO_UPDATE, or a capture run.
+        app.updates.periodic = check_updates && !screenshot_run;
         if check_updates && settings.general.check_updates_on_start && !screenshot_run {
             app.check_for_updates(false);
+        }
+        if !screenshot_run {
+            app.note_version(existing_profile);
+            app.crash_test();
         }
         if settings.plugins.scan_on_start && !screenshot_run {
             app.scan_plugins();
@@ -339,6 +350,7 @@ impl Ryolune {
             monitoring: ryolune_engine::device::Monitoring::Off,
             monitor_speakers_ok: false,
             bridge_wanted: false,
+            whats_new: None,
         }
     }
     pub fn dispatch(&mut self, command: Command) {
@@ -403,7 +415,7 @@ impl Ryolune {
         self.job = Some(rx);
         self.status = status.into();
         std::thread::spawn(move || {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(work))
+            let result = ryolune_engine::diagnostics::catch("background operation", work)
                 .unwrap_or_else(|_| {
                     Err("Background operation failed. Your open session is intact.".into())
                 });
