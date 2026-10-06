@@ -124,7 +124,42 @@ switches for the rest:
 | Generate sounds | `generate.audio`, which spends the generation service's credits (on by default) |
 
 Connecting an AI service or a generation service, signing in and changing these permissions stay
-with the person: agents may not set `agent.*`, `control.*` or `generation.*`.
+with the person: agents may not set `agent.*`, `control.*` or `generation.*`. The song's project
+memory and its saved conversations are the person's too: an agent may read the memory
+(`agent.memory`), list, open, start and rename conversations, and steer the built-in agent, but
+`agent.setMemory` and `agent.deleteConversation` are refused to agents (the memory goes ahead of
+every later request, like the standing instructions in Settings; a deleted conversation is gone).
+
+## The built-in agent's conversations
+
+The panel's conversations are kept per song (by the song's stable `id`, saved in the file) in
+`<data dir>/agent-conversations.json`, and every client sees the same ones:
+
+| Command | Does |
+| --- | --- |
+| `agent.conversations` | the song's conversations, newest first: `id`, `title`, `updatedAt`, `requests`, `current`; `memoryBytes`, `storageError` |
+| `agent.newConversation` | opens an empty conversation; the open one is kept |
+| `agent.selectConversation id=…` | opens a saved one (only while the agent is idle) |
+| `agent.renameConversation title=… [id=…]` | renames one (new ones take their first request's first 60 characters) |
+| `agent.deleteConversation id=…` | deletes one for good (refused to agents) |
+| `agent.clear` | empties the open conversation; the edits stay in Undo |
+| `agent.memory` / `agent.setMemory text=…` | the song's project memory, at most 32 KB (setting it is refused to agents) |
+| `agent.steer text=…` | steers the running request: it reaches the agent at its next step |
+
+Project memory goes ahead of every request for every provider as `Project memory
+(user-maintained context):\n…\n\nCurrent request:\n…`, and is taken out again of the history
+the next request carries. Steering reaches API providers after the tool results of the step in
+progress (or as one more round when the answer was being written); Codex through `turn/steer`;
+zenith through `thread.send` to its thread; Claude Code, which reads its whole request at start,
+by stopping the run and starting it again with the request, what it had answered and the
+steering. `agent.status` reports the open conversation and `steeringPending`.
+
+```sh
+ryolune-cli agent.send --prompt "Add a bass line"
+ryolune-cli agent.steer --text "Keep it under the kick, and simpler"
+ryolune-cli agent.setMemory --text "D minor, 92 BPM, no hi-hats"
+ryolune-cli agent.conversations
+```
 
 ## Generation
 
@@ -179,6 +214,15 @@ apps it can drive and how.
   audio on a new track at bar 1, each marker on the ruler at the bar where it falls, and the
   cycle over the cut, in one undo step. Without a manifest, give `path`, `markers` (`time` in
   seconds, `label`) and `durationSeconds` yourself.
+- **zenith as the agent.** With **Zenith · lsuite** chosen in Settings > Agent (`agent.configure
+  provider=zenith`), the panel's requests go to a zenith thread through `zenith-cli`
+  (`$RYOLUNE_ZENITH_CLI`, the path in Settings, zenith's lsuite entry, then PATH). Each song has a
+  folder, `<data dir>/agent-workspaces/<song id>`, registered as a zenith project and holding
+  ryolune's MCP recipe; zenith hands its agents ryolune's MCP server from ryolune's lsuite entry,
+  and `ryolune-mcp --live` started that way finds the window's control file there. The edits
+  come back as MCP edits: undo steps, in Changes and in the chat. Models are zenith's
+  `provider/model` pairs (`provider.list`); an approval or a question zenith waits on shows in
+  the status line, to answer in zenith; Stop runs `thread.interrupt` and waits for the thread.
 - **Shared names.** Commands that every lsuite app has keep one name across the suite:
   `app.version`, `project.overview`, `export.audio`, `export.stems` and `export.midi` work here
   too and run `app.info`, `session.overview` and `session.export*`.

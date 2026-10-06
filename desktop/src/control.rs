@@ -187,6 +187,14 @@ impl Ryolune {
                 {
                     return Err("Agent connections and permissions must be changed by the person in Settings".into());
                 }
+                // Project memory goes ahead of every later request, like the standing
+                // instructions in Settings, and deleting a conversation loses it for good:
+                // both are the person's.
+                if matches!(method, "agent.setMemory" | "agent.deleteConversation") {
+                    return Err(format!(
+                        "{method} is not available to agents: project memory and saved conversations are changed by the person, in the agent panel or with ryolune-cli."
+                    ));
+                }
                 if let Some(denied) = control_app::denied_for_agent_request(
                     method,
                     params,
@@ -1656,8 +1664,30 @@ impl Host for Ryolune {
                 if self.agents.runner_busy() {
                     return Err("Stop the running task before clearing the conversation".into());
                 }
+                self.follow_song();
                 self.agents.clear_transcript();
+                self.save_conversation(false);
                 Ok(json!({ "cleared": true }))
+            }
+            "agent.conversations" => {
+                self.follow_song();
+                Ok(self.conversations_json())
+            }
+            "agent.newConversation" => self.new_conversation(),
+            "agent.selectConversation" => self.select_conversation(params["id"].as_str().unwrap_or("")),
+            "agent.renameConversation" => self.rename_conversation(
+                params["id"].as_str(),
+                params["title"].as_str().unwrap_or(""),
+            ),
+            "agent.deleteConversation" => self.delete_conversation(params["id"].as_str().unwrap_or("")),
+            "agent.memory" => {
+                self.follow_song();
+                Ok(self.memory_json())
+            }
+            "agent.setMemory" => self.set_memory(params["text"].as_str().unwrap_or("")),
+            "agent.steer" => {
+                self.steer_agent(params["text"].as_str().unwrap_or(""))?;
+                Ok(self.agents.status_json(&self.settings))
             }
             other => Err(format!("{other} is not available in this window")),
         }

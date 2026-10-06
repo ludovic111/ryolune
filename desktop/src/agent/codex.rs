@@ -1,8 +1,8 @@
 //! Codex app-server transport. Dynamic tools use ryolune's ordinary command dispatcher;
 //! agentMessage deltas reach the interface before the turn is complete.
 use super::{
-    await_tool, bounded, cli, read_line_limited, system_prompt, tool_output, tool_specs, Event,
-    Message, Part, ToolCall, Turn, TEXT_LIMIT,
+    await_tool, bounded, cli, read_line_limited, system_prompt, take_steering, tool_output,
+    tool_specs, Event, Message, Part, ToolCall, Turn, TEXT_LIMIT,
 };
 use ryolune_engine::Result;
 use serde_json::{json, Value};
@@ -142,19 +142,60 @@ fn session(
     let started = Instant::now();
     let mut transcript = Stream::default();
     let mut calls = 0;
+    // Steering: `turn/steer` joins the running turn (Codex reads it at its next step); one
+    // that arrives too late to join becomes the next turn of the same thread.
+    let mut thread: Option<String> = None;
+    let mut running_turn: Option<String> = None;
+    let mut turn_starts: std::collections::HashSet<u64> = [3].into();
+    let mut steers: std::collections::HashMap<u64, String> = Default::default();
+    let mut ignored: std::collections::HashSet<u64> = Default::default();
+    let mut late: Vec<String> = vec![];
+    let mut steered: Vec<String> = vec![];
+    let mut next_id = 10;
     loop {
         if turn.cancel.load(Ordering::Acquire) {
-            finish(turn, transcript.response, None, true);
+            finish(turn, transcript.response, None, true, &steered);
             return Ok(());
         }
         if !active && started.elapsed() > Duration::from_secs(60) {
             return Err("Codex did not connect within 60 seconds. Check your sign-in.".into());
+        }
+        if let (Some(thread), Some(running)) = (&thread, &running_turn) {
+            if let Some(text) = take_steering(&turn.steer) {
+                next_id += 1;
+                write(
+                    stdin,
+                    json!({"id":next_id,"method":"turn/steer","params":{
+                    "threadId":thread,"expectedTurnId":running,
+                    "input":[{"type":"text","text":text}]}}),
+                )?;
+                steers.insert(next_id, text);
+            }
         }
         let event = match rx.recv_timeout(Duration::from_millis(50)) {
             Ok(value) => value?,
             Err(mpsc::RecvTimeoutError::Timeout) => continue,
             Err(_) => return Err("Codex disconnected before completing the response".into()),
         };
+        // An answer to one of our requests (a steer's may be an error: it came too late).
+        let answer = event.get("method").is_none()
+            && (event.get("result").is_some() || event.get("error").is_some());
+        if answer && event["id"].as_u64().is_some_and(|id| ignored.remove(&id)) {
+            continue;
+        }
+        if let Some(text) = event["id"]
+            .as_u64()
+            .filter(|_| answer)
+            .and_then(|id| steers.remove(&id))
+        {
+            if event.get("error").is_some() {
+                late.push(text);
+            } else {
+                steered.push(text);
+                let _ = turn.events.send(Event::Steered);
+            }
+            continue;
+        }
         if let Some(error) = event.get("error") {
             return Err(bounded(
                 error["message"].as_str().unwrap_or("Codex request failed"),
@@ -181,6 +222,7 @@ fn session(
             let id = event["result"]["thread"]["id"]
                 .as_str()
                 .ok_or("Codex returned no session ID")?;
+            thread = Some(id.to_string());
             let effort = &turn.settings.agent.reasoning_effort;
             write(
                 stdin,
@@ -188,8 +230,13 @@ fn session(
                 "threadId":id,"input":[{"type":"text","text":cli::prompt_with_context(turn, &cli::turn_prefix(turn))}],
                 "effort":if effort.is_empty() { None } else { Some(effort) }}}),
             )?;
-        } else if response && event["id"] == 3 {
+        } else if response
+            && event["id"]
+                .as_u64()
+                .is_some_and(|id| turn_starts.contains(&id))
+        {
             active = true;
+            running_turn = event["result"]["turn"]["id"].as_str().map(str::to_string);
         } else if event["method"] == "item/tool/call" {
             calls += 1;
             if calls > turn.settings.agent.max_tool_rounds {
@@ -223,13 +270,49 @@ fn session(
             )?;
         } else if transcript.event(&event, &turn.events) {
             let status = event["params"]["turn"]["status"].as_str().unwrap_or("");
+            running_turn = None;
+            // Steering that missed the turn starts the next one on the same thread.
+            let mut pending = std::mem::take(&mut late);
+            // A steer still unanswered when the turn ended did not join it: its answer is
+            // ignored and the text goes into the next turn.
+            for (id, text) in steers.drain() {
+                ignored.insert(id);
+                pending.push(text);
+            }
+            pending.extend(take_steering(&turn.steer));
+            if status == "completed" && !pending.is_empty() {
+                if let Some(thread) = &thread {
+                    let text = pending
+                        .iter()
+                        .map(|t| t.strip_prefix(super::STEERING_HEADER).unwrap_or(t).trim())
+                        .collect::<Vec<_>>()
+                        .join("\n\n");
+                    let text = super::steering_message(&text);
+                    next_id += 1;
+                    write(
+                        stdin,
+                        json!({"id":next_id,"method":"turn/start","params":{
+                        "threadId":thread,"input":[{"type":"text","text":text}]}}),
+                    )?;
+                    turn_starts.insert(next_id);
+                    steered.push(text);
+                    let _ = turn.events.send(Event::Steered);
+                    continue;
+                }
+            }
             let error = (status == "failed").then(|| {
                 event["params"]["turn"]["error"]["message"]
                     .as_str()
                     .unwrap_or("Codex turn failed")
                     .to_string()
             });
-            finish(turn, transcript.response, error, status == "interrupted");
+            finish(
+                turn,
+                transcript.response,
+                error,
+                status == "interrupted",
+                &steered,
+            );
             return Ok(());
         }
     }
@@ -269,11 +352,19 @@ impl Stream {
         false
     }
 }
-fn finish(turn: &Turn, response: String, error: Option<String>, cancelled: bool) {
+fn finish(
+    turn: &Turn,
+    response: String,
+    error: Option<String>,
+    cancelled: bool,
+    steered: &[String],
+) {
     let mut history = turn.history.clone();
+    let mut parts = vec![Part::Text(turn.prompt.clone())];
+    parts.extend(steered.iter().cloned().map(Part::Text));
     history.push(Message {
         role: "user",
-        parts: vec![Part::Text(turn.prompt.clone())],
+        parts,
     });
     if !response.is_empty() {
         history.push(Message {
@@ -313,16 +404,7 @@ mod tests {
                 _ => panic!("Expected a DAW tool call"),
             }
         });
-        let turn = Turn {
-            prompt: "Inspect the song".into(),
-            history: vec![],
-            settings: Default::default(),
-            session_summary: json!({}),
-            discovery: Default::default(),
-            mcp_executable: String::new(),
-            cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            events,
-        };
+        let turn = Turn::test("Inspect the song", Default::default(), events);
         let mut wire = vec![];
         session(&turn, std::path::Path::new("."), &mut wire, &rx).unwrap();
         interface.join().unwrap();
@@ -341,6 +423,114 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    /// What the session writes, line by line, to a test standing in for Codex.
+    struct Lines(Vec<u8>, mpsc::Sender<Value>);
+    impl Write for Lines {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            self.0.extend_from_slice(bytes);
+            while let Some(end) = self.0.iter().position(|&b| b == b'\n') {
+                let line: Vec<u8> = self.0.drain(..=end).collect();
+                let _ = self.1.send(serde_json::from_slice(&line).unwrap());
+            }
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn steering_joins_the_running_turn_or_starts_the_next_one() {
+        let (input, rx) = mpsc::sync_channel(16);
+        let (events, output) = mpsc::sync_channel(16);
+        let (frames_tx, frames) = mpsc::channel();
+        let turn = Turn::test("Make a beat", Default::default(), events);
+        let steer = turn.steer.clone();
+        // The interface answers the tool call and steers while it runs.
+        let interface = std::thread::spawn(move || {
+            let mut steered = 0;
+            while let Ok(event) = output.recv_timeout(Duration::from_secs(5)) {
+                match event {
+                    Event::ToolCall(call) => {
+                        steer.lock().unwrap().push_back("Use 90 BPM".into());
+                        call.reply.send(Ok(json!({}))).unwrap();
+                    }
+                    Event::Steered => steered += 1,
+                    Event::Done { history, .. } => return (steered, history),
+                    _ => {}
+                }
+            }
+            panic!("no Done");
+        });
+        // Codex: answers each request as it is written.
+        let steer = turn.steer.clone();
+        let codex = std::thread::spawn(move || {
+            let mut seen = vec![];
+            let send = |v: Value| input.send(Ok(v)).unwrap();
+            while let Ok(frame) = frames.recv_timeout(Duration::from_secs(5)) {
+                seen.push(frame.clone());
+                match (frame["method"].as_str().unwrap_or(""), frame["id"].as_u64()) {
+                    ("initialize", _) => send(json!({"id":1,"result":{}})),
+                    ("thread/start", _) => {
+                        send(json!({"id":2,"result":{"thread":{"id":"thread-1"}}}))
+                    }
+                    ("turn/start", Some(3)) => {
+                        send(json!({"id":3,"result":{"turn":{"id":"turn-1"}}}));
+                        send(
+                            json!({"id":7,"method":"item/tool/call","params":{"tool":"session_info","arguments":{}}}),
+                        );
+                    }
+                    ("turn/steer", Some(id))
+                        if seen.iter().filter(|f| f["method"] == "turn/steer").count() == 1 =>
+                    {
+                        // The first steer joins the turn; then the person steers again.
+                        send(json!({"id":id,"result":{"turnId":"turn-1"}}));
+                        steer.lock().unwrap().push_back("And add a clap".into());
+                    }
+                    ("turn/steer", Some(id)) => {
+                        // Too late: the turn is over.
+                        send(json!({"id":id,"error":{"message":"no active turn"}}));
+                        send(
+                            json!({"method":"turn/completed","params":{"turn":{"status":"completed"}}}),
+                        );
+                    }
+                    ("turn/start", Some(id)) => {
+                        send(json!({"id":id,"result":{"turn":{"id":"turn-2"}}}));
+                        send(
+                            json!({"method":"turn/completed","params":{"turn":{"status":"completed"}}}),
+                        );
+                    }
+                    _ => {}
+                }
+            }
+            seen
+        });
+        let mut wire = Lines(vec![], frames_tx);
+        session(&turn, std::path::Path::new("."), &mut wire, &rx).unwrap();
+        drop(wire);
+        let (steered, history) = interface.join().unwrap();
+        let frames = codex.join().unwrap();
+        let steers: Vec<&Value> = frames
+            .iter()
+            .filter(|f| f["method"] == "turn/steer")
+            .collect();
+        assert_eq!(steers.len(), 2);
+        assert_eq!(steers[0]["params"]["expectedTurnId"], "turn-1");
+        assert_eq!(steers[0]["params"]["threadId"], "thread-1");
+        let starts: Vec<&Value> = frames
+            .iter()
+            .filter(|f| f["method"] == "turn/start")
+            .collect();
+        assert_eq!(starts.len(), 2, "the late steer became the next turn");
+        assert_eq!(starts[1]["params"]["threadId"], "thread-1");
+        let text = starts[1]["params"]["input"][0]["text"].as_str().unwrap();
+        assert!(
+            text.starts_with(super::super::STEERING_HEADER) && text.ends_with("And add a clap")
+        );
+        assert_eq!(steered, 2);
+        assert_eq!(history[0].parts.len(), 3, "the request and both steers");
     }
 
     #[test]

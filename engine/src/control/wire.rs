@@ -395,7 +395,24 @@ pub struct Client {
 }
 impl Client {
     pub fn connect() -> Result<Self> {
-        Self::connect_at(&discovery_path())
+        let path = discovery_path();
+        match Self::connect_at(&path) {
+            // Started by another lsuite app (the agents of a zenith thread) without ryolune's
+            // environment: the window's lsuite entry says where its control file is.
+            Err(error)
+                if !path.exists()
+                    && std::env::var_os("RYOLUNE_CONTROL").is_none_or(|p| p.is_empty()) =>
+            {
+                match crate::lsuite::entry("ryolune")
+                    .and_then(|e| e["running"]["controlFile"].as_str().map(PathBuf::from))
+                    .filter(|other| other != &path)
+                {
+                    Some(other) => Self::connect_at(&other).map_err(|_| error),
+                    None => Err(error),
+                }
+            }
+            result => result,
+        }
     }
     pub fn connect_at(path: &Path) -> Result<Self> {
         let d = read_discovery(path)?;

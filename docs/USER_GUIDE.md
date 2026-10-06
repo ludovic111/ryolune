@@ -243,12 +243,21 @@ click its automation button to open that parameter's lane.
 The panel at the right edge is a music assistant that works inside your song. Choose a service in
 Settings > Agent: Codex or Claude Code (they use their own sign-in); an API key for Anthropic,
 OpenAI, Google Gemini, OpenRouter, Mistral, Groq, DeepSeek or xAI; Ollama or LM Studio running on
-this computer; or any OpenAI-compatible server. Then describe what you want in your own words and
+this computer; any OpenAI-compatible server; or **Zenith · lsuite**, the agents you use in zenith.
+Then describe what you want in your own words and
 language: "a busier bass line in the second verse", "glue the drums a little", "why is the keys
 track silent?".
 
 - Each step the agent takes appears in the conversation in plain words; the **Changes** tab lists
   every edit it made with Undo and Redo. Everything it does is an ordinary undo step.
+- **Conversations** belong to the song and come back when you open it again. Click the title at
+  the top of the panel to switch between them, start a new one (the **+** does too, and keeps the
+  old one), rename or delete one, or edit the song's **Project memory**: notes the agent reads
+  before every request (its key, the style, what to leave alone; up to 32 KB). Only you can change
+  the memory.
+- **Steer** while the agent works: type and press Enter (the Send button becomes Steer, with Stop
+  beside it). The agent reads it at its next step and keeps what it has already done; Claude Code
+  restarts its run with your note, the others take it without stopping.
 - **Ask Agent About Selection** (`⇧⌘J`, or right-click a region, lane or track) sends what you
   selected along with your message.
 - **Takes A/B** keeps a protected original while the agent explores a variation.

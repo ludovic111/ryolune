@@ -75,7 +75,7 @@ const fn hosted(
     }
 }
 
-pub(crate) const PROVIDERS: [ProviderInfo; 13] = [
+pub(crate) const PROVIDERS: [ProviderInfo; 14] = [
     ProviderInfo {
         provider: Provider::Codex,
         name: "Codex",
@@ -195,11 +195,25 @@ pub(crate) const PROVIDERS: [ProviderInfo; 13] = [
         url_path: Some("compatibleBaseUrl"),
         default_url: None,
     },
+    ProviderInfo {
+        provider: Provider::Zenith,
+        name: "Zenith · lsuite",
+        description: "The agents you use in zenith, lsuite's agent hub, signed in there. They work on this song through ryolune's own tools.",
+        help: "https://lsuite.xyz/zenith",
+        destination: "Requests and session context go to zenith and the agent you chose there.",
+        kind: Kind::Account,
+        key_path: None,
+        url_path: None,
+        default_url: None,
+    },
 ];
 
 /// How the service picker groups them.
 pub(crate) const PROVIDER_GROUPS: [(&str, &[Provider]); 4] = [
-    ("Your account", &[Provider::Codex, Provider::Claude]),
+    (
+        "Your account",
+        &[Provider::Codex, Provider::Claude, Provider::Zenith],
+    ),
     (
         "API key",
         &[

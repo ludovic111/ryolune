@@ -94,6 +94,9 @@
     "stopAgent": [
       "agent.stop"
     ],
+    "newAgentConversation": [
+      "agent.newConversation"
+    ],
     "editorPianoRoll": [
       "view.set"
     ],

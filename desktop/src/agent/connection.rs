@@ -18,7 +18,11 @@ pub(crate) fn check(settings: &Settings) -> Connection {
         state,
         message: message.into(),
     };
-    if matches!(provider, Provider::Codex | Provider::Claude) && !settings.control.enable_bridge {
+    if matches!(
+        provider,
+        Provider::Codex | Provider::Claude | Provider::Zenith
+    ) && !settings.control.enable_bridge
+    {
         return result("bridgeDisabled", "The local connection is turned off. Enable it in Settings > Control to let this account edit your project.");
     }
     let (executable, args) = match provider {
@@ -68,6 +72,16 @@ pub(crate) fn check(settings: &Settings) -> Connection {
                 )
             } else {
                 result("configured", "Model chosen. Keep the app running on this computer; send a message to check it.")
+            };
+        }
+        Provider::Zenith => {
+            // zenith keeps its agents' sign-ins: ryolune only checks that zenith answers.
+            return match super::zenith::reachable(&settings.agent.zenith_executable) {
+                Ok(()) => result(
+                    "configured",
+                    "zenith answers. Your next message goes to the agent chosen in zenith.",
+                ),
+                Err((state, message)) => result(state, &message),
             };
         }
         Provider::Compatible => {

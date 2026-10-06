@@ -101,6 +101,9 @@ pub enum Provider {
     LmStudio,
     /// Any other OpenAI-compatible endpoint (local servers, other vendors).
     Compatible,
+    /// zenith, the lsuite agent hub: its agents (signed in there) work on the song through
+    /// ryolune's MCP server.
+    Zenith,
 }
 /// A service that speaks the OpenAI Chat Completions API at a fixed address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -117,7 +120,7 @@ pub struct Hosted {
     pub strict: bool,
 }
 impl Provider {
-    pub const ALL: [Provider; 13] = [
+    pub const ALL: [Provider; 14] = [
         Provider::Codex,
         Provider::Claude,
         Provider::Anthropic,
@@ -131,6 +134,7 @@ impl Provider {
         Provider::Ollama,
         Provider::LmStudio,
         Provider::Compatible,
+        Provider::Zenith,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -147,6 +151,7 @@ impl Provider {
             Provider::Ollama => "Ollama on this computer",
             Provider::LmStudio => "LM Studio on this computer",
             Provider::Compatible => "OpenAI-compatible endpoint",
+            Provider::Zenith => "Zenith · lsuite",
         }
     }
     pub fn key(self) -> &'static str {
@@ -164,21 +169,23 @@ impl Provider {
             Provider::Ollama => "ollama",
             Provider::LmStudio => "lmstudio",
             Provider::Compatible => "compatible",
+            Provider::Zenith => "zenith",
         }
     }
     pub fn parse(key: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|p| p.key() == key)
     }
-    /// The installed command-line agents, which bring their own sign-in.
+    /// The installed command-line agents, which bring their own sign-in (zenith keeps its
+    /// agents' sign-ins too).
     pub fn is_cli(self) -> bool {
-        matches!(self, Provider::Codex | Provider::Claude)
+        matches!(self, Provider::Codex | Provider::Claude | Provider::Zenith)
     }
     /// Every provider that runs through the OpenAI Chat Completions client: OpenAI itself,
     /// the hosted and local services and the custom endpoint.
     pub fn speaks_openai(self) -> bool {
         !matches!(
             self,
-            Provider::Codex | Provider::Claude | Provider::Anthropic
+            Provider::Codex | Provider::Claude | Provider::Anthropic | Provider::Zenith
         )
     }
     /// The fixed address of a hosted or local OpenAI-compatible service.
@@ -266,7 +273,8 @@ impl Provider {
             | Provider::Xai
             | Provider::Ollama
             | Provider::LmStudio
-            | Provider::Compatible => "",
+            | Provider::Compatible
+            | Provider::Zenith => "",
         }
     }
 }
@@ -301,6 +309,8 @@ pub struct Agent {
     /// Extra standing instructions appended to the system prompt.
     pub instructions: String,
     pub permissions: Permissions,
+    /// `zenith-cli`; blank finds it ($RYOLUNE_ZENITH_CLI, the lsuite discovery entry, PATH).
+    pub zenith_executable: String,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -519,6 +529,7 @@ impl Default for Agent {
             max_tool_rounds: 48,
             instructions: String::new(),
             permissions: Permissions::default(),
+            zenith_executable: String::new(),
         }
     }
 }
@@ -663,6 +674,11 @@ impl Settings {
         if self.agent.model.len() > 200 || self.agent.model.chars().any(char::is_control) {
             return Err("Model names must be printable and at most 200 characters".into());
         }
+        if self.agent.zenith_executable.len() > 4096
+            || self.agent.zenith_executable.chars().any(char::is_control)
+        {
+            return Err("The zenith-cli path must be printable and under 4096 characters".into());
+        }
         if !THEMES.contains(&self.interface.appearance.as_str()) {
             return Err(format!(
                 "Appearance must be {THEME}: there is one theme, set interface.mode to dark, light or auto"
@@ -780,9 +796,11 @@ impl Settings {
             Provider::DeepSeek => (&a.deepseek_api_key, &["DEEPSEEK_API_KEY"]),
             Provider::Xai => (&a.xai_api_key, &["XAI_API_KEY"]),
             Provider::Compatible => (&a.compatible_api_key, &[]),
-            Provider::Codex | Provider::Claude | Provider::Ollama | Provider::LmStudio => {
-                return None
-            }
+            Provider::Codex
+            | Provider::Claude
+            | Provider::Ollama
+            | Provider::LmStudio
+            | Provider::Zenith => return None,
         };
         stored_or_env(stored, env)
     }

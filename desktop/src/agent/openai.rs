@@ -2,8 +2,8 @@
 //! compatible server (local models, other vendors) through Settings > Agent.
 
 use super::{
-    await_tool, bounded, http, read_line_limited, system_prompt, tool_output, tool_specs,
-    user_text, Event, Message, Part, ToolCall, Turn,
+    await_tool, bounded, http, read_line_limited, system_prompt, take_steering, tool_output,
+    tool_specs, user_text, Event, Message, Part, ToolCall, Turn,
 };
 use ryolune_engine::{settings::Provider, Result};
 use serde_json::{json, Value};
@@ -32,13 +32,15 @@ fn wire(system: &str, messages: &[Message]) -> Vec<Value> {
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
-            if !text.is_empty() {
-                out.push(json!({ "role": "user", "content": text }));
-            }
+            // Tool results answer the assistant message just before; text that rides with
+            // them (steering) comes after, as its own user message.
             for part in &m.parts {
                 if let Part::ToolResult { id, output, .. } = part {
                     out.push(json!({ "role": "tool", "tool_call_id": id, "content": output }));
                 }
+            }
+            if !text.is_empty() {
+                out.push(json!({ "role": "user", "content": text }));
             }
         } else {
             let text: String = m
@@ -287,6 +289,15 @@ pub(crate) fn run(turn: Turn) -> Result<()> {
             parts,
         });
         if calls.is_empty() {
+            // Steering that came in while the answer was written: one more round for it.
+            if let Some(steering) = take_steering(&turn.steer) {
+                let _ = turn.events.send(Event::Steered);
+                history.push(Message {
+                    role: "user",
+                    parts: vec![Part::Text(steering)],
+                });
+                continue;
+            }
             let _ = turn.events.send(Event::Done {
                 error: None,
                 cancelled: false,
@@ -331,6 +342,11 @@ pub(crate) fn run(turn: Turn) -> Result<()> {
                 is_error,
             });
         }
+        // Steering joins the tool results, so the next call reads it without losing them.
+        if let Some(steering) = take_steering(&turn.steer) {
+            let _ = turn.events.send(Event::Steered);
+            results.push(Part::Text(steering));
+        }
         history.push(Message {
             role: "user",
             parts: results,
@@ -351,55 +367,120 @@ mod tests {
     use std::{
         io::{Read, Write},
         net::TcpListener,
-        sync::{atomic::AtomicBool, Arc},
     };
 
-    fn fixture(stream: &str) -> (Result<()>, Vec<Event>, Value) {
+    /// A server answering each request in turn with the next stream; returns the bodies.
+    fn server(streams: Vec<String>) -> (String, std::thread::JoinHandle<Vec<Value>>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = format!("http://{}", listener.local_addr().unwrap());
-        let stream = stream.to_owned();
         let server = std::thread::spawn(move || {
-            let (mut socket, _) = listener.accept().unwrap();
-            socket
-                .set_read_timeout(Some(std::time::Duration::from_secs(5)))
-                .unwrap();
-            let mut request = Vec::new();
-            let mut byte = [0u8; 1];
-            while !request.ends_with(b"\r\n\r\n") {
-                socket.read_exact(&mut byte).unwrap();
-                request.push(byte[0]);
+            let mut bodies = vec![];
+            for stream in streams {
+                let (mut socket, _) = listener.accept().unwrap();
+                socket
+                    .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                    .unwrap();
+                let mut request = Vec::new();
+                let mut byte = [0u8; 1];
+                while !request.ends_with(b"\r\n\r\n") {
+                    socket.read_exact(&mut byte).unwrap();
+                    request.push(byte[0]);
+                }
+                let headers = String::from_utf8(request).unwrap();
+                let length: usize = headers
+                    .lines()
+                    .find_map(|s| {
+                        s.to_ascii_lowercase()
+                            .strip_prefix("content-length:")
+                            .map(|s| s.trim().parse().unwrap())
+                    })
+                    .unwrap();
+                let mut body = vec![0; length];
+                socket.read_exact(&mut body).unwrap();
+                write!(socket,"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",stream.len(),stream).unwrap();
+                bodies.push(serde_json::from_slice::<Value>(&body).unwrap());
             }
-            let headers = String::from_utf8(request).unwrap();
-            let length: usize = headers
-                .lines()
-                .find_map(|s| {
-                    s.to_ascii_lowercase()
-                        .strip_prefix("content-length:")
-                        .map(|s| s.trim().parse().unwrap())
-                })
-                .unwrap();
-            let mut body = vec![0; length];
-            socket.read_exact(&mut body).unwrap();
-            write!(socket,"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",stream.len(),stream).unwrap();
-            serde_json::from_slice::<Value>(&body).unwrap()
+            bodies
         });
-        let (tx, rx) = mpsc::sync_channel(64);
+        (endpoint, server)
+    }
+
+    fn settings(endpoint: String) -> ryolune_engine::settings::Settings {
         let mut settings = ryolune_engine::settings::Settings::default();
         settings.agent.provider = Provider::Compatible;
         settings.agent.compatible_base_url = endpoint;
         settings.agent.model = "fixture".into();
         settings.agent.reasoning_effort = "high".into();
-        let result = run(Turn {
-            prompt: "Hi".into(),
-            history: vec![],
-            settings,
-            session_summary: json!({}),
-            discovery: Default::default(),
-            mcp_executable: String::new(),
-            cancel: Arc::new(AtomicBool::new(false)),
-            events: tx,
+        settings
+    }
+
+    fn fixture(stream: &str) -> (Result<()>, Vec<Event>, Value) {
+        let (endpoint, server) = server(vec![stream.to_owned()]);
+        let (tx, rx) = mpsc::sync_channel(64);
+        let result = run(Turn::test("Hi", settings(endpoint), tx));
+        (
+            result,
+            rx.try_iter().collect(),
+            server.join().unwrap().remove(0),
+        )
+    }
+
+    #[test]
+    fn steering_rides_after_the_tool_results_and_extends_a_finished_answer() {
+        let call = "data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"function\":{\"name\":\"session_info\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n";
+        let answer = |text: &str| {
+            format!("data: {{\"choices\":[{{\"delta\":{{\"content\":\"{text}\"}},\"finish_reason\":\"stop\"}}]}}\n\ndata: [DONE]\n\n")
+        };
+        let (endpoint, server) = server(vec![
+            call.to_string(),
+            answer("Done."),
+            answer("Made it slower."),
+        ]);
+        let (tx, rx) = mpsc::sync_channel(64);
+        let turn = Turn::test("Make a beat", settings(endpoint), tx);
+        let steer = turn.steer.clone();
+        let interface = std::thread::spawn(move || {
+            let mut steered = 0;
+            while let Ok(event) = rx.recv_timeout(std::time::Duration::from_secs(5)) {
+                match event {
+                    Event::ToolCall(call) => {
+                        // The person steers while the tool runs.
+                        steer.lock().unwrap().push_back("Use 90 BPM".into());
+                        call.reply.send(Ok(json!({"name": "Song"}))).unwrap();
+                    }
+                    Event::Text { text, .. } if text == "Done." => {
+                        // And again while the answer is written.
+                        steer.lock().unwrap().push_back("Slower".into());
+                    }
+                    Event::Steered => steered += 1,
+                    Event::Done { history, error, .. } => return (steered, history, error),
+                    _ => {}
+                }
+            }
+            panic!("no Done");
         });
-        (result, rx.try_iter().collect(), server.join().unwrap())
+        run(turn).unwrap();
+        let (steered, history, error) = interface.join().unwrap();
+        assert!(error.is_none());
+        assert_eq!(steered, 2);
+        let bodies = server.join().unwrap();
+        let second = bodies[1]["messages"].as_array().unwrap();
+        let roles: Vec<&str> = second.iter().map(|m| m["role"].as_str().unwrap()).collect();
+        assert_eq!(roles, ["system", "user", "assistant", "tool", "user"]);
+        assert!(second[4]["content"]
+            .as_str()
+            .unwrap()
+            .ends_with("Use 90 BPM"));
+        let third = bodies[2]["messages"].as_array().unwrap();
+        assert!(third.last().unwrap()["content"]
+            .as_str()
+            .unwrap()
+            .starts_with(super::super::STEERING_HEADER));
+        assert_eq!(
+            history.len(),
+            6,
+            "user, call, results + steering, answer, steering, answer"
+        );
     }
 
     #[test]

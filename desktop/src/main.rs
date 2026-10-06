@@ -3,6 +3,7 @@ mod agent;
 mod agents;
 mod app;
 mod control;
+mod conversations;
 mod discovery;
 mod export;
 mod generate;

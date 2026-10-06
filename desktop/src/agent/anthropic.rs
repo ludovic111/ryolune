@@ -1,8 +1,8 @@
 //! The Anthropic Messages API with streaming and tool use.
 
 use super::{
-    await_tool, bounded, http, read_line_limited, system_prompt, tool_output, tool_specs,
-    user_text, Event, Message, Part, ToolCall, Turn,
+    await_tool, bounded, http, read_line_limited, system_prompt, take_steering, tool_output,
+    tool_specs, user_text, Event, Message, Part, ToolCall, Turn,
 };
 use ryolune_engine::{settings::Provider, Result};
 use serde_json::{json, Value};
@@ -235,6 +235,15 @@ pub(crate) fn run(turn: Turn) -> Result<()> {
             parts,
         });
         if stop_reason != "tool_use" || blocks.is_empty() {
+            // Steering that came in while the answer was written: one more round for it.
+            if let Some(steering) = take_steering(&turn.steer) {
+                let _ = turn.events.send(Event::Steered);
+                history.push(Message {
+                    role: "user",
+                    parts: vec![Part::Text(steering)],
+                });
+                continue;
+            }
             let _ = turn.events.send(Event::Done {
                 error: None,
                 cancelled: false,
@@ -277,6 +286,11 @@ pub(crate) fn run(turn: Turn) -> Result<()> {
                 output,
                 is_error,
             });
+        }
+        // Steering joins the tool results, so the next call reads it without losing them.
+        if let Some(steering) = take_steering(&turn.steer) {
+            let _ = turn.events.send(Event::Steered);
+            results.push(Part::Text(steering));
         }
         history.push(Message {
             role: "user",

@@ -140,6 +140,7 @@ pub const ACTIONS: &[ActionDef] = &[
         &["secondary-shift-j"],
     ),
     a("stopAgent", "Stop Current Agent Action", &[]),
+    a("newAgentConversation", "New Agent Conversation", &[]),
     g("musicalTyping", "Musical Typing", &["secondary-k"]),
     // File.
     g("newSession", "New Session", &["secondary-n"]),
@@ -271,6 +272,7 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
             Some("toggleAgentPanel"),
             Some("askAgent"),
             Some("stopAgent"),
+            Some("newAgentConversation"),
             Some("agentSettings"),
         ],
     ),
@@ -466,6 +468,9 @@ pub fn enabled(id: &str, daw: &Daw) -> bool {
         "armSelectedTrack" => selected_track(s).is_some_and(|t| t.kind != "bus"),
         "cycleMonitorSelectedTrack" => selected_track(s).is_some_and(|t| t.kind == "audio"),
         "stopAgent" => app.agents.runtime.running(),
+        "newAgentConversation" => {
+            !app.agents.runtime.running() && !app.agents.runtime.transcript.is_empty()
+        }
         "addMarker" => !marker_here,
         "previousMarker" => s.markers.iter().any(|m| m.bar < bar - 1e-6),
         "nextMarker" => s.markers.iter().any(|m| m.bar > bar + 1e-6),
@@ -772,6 +777,10 @@ pub fn perform(id: &str, daw: &mut Daw, cx: &mut Context<Daw>) -> bool {
         }
         "stopAgent" => {
             daw.fire("agent.stop", cx);
+        }
+        "newAgentConversation" => {
+            daw.fire("agent.newConversation", cx);
+            panel(daw, "agent", true, cx);
         }
         "musicalTyping" => {
             let enabled = !daw.app.musical_typing;
