@@ -125,8 +125,9 @@ impl Graph {
     pub fn objects<'a>(
         &'a self,
         subject: &Node,
-        predicate: &'a str,
+        predicate: &str,
     ) -> impl Iterator<Item = &'a Node> + 'a {
+        let predicate = predicate.to_string();
         self.about(subject)
             .filter(move |t| t.predicate == predicate)
             .map(|t| &t.object)

@@ -31,6 +31,8 @@ vorbis_rs = { version = "0.5", default-features = false }
 [dev-dependencies]
 ryolune-plugin-gain = { path = "../plugins/gain" }
 ondera-abi1-fixture = { path = "../plugins/abi1-fixture" }
+ryolune-lv2-fixture = { path = "../plugins/lv2-fixture" }
+ryolune-ladspa-fixture = { path = "../plugins/ladspa-fixture" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

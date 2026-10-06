@@ -1,0 +1,14 @@
+[package]
+name = "ryolune-lv2-fixture"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "LV2 test plugins written in Rust: an effect with state, a worker and a latency port, and a MIDI instrument"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# No dependencies: the LV2 ABI is written out in src/lib.rs, as a plugin author would.
+[dependencies]

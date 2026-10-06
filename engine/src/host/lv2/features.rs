@@ -283,7 +283,7 @@ impl Features {
         files: PathBuf,
         schedule: Option<ffi::LV2_Worker_Schedule>,
     ) -> Self {
-        let mut map = Box::new(ffi::LV2_URID_Map {
+        let mut urid_map = Box::new(ffi::LV2_URID_Map {
             handle: std::ptr::null_mut(),
             map: map_callback,
         });
@@ -346,7 +346,7 @@ impl Features {
         });
         let mut schedule = schedule.map(Box::new);
         let mut entries: Vec<(&str, *mut c_void)> = vec![
-            (uri::URID_MAP, &mut *map as *mut _ as *mut c_void),
+            (uri::URID_MAP, &mut *urid_map as *mut _ as *mut c_void),
             (uri::URID_UNMAP, &mut *unmap as *mut _ as *mut c_void),
             (uri::OPTIONS, options.as_ptr() as *mut c_void),
             (uri::BOUNDED_BLOCK, std::ptr::null_mut()),
@@ -379,7 +379,7 @@ impl Features {
         pointers.push(std::ptr::null());
         Self {
             _uris: uris,
-            _map: map,
+            _map: urid_map,
             _unmap: unmap,
             _log: log,
             _log_context: log_context,

@@ -1,5 +1,5 @@
 [workspace]
-members = ["sdk", "engine", "desktop", "tools", "plugins/gain", "plugins/abi1-fixture"]
+members = ["sdk", "engine", "desktop", "tools", "plugins/gain", "plugins/abi1-fixture", "plugins/lv2-fixture", "plugins/ladspa-fixture"]
 default-members = ["desktop"]
 resolver = "2"
 

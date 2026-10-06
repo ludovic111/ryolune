@@ -51,7 +51,7 @@ pub const HINT_DEFAULT_100: c_int = 0x280;
 pub const HINT_DEFAULT_440: c_int = 0x2C0;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct LadspaPortRangeHint {
     pub hint_descriptor: c_int,
     pub lower_bound: LadspaData,
