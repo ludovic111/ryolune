@@ -242,17 +242,14 @@ pub(crate) fn read(path: &Path) -> std::result::Result<Archive, String> {
 }
 
 /// A run that was going when the file was written ended with the app: stopped.
+/// Saving clears `streaming`, so a tool without an answer is the sign: it never finished.
 fn settle(transcript: &mut [Entry]) {
     for entry in transcript {
-        if entry.streaming {
-            entry.streaming = false;
-            if let Some(tool) = &mut entry.tool {
-                if tool.result.is_none() {
-                    tool.result = Some(Err("Stopped".into()));
-                }
-            }
-        }
+        entry.streaming = false;
         if let Some(tool) = &mut entry.tool {
+            if tool.result.is_none() {
+                tool.result = Some(Err("Stopped".into()));
+            }
             tool.sequence = None;
         }
     }

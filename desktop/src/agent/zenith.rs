@@ -680,10 +680,8 @@ esac
         let root = dir.path().to_path_buf();
         let person = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(300));
-            steer
-                .lock()
-                .unwrap()
-                .push_back(super::super::steering_message("Slower"));
+            // Queued as `agent.steer` queues it: the plain text.
+            steer.lock().unwrap().push_back("Slower".into());
             let started = Instant::now();
             while !std::fs::read_to_string(root.join("calls"))
                 .unwrap_or_default()
@@ -753,7 +751,7 @@ esac
         ]});
         let person = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(300));
-            steer.lock().unwrap().push_back(steering);
+            steer.lock().unwrap().push_back("Slower".into());
             // zenith refuses thread.steer; then its turn ends.
             let started = Instant::now();
             while !std::fs::read_to_string(root.join("calls"))
@@ -766,7 +764,10 @@ esac
             std::fs::write(root.join("turn.json"), finished.to_string()).unwrap();
         });
         if let Err(e) = run_at(&turn, &exe, &folder) {
-            panic!("{e}\n{}", std::fs::read_to_string(dir.path().join("calls")).unwrap());
+            panic!(
+                "{e}\n{}",
+                std::fs::read_to_string(dir.path().join("calls")).unwrap()
+            );
         }
         person.join().unwrap();
         let events: Vec<Event> = rx.try_iter().collect();

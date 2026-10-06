@@ -25,7 +25,7 @@ and in the app under Help > Shortcuts and Help (⌘/). ⌘ is Ctrl on Windows an
 15. [Appearance](#appearance)
 16. [Settings](#settings)
 17. [Updates, what's new and problems](#updates-whats-new-and-problems)
-17. [Limits](#limits)
+18. [Limits](#limits)
 
 ## The window
 

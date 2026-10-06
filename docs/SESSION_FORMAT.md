@@ -72,6 +72,7 @@ All keys are camelCase.
 
 | Key | Type | Default when absent | Notes |
 |---|---|---|---|
+| `id` | string | `""` | Stable id of the song (0.14+), kept across saves and renames; the agent's saved conversations and project memory belong to it. Older files get one derived from their path when opened and keep it from the next save. Absent when empty. |
 | `name` | string | required | Song name, often the file name. |
 | `tracks` | array of [Track](#tracks) | required | Top to bottom. At most 128. |
 | `clips` | array of [Clip](#clips) | required | At most 50,000. |

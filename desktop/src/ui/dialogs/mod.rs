@@ -626,7 +626,10 @@ impl Render for Dialogs {
             Shown::Recent => self.recent_sheet(cx),
         };
         // Sheets that only inform close on a click outside; forms and questions do not.
-        let outside = matches!(shown, Shown::Help | Shown::Recovery | Shown::WhatsNew | Shown::Recent);
+        let outside = matches!(
+            shown,
+            Shown::Help | Shown::Recovery | Shown::WhatsNew | Shown::Recent
+        );
         modal::layer("dialogs", &self.focus.handle, cx)
             .on_action(cx.listener(Self::dismiss))
             .on_action(cx.listener(Self::accept))

@@ -371,11 +371,19 @@ mod tests {
 
     /// A server answering each request in turn with the next stream; returns the bodies.
     fn server(streams: Vec<String>) -> (String, std::thread::JoinHandle<Vec<Value>>) {
+        server_with(streams, |_| {})
+    }
+
+    /// `server`, calling `before(n)` once the n-th request is read, before its answer goes out.
+    fn server_with(
+        streams: Vec<String>,
+        before: impl Fn(usize) + Send + 'static,
+    ) -> (String, std::thread::JoinHandle<Vec<Value>>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let endpoint = format!("http://{}", listener.local_addr().unwrap());
         let server = std::thread::spawn(move || {
             let mut bodies = vec![];
-            for stream in streams {
+            for (n, stream) in streams.into_iter().enumerate() {
                 let (mut socket, _) = listener.accept().unwrap();
                 socket
                     .set_read_timeout(Some(std::time::Duration::from_secs(5)))
@@ -397,6 +405,7 @@ mod tests {
                     .unwrap();
                 let mut body = vec![0; length];
                 socket.read_exact(&mut body).unwrap();
+                before(n);
                 write!(socket,"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",stream.len(),stream).unwrap();
                 bodies.push(serde_json::from_slice::<Value>(&body).unwrap());
             }
@@ -431,14 +440,21 @@ mod tests {
         let answer = |text: &str| {
             format!("data: {{\"choices\":[{{\"delta\":{{\"content\":\"{text}\"}},\"finish_reason\":\"stop\"}}]}}\n\ndata: [DONE]\n\n")
         };
-        let (endpoint, server) = server(vec![
-            call.to_string(),
-            answer("Done."),
-            answer("Made it slower."),
-        ]);
+        let steer = super::super::Steer::default();
+        // The second steering arrives while the answer is being written: queued before the
+        // server answers the second request, so the run finds it once that answer ends.
+        let late = steer.clone();
+        let (endpoint, server) = server_with(
+            vec![call.to_string(), answer("Done."), answer("Made it slower.")],
+            move |n| {
+                if n == 1 {
+                    late.lock().unwrap().push_back("Slower".into());
+                }
+            },
+        );
         let (tx, rx) = mpsc::sync_channel(64);
-        let turn = Turn::test("Make a beat", settings(endpoint), tx);
-        let steer = turn.steer.clone();
+        let mut turn = Turn::test("Make a beat", settings(endpoint), tx);
+        turn.steer = steer.clone();
         let interface = std::thread::spawn(move || {
             let mut steered = 0;
             while let Ok(event) = rx.recv_timeout(std::time::Duration::from_secs(5)) {
@@ -447,10 +463,6 @@ mod tests {
                         // The person steers while the tool runs.
                         steer.lock().unwrap().push_back("Use 90 BPM".into());
                         call.reply.send(Ok(json!({"name": "Song"}))).unwrap();
-                    }
-                    Event::Text { text, .. } if text == "Done." => {
-                        // And again while the answer is written.
-                        steer.lock().unwrap().push_back("Slower".into());
                     }
                     Event::Steered => steered += 1,
                     Event::Done { history, error, .. } => return (steered, history, error),

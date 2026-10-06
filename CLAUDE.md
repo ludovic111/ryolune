@@ -27,7 +27,7 @@ Check with `cargo test -p ryolune` (scratch profile env vars), then look at the 
 (`--screenshot`, or the app driven by `ryolune-cli` with `RYOLUNE_CONTROL` in a scratch folder).
 
 Theme (design system v2, owner's decision 2026-10-06: "the whole suite looks like kimchi now";
-branch `design-v2`, not released yet): `desktop/src/ui/theme.rs` is the only place visual values
+PR #32, released in 0.14.0): `desktop/src/ui/theme.rs` is the only place visual values
 live, on lsuite's v2 tokens (`desktop/assets/lsuite/tokens.json` + `tokens.css`, copies of
 `../lsuite/design/`; a test checks the palette against the JSON, copy the file again when the
 suite changes). Black and white: the accent is the ink of the mode (white dark, black light), a
@@ -230,6 +230,26 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   keeps its sound in its state: the insert blob is the native host's `{values, state}` document
   (`sample_keys::insert_blob`). The agent panel tabs are Chat, Generate, Changes, Takes; Rhythm Lab's
   UI is gone, its commands stay.
+- 0.14 (2026-10-06, owner asked to bring ryolune to kimchi's level; delegated): design v2 (#32).
+  Agent conversations are saved per song in `<data dir>/agent-conversations.json`
+  (`desktop/src/conversations.rs`; `Session.id` keys them, added on load when absent), with project
+  memory (32 KB, sent ahead of every request; `agent.setMemory` and `agent.deleteConversation` are
+  refused to agents) and `agent.steer` (queued and joined at the next model call; Claude Code
+  restarts its run). `Provider::Zenith` (`desktop/src/agent/zenith.rs`) drives `zenith-cli` with
+  kimchi's contract (`project.add`, `thread.new/send/steer/get/interrupt`, `provider.list`;
+  `thread.steer` falls back to `thread.send` on older zenith), one zenith project per song holding
+  ryolune's MCP recipe. Diagnostics (`engine/src/diagnostics.rs`, `desktop/src/diagnostics.rs`):
+  `<data dir>/logs` (four runs, 8 MB each), `crashes/` (panic hook, recovered worker panics,
+  unclean-exit marker), Settings › Diagnostics, `app.reportProblem` (refused to agents). What's New
+  reads `docs/releases/*.md` built in by `engine/build.rs` (`release_notes.rs`; a test fails when
+  the workspace version has no notes) and opens once after an update (`general.lastRunVersion`).
+  Updates re-check every 6 h; `app.relaunch` (alias `app.restart`). Other apps:
+  `engine/src/interop/` (DAWproject import/export with a report, `apps.rs` per-DAW steps and
+  install paths), commands in `control_interop.rs` (`session.formats/importFrom/exportTo`, aliases
+  `project.*`), first-run setup `settings.onboarding` (`app.onboarding`, `app.finishOnboarding`,
+  pre-0.14 settings count as done), `app.recent`/`app.openRecent`. Docs index `docs/README.md`,
+  `ARCHITECTURE.md`, `CONFIGURATION.md`, `SESSION_FORMAT.md`. kimchi pins `ryolune-engine` at a rev:
+  keep the engine's public API additive.
 - Tests: a cargo test binary resolves settings, data, the control file, `~/.lsuite` and the kimchi
   library to a per-process scratch folder when no override is set (`host::scan::test_sandbox`);
   still run tests and the app with `RYOLUNE_SETTINGS`, `RYOLUNE_DATA_DIR`, `RYOLUNE_CONTROL` and
