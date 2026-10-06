@@ -1902,9 +1902,11 @@ impl<'a, 'input, R: Read + Seek> Reader<'a, 'input, R> {
                 };
                 let sends = self.sends(channel, is_bus, name);
                 let (instrument, inserts) = self.devices(channel, id, name, midi)?;
-                let mut strip = crate::model::Strip::default();
-                strip.inserts = inserts;
-                strip.sends = sends;
+                let mut strip = crate::model::Strip {
+                    inserts,
+                    sends,
+                    ..Default::default()
+                };
                 match instrument {
                     Some(Instrument::Stock(name)) => strip.instrument = name,
                     Some(Instrument::Plugin(insert)) => strip.synth = Some(insert),
