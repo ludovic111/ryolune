@@ -531,10 +531,10 @@ fn mcp_serves_the_harness_brief_skills_pictures_and_checkpoints() {
                 "notes": [{"start": 0, "length": 0.5, "pitch": 36}, {"start": 1, "length": 0.5, "pitch": 38}] }),
     );
     assert_eq!(made["isError"], false, "{made}");
-    assert!(made["content"][0]["text"]
-        .as_str()
-        .unwrap()
-        .contains("Song now:"));
+    let made_text = made["content"][0]["text"].as_str().unwrap();
+    assert!(made_text.contains("Song now:"));
+    // The finish routine is due until the agent looks or measures.
+    assert!(made_text.contains("Not checked yet"), "{made_text}");
     let changes = mcp.tool(8, "harness_changes", json!({}));
     assert!(
         changes["content"][0]["text"]
@@ -569,6 +569,10 @@ fn mcp_serves_the_harness_brief_skills_pictures_and_checkpoints() {
         reverted["structuredContent"]["reverted"], true,
         "{reverted}"
     );
+    assert!(!reverted["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("Not checked yet"));
     let clips = mcp.tool(11, "clip_list", json!({}));
     let text = clips["content"][0]["text"].as_str().unwrap();
     let listed: Value = serde_json::from_str(

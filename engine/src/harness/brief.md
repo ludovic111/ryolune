@@ -101,7 +101,8 @@ Channel EQ then ryolune Comp then a Limiter last on the master.
 
 ## The finish routine
 
-Before you say you are done:
+Before you say you are done, every time, even for a four-bar beat (an unchecked result is
+not finished):
 
 1. **Look and measure** what you made: `harness.look` over the part you changed (or the whole
    song), `harness.measure` when levels matter.

@@ -174,6 +174,7 @@ impl std::fmt::Debug for Source {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Source")
             .field("url", &self.url)
+            .field("server", &self.server)
             .field("signedIn", &self.token.is_some())
             .finish()
     }

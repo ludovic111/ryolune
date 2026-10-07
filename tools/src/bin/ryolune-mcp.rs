@@ -97,6 +97,7 @@ fn main() {
         backend,
         with_context,
         checkpointed: false,
+        unchecked: false,
     };
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
@@ -138,6 +139,8 @@ struct Server {
     with_context: bool,
     /// A checkpoint was taken before this connection's first edit.
     checkpointed: bool,
+    /// The song changed since this connection last looked or measured (the finish routine).
+    unchecked: bool,
 }
 impl Server {
     fn handle_line(&mut self, line: &str) -> Option<Value> {
@@ -404,6 +407,11 @@ impl Server {
                 }
             }
         }
+        if matches!(command, "harness.look" | "harness.measure") {
+            self.unchecked = false;
+        } else if mutates && !command.starts_with("harness.") {
+            self.unchecked = true;
+        }
         let mut text = serde_json::to_string_pretty(&result).unwrap_or_else(|_| result.to_string());
         match self.backend.autosave() {
             Ok(Some(path)) => text.push_str(&format!("\n(saved {})", path.display())),
@@ -440,6 +448,11 @@ impl Server {
                     line("playhead"),
                 ));
             }
+        }
+        if self.with_context && self.unchecked && mutates {
+            text.push_str(
+                "\nNot checked yet: before you report, run the finish routine (harness_look over what you changed, harness_measure when levels matter).",
+            );
         }
         let mut content = vec![json!({ "type": "text", "text": text })];
         content.extend(images);
