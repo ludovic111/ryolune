@@ -1,8 +1,8 @@
 # ryolune
 
 Part of [lsuite](https://lsuite.xyz), the free, open-source creative suite your AI can drive.
-Downloads are on [GitHub](https://github.com/ludovic111/ryolune/releases/latest); ryolune's page on
-lsuite.xyz says "coming soon" for now.
+Downloads are on [GitHub](https://github.com/ludovic111/ryolune/releases/latest) or
+[lsuite.xyz/ryolune](https://lsuite.xyz/ryolune).
 
 **The open-source DAW your AI can drive.** A complete digital audio workstation for macOS,
 Windows and Linux in which every action, from adding a track to mixing a plugin's parameters, is
@@ -63,11 +63,11 @@ Download the file for your computer from the
 | --- | --- |
 | Mac with Apple silicon | `ryolune-macos-arm64.zip` |
 | Mac with Intel | `ryolune-macos-x86_64.zip` |
-| Windows | `ryolune-windows-x86_64.zip` |
+| Windows | `ryolune-windows-x86_64.zip` or `ryolune-windows-x86_64.exe` |
 | Linux | `ryolune-linux-x86_64.zip` (or `.tar.gz`) |
 
 **macOS**: unzip and drag `ryolune.app` to Applications. The app is signed with a Developer ID
-and notarized by Apple, so it opens like any other app (from 0.11.0).
+and notarized by Apple, so it opens like any other app.
 **Windows and Linux**: extract all three executables (`ryolune`, `ryolune-cli`, `ryolune-mcp`) into
 one folder. The demo song is `ryolune-Afterglow-demo.zip` on the same page.
 
