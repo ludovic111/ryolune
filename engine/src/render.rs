@@ -1773,9 +1773,8 @@ impl Renderer {
                 };
                 let time = position.rem_euclid(tick_unit) * spb;
                 if time < 0.045 {
-                    let accent = (position / tick_unit).floor() as u64
-                        % self.session.transport.time_signature.numerator as u64
-                        == 0;
+                    let accent = ((position / tick_unit).floor() as u64)
+                        .is_multiple_of(self.session.transport.time_signature.numerator as u64);
                     let click =
                         ((std::f64::consts::TAU * if accent { 1600.0 } else { 1100.0 } * time)
                             .sin()

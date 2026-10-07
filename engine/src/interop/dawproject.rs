@@ -1423,7 +1423,7 @@ fn css_color(text: Option<&str>) -> Option<String> {
     let text = text?.trim();
     let hex = text.strip_prefix('#')?;
     ((hex.len() == 6 || hex.len() == 8) && hex.chars().all(|c| c.is_ascii_hexdigit()))
-        .then(|| format!("#{}", &hex[..6].to_ascii_lowercase()))
+        .then(|| format!("#{}", hex[..6].to_ascii_lowercase()))
 }
 /// A real parameter's value as a linear gain.
 fn gain_of(node: Node) -> Option<f64> {

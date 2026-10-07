@@ -119,6 +119,6 @@ pub fn list(directory: &Path) -> Result<Vec<Snapshot>> {
             bytes: metadata.len(),
         });
     }
-    candidates.sort_by(|a, b| b.modified.cmp(&a.modified));
+    candidates.sort_by_key(|c| std::cmp::Reverse(c.modified));
     Ok(candidates)
 }

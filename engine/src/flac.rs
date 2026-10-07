@@ -70,7 +70,7 @@ impl<W: Write + Seek> Encoder<W> {
         Ok(())
     }
     pub fn finish(mut self) -> Result<()> {
-        if self.pending.len() % 2 != 0 {
+        if !self.pending.len().is_multiple_of(2) {
             return Err("FLAC export ended in the middle of a stereo frame".into());
         }
         if !self.pending.is_empty() {
@@ -109,7 +109,7 @@ impl<W: Write + Seek> Encoder<W> {
         for channel in channels.iter_mut() {
             channel.clear();
         }
-        for pair in self.pending.chunks_exact(2) {
+        for pair in self.pending.as_chunks::<2>().0 {
             let (left, right) = (pair[0] as i64, pair[1] as i64);
             channels[0].push(left);
             channels[1].push(right);
@@ -226,7 +226,7 @@ fn partition_length(count: usize, order: usize, partition_order: u32, index: usi
 fn partition(residual: &[i64], order: usize, count: usize) -> (u32, u64) {
     let mut finest = 0;
     while finest < MAX_PARTITION_ORDER
-        && count % (2 << finest) == 0
+        && count.is_multiple_of(2 << finest)
         && count / (2 << finest) > order
     {
         finest += 1;
@@ -459,7 +459,7 @@ impl Md5 {
         }
         self.update(&bits.to_le_bytes());
         let mut out = [0; 16];
-        for (chunk, word) in out.chunks_exact_mut(4).zip(self.state) {
+        for (chunk, word) in out.as_chunks_mut::<4>().0.iter_mut().zip(self.state) {
             chunk.copy_from_slice(&word.to_le_bytes());
         }
         out
@@ -471,7 +471,7 @@ impl Md5 {
             6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
         ];
         let mut words = [0u32; 16];
-        for (word, chunk) in words.iter_mut().zip(self.block.chunks_exact(4)) {
+        for (word, chunk) in words.iter_mut().zip(self.block.as_chunks::<4>().0) {
             *word = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
         }
         let [mut a, mut b, mut c, mut d] = self.state;

@@ -299,7 +299,7 @@ fn a_ryolune_song_survives_the_round_trip_through_dawproject() {
             .any(|l| l.contains("named devices")),
         "stock devices are said to be ryolune's: {report:?}"
     );
-    let imported = interop::import(&[path.clone()], &scan::installed()).unwrap();
+    let imported = interop::import(std::slice::from_ref(&path), &scan::installed()).unwrap();
     let back = imported.session;
     let r = &imported.report;
     assert!(
@@ -523,7 +523,7 @@ fn the_project_xml_follows_the_schema_order_and_names_plugins_by_id() {
             category: String::new(),
         });
     }
-    let imported = interop::import(&[path.clone()], &catalog).unwrap();
+    let imported = interop::import(std::slice::from_ref(&path), &catalog).unwrap();
     let s = &imported.session;
     let keys = by_name(s, "Keys");
     let synth = s.strips[&keys.id].synth.as_ref().unwrap();

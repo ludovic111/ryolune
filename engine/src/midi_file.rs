@@ -332,9 +332,7 @@ pub fn import_bytes(
             numerator: 4,
             denominator: 4,
         };
-        if let Some((_, numerator, exponent)) =
-            meters.iter().filter(|(tick, _, _)| *tick == 0).next_back()
-        {
+        if let Some((_, numerator, exponent)) = meters.iter().rfind(|(tick, _, _)| *tick == 0) {
             let denominator = 1u32
                 .checked_shl(*exponent as u32)
                 .ok_or("Invalid MIDI time signature")?;

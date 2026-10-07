@@ -177,7 +177,7 @@ pub fn find_parameter<'a>(
         .into_iter()
         .filter_map(|p| score(wanted, &p.name).map(|s| (s, p)))
         .collect();
-    scored.sort_by(|a, b| b.0.cmp(&a.0));
+    scored.sort_by_key(|a| std::cmp::Reverse(a.0));
     let describe = |p: &ParamInfo| format!("{} (id {})", p.name, p.id);
     match scored.as_slice() {
         [] => {
@@ -312,7 +312,7 @@ pub(crate) fn call(host: &mut dyn Host, name: &str, a: &Args) -> Result<Value> {
                     })
                     .collect();
                 if query.is_some() {
-                    rows.sort_by(|a, b| b.0.cmp(&a.0));
+                    rows.sort_by_key(|a| std::cmp::Reverse(a.0));
                 }
                 let total = rows.len();
                 let start = (offset as usize).min(total);
@@ -457,7 +457,7 @@ pub(crate) fn call(host: &mut dyn Host, name: &str, a: &Args) -> Result<Value> {
                             .enumerate()
                             .filter_map(|(i, p)| score(wanted, p).map(|s| (s, i)))
                             .collect();
-                        best.sort_by(|a, b| b.0.cmp(&a.0));
+                        best.sort_by_key(|a| std::cmp::Reverse(a.0));
                         match best.as_slice() {
                             [(s, i), rest @ ..] if rest.first().is_none_or(|(n, _)| n < s) => {
                                 Some(*i)

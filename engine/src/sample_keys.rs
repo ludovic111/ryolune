@@ -96,7 +96,9 @@ pub fn decode(state: &[u8]) -> Result<Sample, String> {
         return Err("The Sample Keys sound is damaged".into());
     }
     let frames = body
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| {
             [
                 i16::from_le_bytes([c[0], c[1]]) as f32 / 32767.0,
