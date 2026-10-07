@@ -4174,7 +4174,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "ondera-abi1-fixture"
-version = "0.14.0"
+version = "0.15.0"
 
 [[package]]
 name = "oo7"
@@ -5225,7 +5225,7 @@ dependencies = [
 
 [[package]]
 name = "ryolune"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -5255,7 +5255,7 @@ dependencies = [
 
 [[package]]
 name = "ryolune-engine"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "base64 0.22.1",
  "clap-sys",
@@ -5290,7 +5290,7 @@ dependencies = [
 
 [[package]]
 name = "ryolune-plugin"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -5298,28 +5298,28 @@ dependencies = [
 
 [[package]]
 name = "ryolune-plugin-bitcrusher"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "ryolune-plugin",
 ]
 
 [[package]]
 name = "ryolune-plugin-chorus"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "ryolune-plugin",
 ]
 
 [[package]]
 name = "ryolune-plugin-gain"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "ryolune-plugin",
 ]
 
 [[package]]
 name = "ryolune-tools"
-version = "0.14.0"
+version = "0.15.0"
 dependencies = [
  "ryolune-engine",
  "serde_json",
