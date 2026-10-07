@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 pub enum Backend {
     /// Talks to the desktop app. The client reconnects on the next call after a lost connection.
     Live(Option<Client>),
-    Headless(Headless, bool, Option<SessionFileLock>),
+    Headless(Box<Headless>, bool, Option<SessionFileLock>),
 }
 impl Backend {
     pub fn live() -> Result<Self> {
@@ -31,7 +31,7 @@ impl Backend {
             }
             None => Headless::new(),
         };
-        Ok(Backend::Headless(host, false, lock))
+        Ok(Backend::Headless(Box::new(host), false, lock))
     }
 
     pub fn mode(&self) -> &'static str {
@@ -94,7 +94,7 @@ impl Backend {
                     }
                     params["path"] = Value::String(resolved.to_string_lossy().into_owned());
                 }
-                let result = control::call(host, name, &params, agent);
+                let result = control::call(&mut **host, name, &params, agent);
                 if result.is_ok() {
                     if replacement.is_some() {
                         *ownership = replacement;
@@ -130,7 +130,7 @@ impl Backend {
                     .as_deref()
                     .is_some_and(|p| *changed || h.store.dirty() || !p.exists()) =>
             {
-                let path = Host::save(h, None)?;
+                let path = Host::save(&mut **h, None)?;
                 *changed = false;
                 Ok(Some(path))
             }
