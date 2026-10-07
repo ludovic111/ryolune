@@ -97,7 +97,7 @@ pub(crate) fn run(turn: Turn) -> Result<()> {
             provider_name(provider),
             hosted
                 .and_then(|h| h.env.first())
-                .or(Some(&"OPENAI_API_KEY").filter(|_| provider == Provider::OpenAi))
+                .or((provider == Provider::OpenAi).then_some(&"OPENAI_API_KEY"))
                 .map(|env| format!(" or set {env}"))
                 .unwrap_or_default()
         ));

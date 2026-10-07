@@ -587,10 +587,8 @@ fn parse_claude_event(
                 output: usage["output_tokens"].as_u64().unwrap_or(0),
             });
         }
-        "system" => {
-            if event["subtype"] == "init" {
-                let _ = events.send(Event::Status("Claude Code connected".into()));
-            }
+        "system" if event["subtype"] == "init" => {
+            let _ = events.send(Event::Status("Claude Code connected".into()));
         }
         _ => {}
     }

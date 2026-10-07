@@ -21,7 +21,7 @@ fn setup(cx: &mut TestAppContext) -> (Entity<AgentPanel>, Entity<Daw>, &mut Visu
     let (panel, vcx) = cx.add_window_view(move |window, cx| {
         let mut panel = AgentPanel::new(for_panel, window, cx);
         // No connection check in tests: the service is whatever the test says.
-        panel.connection_key = Some((false, "codex"));
+        panel.connection_key = Some((false, "codex", String::new()));
         panel
     });
     daw.update(vcx, |daw, _| daw.app.agents.open = true);

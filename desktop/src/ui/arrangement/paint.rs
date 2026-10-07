@@ -836,7 +836,7 @@ fn ruler(bounds: Bounds<Pixels>, scene: &RulerScene, window: &mut Window, cx: &m
     for bar in first..=last {
         let x = geo.x(bar as f64).round();
         fill(window, pen.rect(x, 0.0, 1.0, h), ink.ruler_bar);
-        if bar as u64 % every == 0 {
+        if (bar as u64).is_multiple_of(every) {
             BAR_NUMBER.paint(
                 &(bar + 1).to_string(),
                 pen.at(x + 5.0, 9.0),
