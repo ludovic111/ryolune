@@ -720,16 +720,38 @@ pub fn remove(descriptor: &crate::plugin::Descriptor) -> Result<Value> {
     } else {
         path.clone()
     };
-    let removed = if target.is_dir() {
-        std::fs::remove_dir_all(&target)
+    // Move the whole bundle outside the scan roots before removing anything. Windows
+    // permits moving loaded DLLs, but cannot delete them until their last user exits.
+    // Retiring only the active DLL leaves older loaded generations in the installed bundle.
+    let retired_root = if path.starts_with(installed_dir()) {
+        lsuite::home().join("plugins-retired").join(APP)
     } else {
-        std::fs::remove_file(&target)
+        scan::data_dir().join("plugins-retired")
     };
-    if let Err(e) = removed {
-        // Windows keeps a loaded library: retire it so the next scan forgets the plugin.
-        let retired = path.with_extension(format!("{}.retired", native::library_extension()));
-        std::fs::rename(&path, &retired)
-            .map_err(|_| format!("Could not remove {}: {e}", target.display()))?;
+    std::fs::create_dir_all(&retired_root).map_err(|e| e.to_string())?;
+    // Earlier processes may have left locked files here. Never scan these directories.
+    for entry in std::fs::read_dir(&retired_root)
+        .into_iter()
+        .flatten()
+        .flatten()
+    {
+        let p = entry.path();
+        if p.is_dir() {
+            let _ = std::fs::remove_dir_all(p);
+        } else {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let retired = retired_root.join(format!("{}-{stamp}", std::process::id()));
+    std::fs::rename(&target, &retired)
+        .map_err(|e| format!("Could not remove {}: {e}", target.display()))?;
+    if retired.is_dir() {
+        let _ = std::fs::remove_dir_all(&retired);
+    } else {
+        let _ = std::fs::remove_file(&retired);
     }
     let scanned = rescan()?;
     Ok(json!({ "removed": descriptor.id, "path": target, "scan": scanned }))
