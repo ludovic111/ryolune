@@ -561,6 +561,7 @@ fn diagnostic(message: &Value, dir: &Path) -> Value {
                 .strip_prefix(dir)
                 .map(|p| p.display().to_string())
                 .unwrap_or_else(|_| f.to_string())
+                .replace('\\', "/")
         })
         .unwrap_or_default();
     json!({
