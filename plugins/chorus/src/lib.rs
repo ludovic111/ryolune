@@ -80,8 +80,8 @@ impl Plugin for Chorus {
                 frame[1] + wet[1] * self.feedback,
             ]);
             let mix = self.mix.step();
-            for c in 0..2 {
-                frame[c] += (wet[c] - frame[c]) * mix;
+            for (sample, wet) in frame.iter_mut().zip(wet) {
+                *sample += (wet - *sample) * mix;
             }
         }
     }

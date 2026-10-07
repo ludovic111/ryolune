@@ -70,13 +70,13 @@ impl Plugin for Bitcrusher {
             self.counter -= 1.0;
             if self.counter <= 0.0 {
                 self.counter += self.hold;
-                for c in 0..2 {
-                    self.held[c] = (frame[c] * self.steps).round() / self.steps;
+                for (held, sample) in self.held.iter_mut().zip(frame.iter()) {
+                    *held = (sample * self.steps).round() / self.steps;
                 }
             }
             let (mix, output) = (self.mix.step(), self.output.step());
-            for c in 0..2 {
-                frame[c] = (frame[c] + (self.held[c] - frame[c]) * mix) * output;
+            for (sample, held) in frame.iter_mut().zip(self.held) {
+                *sample = (*sample + (held - *sample) * mix) * output;
             }
         }
     }
