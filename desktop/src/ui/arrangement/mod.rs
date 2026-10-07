@@ -408,27 +408,40 @@ impl Arrangement {
             .into_any_element()
     }
 
-    /// Keep the microphone level of armed audio tracks moving while one is armed.
+    /// Keep the microphone level of armed audio tracks moving while one is armed. The level
+    /// is read on a 30 Hz timer, and the window redraws only when the meter would look
+    /// different: a silent input (or none) costs no frames. Redrawing the whole window 30
+    /// times a second for a still meter kept a core busy while idle.
     fn input_meter(&mut self, armed: bool, cx: &mut Context<Self>) {
         if !armed {
             self.meter = None;
             self.input_level = 0.0;
             return;
         }
-        let peak = self
-            .daw
-            .read(cx)
-            .app
-            .device
-            .as_ref()
-            .map_or(0.0, |d| d.telemetry.take_input_peak().min(1.0));
-        self.input_level = peak.max(self.input_level * 0.86);
         if self.meter.is_none() {
             self.meter = Some(cx.spawn(async move |this, cx| loop {
                 cx.background_executor()
                     .timer(Duration::from_millis(33))
                     .await;
-                if this.update(cx, |_, cx| cx.notify()).is_err() {
+                let alive = this.update(cx, |this, cx| {
+                    let peak = this
+                        .daw
+                        .read(cx)
+                        .app
+                        .device
+                        .as_ref()
+                        .map_or(0.0, |d| d.telemetry.take_input_peak().min(1.0));
+                    let level = peak.max(this.input_level * 0.86);
+                    let level = if level < 0.002 { 0.0 } else { level };
+                    let shown = |l: f32| (l * 120.0).round() as i32;
+                    if shown(level) != shown(this.input_level) {
+                        this.input_level = level;
+                        cx.notify();
+                    } else {
+                        this.input_level = level;
+                    }
+                });
+                if alive.is_err() {
                     break;
                 }
             }));
