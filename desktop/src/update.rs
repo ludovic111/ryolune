@@ -1756,10 +1756,15 @@ mod server_tests {
         assert!(release.sha256.is_some());
         let requests = log.lock().unwrap().clone();
         assert_eq!(requests[0].0, "/api/apps/ryolune/releases/latest");
+        // The API routes get the token; the signed addresses they redirect to never do.
         assert!(
             requests
                 .iter()
-                .all(|(_, auth)| auth.as_deref() == Some(&*format!("Bearer {TOKEN}"))),
+                .all(|(path, auth)| if path.starts_with("/api/") {
+                    auth.as_deref() == Some(&*format!("Bearer {TOKEN}"))
+                } else {
+                    path.starts_with("/signed/") && auth.is_none()
+                }),
             "{requests:?}"
         );
 

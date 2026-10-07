@@ -55,7 +55,7 @@ fn measure_reads_loudness_peaks_and_bands_of_a_range_and_each_track() {
     let m = call(
         &mut h,
         "harness.measure",
-        json!({"fromBar": 0, "toBar": 2, "tracks": true, "targetLufs": -14}),
+        json!({"fromBar": 0, "toBar": 2, "tracks": true, "targetLufs": -23}),
     );
     let l = &m["loudness"];
     let integrated = l["integratedLufs"]
@@ -72,7 +72,7 @@ fn measure_reads_loudness_peaks_and_bands_of_a_range_and_each_track() {
             .unwrap()
             .iter()
             .any(|f| f.as_str().unwrap().contains("target")),
-        "the demo is far from -14 LUFS: {m}"
+        "the demo is far from -23 LUFS: {m}"
     );
     // Hot enough to clip: the findings name the fix.
     call(&mut h, "master.setVolume", json!({"volume": 1.0}));
