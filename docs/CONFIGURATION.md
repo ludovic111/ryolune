@@ -152,7 +152,7 @@ The permissions themselves are listed under [`agent.permissions`](#agentpermissi
 
 | Path | Type | Default | What it does |
 |---|---|---|---|
-| `agent.provider` | string | `"codex"` | Which provider the built-in agent uses (table below). |
+| `agent.provider` | string | `"lsuite"` | Which provider the built-in agent uses (table below). Settings written before 0.15 keep theirs (they defaulted to `"codex"`). |
 | `agent.model` | string | `""` | Model name, at most 200 printable characters. Empty uses the provider's default. |
 | `agent.reasoningEffort` | string | `""` | Provider effort level (letters, digits, `_`, `-`; at most 40). Empty leaves it to the provider. |
 | `agent.anthropicApiKey` | string, secret | `""` | |
@@ -172,12 +172,14 @@ The permissions themselves are listed under [`agent.permissions`](#agentpermissi
 | `agent.maxOutputTokens` | integer 256-128000 | `4096` | Largest reply per turn. |
 | `agent.maxToolRounds` | integer 1-500 | `48` | Tool calls allowed in one task before the agent must answer. |
 | `agent.instructions` | string | `""` | Standing instructions appended to the system prompt, at most 20,000 characters. |
+| `agent.claudeThroughLsuite` | bool | `false` | Claude Code runs on the lsuite AI plan: ryolune starts it with `ANTHROPIC_BASE_URL=<server>/api/ai` and `ANTHROPIC_AUTH_TOKEN` from the lsuite account (and without `ANTHROPIC_API_KEY`). Needs a signed-in account. |
 | `agent.permissions` | object | see below | |
 
 Providers (`settings::Provider`):
 
 | Value | Service | Default model | Key from settings, then environment |
 |---|---|---|---|
+| `lsuite` | lsuite AI: the Anthropic Messages API at `<server>/api/ai`, for the plan's models | the plan's Sonnet, else its first model | the lsuite account's token (`~/.lsuite/account.json`, not settings) |
 | `codex` | Codex CLI, its own sign-in | (CLI's own) | none |
 | `claude` | Claude Code CLI, its own sign-in | (CLI's own) | none |
 | `anthropic` | Anthropic Messages API | `claude-sonnet-5` | `agent.anthropicApiKey`, `ANTHROPIC_API_KEY` |
@@ -208,6 +210,7 @@ What the built-in agent and agent-flagged MCP or CLI requests may do
 | `agent.permissions.settings` | bool | `false` | `settings.set`, `settings.reset`, `audio.setOutput`, `audio.setInput`, `audio.setMidiInput`, `audio.allowSpeakerMonitoring`. |
 | `agent.permissions.appControl` | bool | `false` | `app.quit`, `app.installUpdate`, `app.relaunch`, `app.confirm`. |
 | `agent.permissions.generation` | bool | `true` | `generate.audio` (it spends the generation service's credits). |
+| `agent.permissions.plugins` | bool | `false` | `plugin.new`, `plugin.writeSource`, `plugin.build`, `plugin.publishLocal`, `plugin.install`, `plugin.remove`, `plugin.enable`, `plugin.disable`, `plugin.scaffold` (lsuite's PLUGINS.md). Pressing Build in the Plugins window turns it on. |
 
 ### `generation`
 
@@ -234,6 +237,7 @@ The service `generate.audio` uses.
 | `plugins.favorites` | list of strings | `[]` | Starred plugin ids (at most 4,096). |
 | `plugins.folders` | object | `{}` | Plugin id to a sound folder name (1-40 characters) that overrides the automatic one. |
 | `plugins.recent` | list of strings | `[]` | Recently loaded plugin ids, newest first (at most 64). |
+| `plugins.disabled` | list of strings | `[]` | Plugin ids turned off (`plugin.disable`, the switches in the Plugins window; at most 4,096). They leave the browser and `plugin.list` and agents cannot load them; songs that use them still play them. |
 
 ### `control`
 
@@ -311,3 +315,16 @@ From `desktop/src/main.rs`:
 | `--no-update-check` | Skip the update check at start. |
 | `--release-keygen <file>`, `--sign-release <key> <file>`, `--verify-release <file>` | Release signing tools (see `DEVELOPMENT.md`). |
 | `--version`, `-V`; `--help`, `-h` | |
+
+## The lsuite account (`~/.lsuite/account.json`)
+
+Not a setting: the lsuite AI account every lsuite app on this computer shares (lsuite's AI.md),
+written by `account.signIn` and removed by `account.signOut`, 0600, atomically.
+`$LSUITE_HOME` replaces `~/.lsuite`. Fields: `format` (1), `server`, `email`, `name`, `plan`,
+`token` (a secret: never shown by a command or written to the log), `signedInAt`.
+`$LSUITE_ACCOUNT_SERVER` sets the server a new sign-in goes to (default `https://lsuite.xyz`); a
+signed-in account keeps the server that issued its token.
+
+Plugin sources an agent writes live in `~/.lsuite/plugins-src/ryolune/<name>/`, installed lsuite
+plugin bundles in `~/.lsuite/plugins/ryolune/<id>/`. `$RYOLUNE_PLUGIN_TARGET_DIR` moves the shared
+build folder (default `~/.lsuite/plugins-src/ryolune/.target`).

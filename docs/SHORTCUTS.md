@@ -89,6 +89,7 @@ The same list is in the app: Help > Shortcuts and Help (⌘/). ⌘ is Ctrl on Wi
 | Scissors Tool | `3` |
 | Agent Panel | `⌘J` |
 | Ask Agent About Selection… | `⇧⌘J` |
+| Plugins… | `⇧⌘P` |
 
 ## Musical typing
 

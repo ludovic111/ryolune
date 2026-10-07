@@ -250,6 +250,51 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   pre-0.14 settings count as done), `app.recent`/`app.openRecent`. Docs index `docs/README.md`,
   `ARCHITECTURE.md`, `CONFIGURATION.md`, `SESSION_FORMAT.md`. kimchi pins `ryolune-engine` at a rev:
   keep the engine's public API additive.
+- 0.15 (2026-10-07, overnight lsuite work, owner asleep; decisions mine): **lsuite AI**
+  (lsuite's AI.md). `engine/src/account.rs` is the shared account (`~/.lsuite/account.json`,
+  0600, token masked everywhere and added to the log's secrets), the server calls (ureq, now an
+  engine dependency, 15 s budget), the loopback sign-in (`sign_in_browser`: 127.0.0.1 random
+  port, `state` checked, code traded at `/api/account/token`) and a mock server
+  (`account::mock`, used by engine and desktop tests). Commands `account.status/signIn/signOut/
+  plans/manage` (`control_account.rs`); the window runs them on workers (`desktop/src/account.rs`
+  keeps the last status for Settings, setup and the panel; refreshed at start when signed in, when
+  Settings › Agent opens and after each lsuite turn). `Provider::Lsuite` is first in
+  `Provider::ALL` and the new default for fresh settings; it is `anthropic::run_lsuite` (the
+  Anthropic client on `<server>/api/ai/v1/messages`, model blank = the plan's Sonnet from
+  `/v1/models`); an allowance error becomes `account::ALLOWANCE_MESSAGE`, shown as one line with
+  Manage plan (`connection::allowance_used`), never a provider switch.
+  `agent.claudeThroughLsuite` runs Claude Code with `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`.
+  The lsuite mark (`assets/providers/lsuite.svg`) is the site's grain tile. Decided: the server
+  in the file wins over `LSUITE_ACCOUNT_SERVER` once signed in (a token never goes to another
+  server); signing in, out and the account page are refused to agents.
+  **Plugins** (lsuite's PLUGINS.md): `engine/src/plugin_dev.rs` holds the bundle manifest
+  (`plugin.toml`, toml crate), `plugin.info/enable/disable/remove/guide/toolchain/new/
+  writeSource/build/publishLocal`, `plugin.rescan` is an alias of `plugin.scan`, and
+  `plugin.install` takes bundles. Crates live in `~/.lsuite/plugins-src/ryolune/<name>/`: the
+  Cargo.toml takes `ryolune-plugin` by git URL and tag `v<version>`; `.cargo/config.toml`
+  replaces that source with a directory source holding the SDK built into the app
+  (`SDK_FILES`, include_str! of `sdk/src`, written to `.sdk/<version>/`) plus a seeded Cargo.lock
+  (cargo refuses a replaced git source without one; a [patch] still fetches the tag, which does
+  not exist before a release). Builds share `plugins-src/ryolune/.target`
+  (`RYOLUNE_PLUGIN_TARGET_DIR`). Bundles go to `~/.lsuite/plugins/ryolune/<id>/` (scanned as a
+  native folder) under a new library name per build, the previous one retired, because dlopen
+  hands back the library already loaded for a path; the window's `adopt_catalog` retires the
+  inserts whose library moved so `reconcile_plugins` reloads them (hot reload). Disabled ids are
+  `settings.plugins.disabled` (out of `plugin.list` unless `includeDisabled`, refused by
+  `choose`; songs still play them). `permissions.plugins` (off) gates the build commands; the
+  Plugins window's Build turns it on (pressing it is the person asking). Test binaries probe
+  plugins in-process (`probe_isolated`), they cannot be the `--scan-plugin` child.
+  `engine/tests/plugin_dev.rs` runs the real recipe with cargo (skipped without cargo).
+  The Plugins window is `ui/dialogs/plugins.rs` (sheet, four parts, `ui.showPanel
+  panel=plugins section=…`, Mix › Plugins… ⌘⇧P, Agent › Build a Plugin…). Examples on the SDK:
+  `plugins/bitcrusher`, `plugins/chorus` (with `plugin.toml`). Logos of formats and DAWs are in
+  `desktop/assets/logos` with `NOTICE.md` (REAPER's is Wikipedia fair use: replace it with one
+  from Cockos when possible; Logic Pro, GarageBand and Audio Units show Apple's logo and Studio
+  One PreSonus's, no SVG of their own exists); `ui/dialogs/apps.rs` is the logo grid of setup
+  and Import/Export for Another App. Idle: `reconcile_plugins` returns at once while settled
+  (`Bank::settled`), and waiting only on workers no longer ticks per frame (`Ryolune::busy`).
+  The mark generator follows kimchi's constants (ring of even weight, kimchi's dither ramp and
+  scale); `ryolune.icns` needs `scripts/make-icon.sh` on a Mac (iconutil).
 - Tests: a cargo test binary resolves settings, data, the control file, `~/.lsuite` and the kimchi
   library to a per-process scratch folder when no override is set (`host::scan::test_sandbox`);
   still run tests and the app with `RYOLUNE_SETTINGS`, `RYOLUNE_DATA_DIR`, `RYOLUNE_CONTROL` and
@@ -266,6 +311,9 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   is sold or locked, so copy says donate or sponsor, never pay, price or checkout. The app asks once,
   after the third export (`SUPPORT_AFTER_EXPORTS`); a quiet Sponsor key sits at the right of the
   title bar (`app.openGuide guide=support`), and `.github/FUNDING.yml` shows GitHub's Sponsor button.
+  Since 2026-10-06 (owner's decision, lsuite's AI.md) lsuite sells one thing, lsuite AI (AI in
+  the apps without setup), a demo for now; ryolune itself stays free and unlocked. Only the lsuite
+  AI parts of the window speak of a plan (Manage plan, the allowance); nothing else is sold.
 - Every persistent UI edit dispatches `store::Command`. Keep drag previews local and group
   continuous edits with `Store::set_gesture`. Preserve undo and source/clip alignment.
 - No allocations, deallocations, blocking, I/O or logging in the audio callback. Compile graphs

@@ -122,6 +122,7 @@ switches for the rest:
 | Settings | `settings.set`, `settings.reset` |
 | Application control | quit, install an update, restart (`app.relaunch`, also `app.restart`) |
 | Generate sounds | `generate.audio`, which spends the generation service's credits (on by default) |
+| Build and install plugins | `plugin.new`, `plugin.writeSource`, `plugin.build`, `plugin.publishLocal`, `plugin.install`, `plugin.remove`, `plugin.enable`, `plugin.disable`, `plugin.scaffold` (off by default; Build in the Plugins window turns it on) |
 
 Connecting an AI service or a generation service, signing in and changing these permissions stay
 with the person: agents may not set `agent.*`, `control.*` or `generation.*`. The song's project
@@ -129,6 +130,51 @@ memory and its saved conversations are the person's too: an agent may read the m
 (`agent.memory`), list, open, start and rename conversations, and steer the built-in agent, but
 `agent.setMemory` and `agent.deleteConversation` are refused to agents (the memory goes ahead of
 every later request, like the standing instructions in Settings; a deleted conversation is gone).
+
+## lsuite AI
+
+lsuite AI is the subscription that makes the agent work without setup (lsuite's AI.md). The
+account is shared by every lsuite app on the computer (`~/.lsuite/account.json`):
+
+```sh
+ryolune-cli account.status                 # plan, allowance used, models; never the token
+ryolune-cli account.plans                  # the plans the server offers (a demo: no payment)
+ryolune-cli account.signIn key=lsk_…       # the key from the account page (headless use)
+ryolune-cli account.signIn                 # in the window: opens the browser and waits
+ryolune-cli account.signOut                # signs out every lsuite app here
+```
+
+Agents may read `account.status` and `account.plans`; `account.signIn`, `account.signOut` and
+`account.manage` are the person's. The provider `lsuite` is Anthropic's Messages API at
+`<server>/api/ai` with the account's token, so Claude Code can run on it too
+(`agent.claudeThroughLsuite`, which sets `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`). When
+the plan's allowance is used up, the turn ends with one line saying so; ryolune never switches
+provider by itself. `LSUITE_ACCOUNT_SERVER` points a new sign-in at another server (a local
+demo).
+
+## Plugins an agent builds
+
+Ask for a plugin and the agent writes it (lsuite's PLUGINS.md). The recipe, which
+`plugin.guide` also returns with the SDK, the rules of the audio thread and an example:
+
+```sh
+ryolune-cli plugin.guide                              # Markdown for the agent
+ryolune-cli plugin.toolchain                          # {cargo, rustc, version, ok, installHint}
+ryolune-cli plugin.new name="Night Crush" kind=effect # ~/.lsuite/plugins-src/ryolune/night-crush
+ryolune-cli plugin.writeSource name="Night Crush" path=src/lib.rs contents="$(cat lib.rs)"
+ryolune-cli plugin.build name="Night Crush"           # ok, errors: [{file, line, column, message}]
+ryolune-cli plugin.publishLocal name="Night Crush"    # installed, loaded, no restart
+ryolune-cli strip.insertPlugin trackId=Drums pluginId=native:com.you.nightcrush firstFreeSlot=true
+```
+
+The crate takes `ryolune-plugin` from GitHub by tag, and builds against the SDK built into this
+ryolune (`.cargo/config.toml` replaces that source), so a plugin always matches the app that asked
+for it. `plugin.publishLocal` installs a bundle (`plugin.toml` and the library) in
+`~/.lsuite/plugins/ryolune/<id>/` under a new library name each time, rescans, and the window
+reloads every insert that uses it. `plugin.list` rows say `enabled`; `plugin.enable` /
+`plugin.disable` are the switches; `plugin.remove` deletes a plugin the person installed;
+`plugin.rescan` is `plugin.scan`. The Plugins window is `ui.showPanel panel=plugins
+section=stock|installed|formats|build`.
 
 ## The built-in agent's conversations
 
@@ -367,7 +413,7 @@ prefilled GitHub issue in their browser, and nothing is ever sent by itself.
 
 ## What only a person does
 
-A few things deliberately have no command for agents: signing in to an AI service and changing the agent's
+A few things deliberately have no command for agents: signing in to an AI service or to lsuite AI and changing the agent's
 connection or permissions or the generation service, opening a GitHub issue
 (`app.reportProblem` is refused to agents), answering the first-run setup, the menu bar itself, the agent panel's own composer, and pure layout
 (vertical track scroll, folding a browser folder). The reasons are listed in

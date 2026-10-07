@@ -19,7 +19,14 @@ same song, and every edit it makes is one undo away.
   plugin delay compensation, input monitoring, count-in, crash-isolated plugin scanning) and the
   window, drawn on the GPU with GPUI. No webview, no JavaScript.
 - **35 stock instruments and effects** with front panels that draw what the audio does, plus
-  your own CLAP, VST3, Audio Unit (macOS) and ryolune native plugins.
+  your own CLAP, VST3, Audio Unit (macOS) and lsuite plugins, all in one Plugins window with a
+  switch on each.
+- **Plugins you can ask for**: describe an effect or an instrument and your agent writes it in
+  Rust on ryolune's SDK, builds it and loads it, without a restart (`plugin.guide`,
+  `plugin.new`, `plugin.build`, `plugin.publishLocal`).
+- **lsuite AI**: sign in once and the agent works, with no Claude Code to install and no key to
+  paste; the account is shared by every lsuite app. A demo for now: no payment is taken.
+  Bringing your own provider stays free.
 - **The lsuite look** (design system v2, shared with kimchi): black and white, square corners,
   film grain and dithered light behind the chrome, solid work surfaces, every area titled and
   its tools boxed together, in dark and light, with text contrast tested on every surface.
@@ -34,7 +41,7 @@ same song, and every edit it makes is one undo away.
 - **Built for AI control**: everything a person can do in the window is a command that the
   built-in agent, `ryolune-cli` and any MCP client can call, with a one-call overview of the whole
   song and full access to external plugins' parameters and state. The built-in agent runs on
-  Codex, Claude Code, Anthropic, OpenAI, Gemini, OpenRouter, Mistral, Groq, DeepSeek, xAI, Ollama,
+  lsuite AI, Codex, Claude Code, Anthropic, OpenAI, Gemini, OpenRouter, Mistral, Groq, DeepSeek, xAI, Ollama,
   LM Studio, zenith or any compatible server; Settings shows a ready setup for Claude Code, Codex,
   Cursor, VS Code, Claude Desktop, Gemini CLI and other MCP apps.
 - **Conversations that stay with the song**: each song keeps its agent conversations and a
@@ -43,7 +50,7 @@ same song, and every edit it makes is one undo away.
 - **Sounds from a description**: loops that fit your bars and key, song ideas, one-shots and
   playable instruments, made with ElevenLabs, Stable Audio, fal.ai or your own endpoint and placed
   in one undo step. Any sound can become a Sample Keys instrument.
-- **Offline and private**: no account, no subscription, no telemetry. Songs are single `.ryolune`
+- **Offline and private**: no account needed (lsuite AI is optional), no telemetry. Songs are single `.ryolune`
   files with the audio inside. Logs and crash reports stay on your computer (Settings >
   Diagnostics); Help > Report a Problem opens a GitHub issue for you to read before sending.
 

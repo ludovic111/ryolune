@@ -2,18 +2,18 @@
 
 <!-- Generated from the command registry by tools/tests/command_docs.rs. Do not edit by hand: run `RYOLUNE_BLESS=1 cargo test -p ryolune-tools --test command_docs`. -->
 
-ryolune has 224 commands. The window, `ryolune-cli`, `ryolune-mcp` and the built-in agent all run these same commands, with the same undo history. On the CLI a command is `ryolune-cli <name> --param value`; in MCP it is the tool `<name>` with the dot replaced by an underscore (`track.add` is `track_add`); the agent sees the same tools.
+ryolune has 239 commands. The window, `ryolune-cli`, `ryolune-mcp` and the built-in agent all run these same commands, with the same undo history. On the CLI a command is `ryolune-cli <name> --param value`; in MCP it is the tool `<name>` with the dot replaced by an underscore (`track.add` is `track_add`); the agent sees the same tools.
 
 Conventions: bars and beats are zero-based; note `start` and `length` are beats relative to their clip; pitch 60 is C4; velocity is 1–127; a fader value of 0.75 is unity gain. Strip commands accept a track id or `master`, `bus-a`, `bus-b`; insert slots are 0–7.
 
 **Edits** marks a command that can change the song, the transport, settings or files (it is one undo step when it changes the song). **Needs the app** marks a command only the running window can serve; the others also work on a file (`ryolune-cli --file song.ryolune …`).
 
-Names shared across the lsuite apps are accepted too, and run the ryolune command beside them: `app.version` → `app.info`, `project.overview` → `session.overview`, `export.audio` → `session.exportAudio`, `export.stems` → `session.exportStems`, `export.midi` → `session.exportMidi`, `app.restart` → `app.relaunch`, `project.formats` → `session.formats`, `project.importFrom` → `session.importFrom`, `project.exportTo` → `session.exportTo`.
+Names shared across the lsuite apps are accepted too, and run the ryolune command beside them: `app.version` → `app.info`, `project.overview` → `session.overview`, `export.audio` → `session.exportAudio`, `export.stems` → `session.exportStems`, `export.midi` → `session.exportMidi`, `app.restart` → `app.relaunch`, `project.formats` → `session.formats`, `project.importFrom` → `session.importFrom`, `project.exportTo` → `session.exportTo`, `plugin.rescan` → `plugin.scan`.
 
 ## Families
 
 - [session](#session) — `session.info`, `session.get`, `session.inspect`, `session.catalog`, `session.commands`, `session.new`, `session.open`, `session.save`, `session.rename`, `session.bounce`, `session.importAudio`, `session.importMidi`, `session.exportMidi`, `session.exportAudio`, `session.exportStems`, `session.batch`, `session.saveRecoveredTake`, `session.snapshots`, `session.restoreSnapshot`, `session.overview`, `session.scoreCut`, `session.formats`, `session.importFrom`, `session.exportTo`
-- [plugin](#plugin) — `plugin.list`, `plugin.scan`, `plugin.folders`, `plugin.setFavorite`, `plugin.setFolder`, `plugin.scaffold`, `plugin.install`, `plugin.describe`
+- [plugin](#plugin) — `plugin.list`, `plugin.scan`, `plugin.folders`, `plugin.setFavorite`, `plugin.setFolder`, `plugin.scaffold`, `plugin.install`, `plugin.describe`, `plugin.info`, `plugin.enable`, `plugin.disable`, `plugin.remove`, `plugin.guide`, `plugin.toolchain`, `plugin.new`, `plugin.writeSource`, `plugin.build`, `plugin.publishLocal`
 - [transport](#transport) — `transport.play`, `transport.record`, `transport.stop`, `transport.locate`, `transport.returnToStart`, `transport.setTempo`, `transport.setTimeSignature`, `transport.setKey`, `transport.setCycle`, `transport.setMetronome`, `transport.setSnap`, `transport.punch`
 - [track](#track) — `track.list`, `track.add`, `track.remove`, `track.rename`, `track.setMute`, `track.setSolo`, `track.setArmed`, `track.setMonitor`, `track.setVolume`, `track.setPan`, `track.setColor`, `track.move`, `track.select`, `track.setOutput`, `track.group`, `track.duplicate`
 - [clip](#clip) — `clip.list`, `clip.get`, `clip.create`, `clip.move`, `clip.resize`, `clip.rename`, `clip.split`, `clip.duplicate`, `clip.copy`, `clip.cut`, `clip.paste`, `clip.remove`, `clip.setNotes`, `clip.addLoop`, `clip.select`, `clip.trim`, `clip.deselect`, `clip.setFades`, `clip.setGain`, `clip.humanize`, `clip.velocityRamp`, `clip.fitScale`, `clip.reverseMidi`, `clip.legato`, `clip.repeat`, `clip.quantize`, `clip.transpose`
@@ -38,6 +38,7 @@ Names shared across the lsuite apps are accepted too, and run the ryolune comman
 - [generate](#generate) — `generate.services`, `generate.audio`, `generate.list`, `generate.preview`, `generate.place`, `generate.delete`
 - [export](#export) — `export.toKimchi`
 - [handoff](#handoff) — `handoff.inbox`
+- [account](#account) — `account.status`, `account.signIn`, `account.signOut`, `account.plans`, `account.manage`
 
 ## session
 
@@ -292,6 +293,7 @@ Search a page of installed plugins from the scanner cache. Use query/kind/format
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `everyLayout` | boolean |  | List each channel layout as its own row instead (default false). |
+| `includeDisabled` | boolean |  | Also list plugins turned off with plugin.disable (each row says `enabled`). |
 | `query` | string |  | Case-insensitive name, vendor or plugin ID search. |
 | `format` | string |  | stock, native, clap, vst3 or au. |
 | `kind` | string |  | instrument or effect. |
@@ -337,7 +339,7 @@ File a plugin under another sound folder, or a new one of your own. Omit folder 
 
 *Edits*
 
-Start a new ryolune native plugin in Rust: writes a crate with a working effect or instrument, a test that runs it through the real plugin ABI, and build notes. Build it with cargo, then plugin.install.
+Start a new ryolune native plugin in Rust at a path of your choice: writes a crate with a working effect or instrument, its plugin.toml, a test that runs it through the real plugin ABI, and build notes. Build it with cargo, then plugin.install. plugin.new does the same in the lsuite sources folder, for plugin.build and plugin.publishLocal.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
@@ -350,11 +352,11 @@ Start a new ryolune native plugin in Rust: writes a crate with a working effect 
 
 *Edits*
 
-Copy a built native plugin library (.dylib, .so, .dll or .onplug) into ryolune's plugin folder. Run plugin.scan afterwards to load it.
+Install a built plugin: an lsuite bundle (a folder with plugin.toml and its library) goes to ~/.lsuite/plugins/ryolune and is loaded at once; a bare library (.dylib, .so, .dll or .onplug) is copied into ryolune's plugin folder, then plugin.scan loads it.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `path` | string | yes | The built library, for example target/release/libwarm_drive.dylib. |
+| `path` | string | yes | The bundle folder, or the built library such as target/release/libwarm_drive.dylib. |
 
 ### `plugin.describe`
 
@@ -365,6 +367,96 @@ Describe an installed plugin without placing it: format, vendor, category, laten
 | `pluginId` | string | yes | Descriptor ID from plugin.list (stock:Space, vst3:…), or the plugin's name. |
 | `query` | string |  | Only parameters whose name matches these words. |
 | `limit` | integer |  | Parameters to return, 1-10000, default 200. |
+
+### `plugin.info`
+
+One plugin, as the Plugins window shows it: name, kind, format, vendor, version, description, whether it is on, where it came from (its bundle and plugin.toml for lsuite plugins) and its parameters.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes | Plugin id from plugin.list (stock:Space, native:com.you.drive, clap:…), or its name. |
+
+### `plugin.enable`
+
+*Edits*
+
+Turn a plugin back on: it shows in the browser and agents can load it again.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes | Plugin id from plugin.list. |
+
+### `plugin.disable`
+
+*Edits*
+
+Turn a plugin off without deleting it (a setting): it leaves the browser and agents cannot load it; songs that use it still play it.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes | Plugin id from plugin.list. |
+
+### `plugin.remove`
+
+*Edits*
+
+Delete an lsuite plugin you installed (its bundle in ~/.lsuite/plugins/ryolune) and rescan. Stock plugins and CLAP, VST3 or Audio Unit plugins can only be disabled.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | yes | Plugin id from plugin.list. |
+
+### `plugin.guide`
+
+How to write a ryolune plugin in Rust, for an agent: the SDK, the kinds, plugin.toml, the rules of the audio thread, an example and the recipe (plugin.toolchain, plugin.new, plugin.writeSource, plugin.build, plugin.publishLocal). Markdown, made from the SDK this ryolune carries.
+
+### `plugin.toolchain`
+
+Whether Rust is installed to build plugins: cargo and rustc paths, the version, ok, and how to install it (rustup) when it is missing.
+
+### `plugin.new`
+
+*Edits*
+
+Start a plugin crate from the SDK template in ~/.lsuite/plugins-src/ryolune/<name>/: a working effect or instrument, its plugin.toml and tests. Returns its path and files.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Plugin display name, for example Warm Drive. |
+| `kind` | string | yes | effect or instrument. |
+| `vendor` | string |  | Your name or label, default the person's lsuite name or My Studio. |
+
+### `plugin.writeSource`
+
+*Edits*
+
+Write one whole file of a plugin crate made by plugin.new (src/lib.rs, a new module, plugin.toml). Paths outside the crate are refused.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | The plugin's name or crate name from plugin.new. |
+| `path` | string | yes | Path inside the crate, such as src/lib.rs. |
+| `contents` | string | yes | The whole file. |
+
+### `plugin.build`
+
+*Edits*
+
+Build a plugin crate (cargo build --release). Returns ok and the compiler's errors as {file, line, column, message, rendered}, never the whole log. The first build takes a minute; later ones seconds. Runs as a job in the app.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | The plugin's name or crate name from plugin.new. |
+
+### `plugin.publishLocal`
+
+*Edits*
+
+Build a plugin crate, install it as an lsuite plugin bundle and load it: it is in plugin.list at once, and songs already using it reload it, without restarting ryolune. A failed build installs nothing and returns its errors.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | The plugin's name or crate name from plugin.new. |
 
 ## transport
 
@@ -1828,13 +1920,13 @@ Capture the window to a PNG so an agent can see the interface. Returns the file 
 
 *Edits · Needs the app*
 
-Show or hide an interface panel: agent, automation, mixer (every channel, in place of the region editor), controllers (the controller lane under the piano roll), tempo (the tempo track under the ruler), palette (the command palette), settings, help, export, recovery, whatsNew (the release notes of this version), diagnostics (Settings › Diagnostics), or master / bus-a / bus-b in the inspector.
+Show or hide an interface panel: agent, automation, mixer (every channel, in place of the region editor), controllers (the controller lane under the piano roll), tempo (the tempo track under the ruler), palette (the command palette), settings, plugins (the Plugins window: stock, installed, formats, build with your agent), help, export, recovery, whatsNew (the release notes of this version), diagnostics (Settings › Diagnostics), or master / bus-a / bus-b in the inspector.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `panel` | string | yes | agent, automation, mixer, controllers, tempo, palette, settings, help, export, recovery, whatsNew, diagnostics, master, bus-a or bus-b. |
+| `panel` | string | yes | agent, automation, mixer, controllers, tempo, palette, settings, plugins, help, export, recovery, whatsNew, diagnostics, master, bus-a or bus-b. |
 | `visible` | boolean |  | Show (default) or hide. |
-| `section` | string |  | Settings section: general, audio, interface, agent, generation, plugins, control, updates, diagnostics or about. |
+| `section` | string |  | Settings section: general, audio, interface, agent, generation, plugins, control, updates, diagnostics or about. Plugins window part: stock, installed, formats or build. |
 
 ### `ui.openPluginWindow`
 
@@ -2017,7 +2109,7 @@ Finish (or skip) the first-run setup with the person's choices: the app they com
 |---|---|---|---|
 | `comingFrom` | string | yes | App id from session.formats (ableton, logic, fl, bitwig, reaper, cubase, studioone, protools, garageband), or none. |
 | `ai` | boolean | yes | Whether they want AI features (the agent and sound generation). |
-| `agentProvider` | string |  | Agent provider to select when ai is true (agent.providers): codex, claude, anthropic, openai, gemini… |
+| `agentProvider` | string |  | Agent provider to select when ai is true (agent.providers): lsuite, codex, claude, anthropic, openai, gemini… |
 | `skipped` | boolean |  | They skipped the setup; the choices given still apply. |
 
 ### `app.recent`
@@ -2051,7 +2143,7 @@ Select the agent provider, model and reasoning effort together. Only while idle.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `provider` | string | yes | codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio, compatible or zenith. |
+| `provider` | string | yes | lsuite (lsuite AI, after account.signIn), codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio, compatible or zenith. |
 | `model` | string | yes | Model ID; empty uses the provider default. |
 | `reasoningEffort` | string | yes | Provider effort level; empty uses its default. |
 
@@ -2298,3 +2390,39 @@ Render the mix (or one stem per track) and put it on a kimchi video project, on 
 ### `handoff.inbox`
 
 Hand-offs other lsuite apps left for ryolune (a cut from kimchi to score), oldest first, from ~/.lsuite/handoff/ryolune (kimchi's handoff.toRyolune writes `<name>.kimchi-cut.json` there). Pass a manifest to session.scoreCut.
+
+## account
+
+### `account.status`
+
+The lsuite account this computer is signed in to (shared by every lsuite app): email, plan, the allowance used this month (`summary` reads like "Pro · 38 % used · resets 1 Nov"), the plan's models and where to manage it. Asks the lsuite server unless check is false. Never shows the token.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `check` | boolean |  | Ask the server for the plan and allowance (default true); false reads only the account file. |
+
+### `account.signIn`
+
+*Edits*
+
+Sign in to lsuite AI so the agent works without any other setup, for every lsuite app on this computer. Without key, the window opens the browser to sign in (or create the account and pick a plan) and waits for it; with key, uses the key shown on the account page (lsk_…), which also works from ryolune-cli. Only a person can do this.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `key` | string |  | The key from your lsuite account page (lsk_…), for the CLI and headless use. |
+
+### `account.signOut`
+
+*Edits*
+
+Sign out of lsuite AI on this computer (every lsuite app): the server forgets the token and the account file is removed. Only a person can do this.
+
+### `account.plans`
+
+The lsuite AI plans as the server offers them: prices, models and monthly allowances (a demo for now: no payment is taken).
+
+### `account.manage`
+
+*Edits*
+
+Open the lsuite account page (plan, allowance, key) in the web browser; headless, returns its address. Only a person can do this.

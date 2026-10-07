@@ -85,6 +85,7 @@ what was left out and `next` names the commands that drill down.
 | `askAgent` | ⇧⌘J | `ui.showPanel` panel=agent, `agent.send` | covered |
 | `stopAgent` | | `agent.stop` | covered (its menu item was never enabled: fixed, it now follows the running agent) |
 | `newAgentConversation` | Agent › New Agent Conversation | `agent.newConversation` | covered |
+| `buildPlugin` | Agent › Build a Plugin with Your Agent…: the description field and Build | `ui.showPanel panel=plugins section=build`, `plugin.toolchain`, `agent.send` (the recipe: `plugin.guide`, `plugin.new`, `plugin.writeSource`, `plugin.build`, `plugin.publishLocal`) | covered |
 | `editorPianoRoll` | | `view.set` editorMode=pianoRoll | covered |
 | `editorScore` | | `view.set` editorMode=score | covered |
 | `editorStep` | | `view.set` editorMode=step | covered |
@@ -142,7 +143,8 @@ Musical typing plays the letter keys while it is on (`note.hold`, `note.releaseA
 | `reconnectOutput` | Mix › Reconnect output | `audio.reconnect` | covered |
 | `audioSettings` | Mix › Audio and MIDI devices… | `audio.setOutput`, `audio.setInput`, `audio.setMidiInput`; `ui.showPanel` panel=settings section=audio | covered |
 | `musicalTyping` | Mix › Musical typing (⌘K) | `ui.musicalTyping` | covered |
-| `rescanPlugins` | Mix › Rescan plugins | `plugin.scan` | covered |
+| `showPlugins` | Mix › Plugins… (⌘⇧P): Stock, Installed, Formats, Build with your agent; the switches and Remove | `ui.showPanel panel=plugins`, `plugin.list`, `plugin.info`, `plugin.enable`, `plugin.disable`, `plugin.remove` | covered |
+| `rescanPlugins` | Mix › Rescan plugins | `plugin.scan` (alias plugin.rescan) | covered |
 | `agentSettings` | Agent › Agent settings… | `ui.showPanel` panel=settings section=agent | covered |
 | `toggleAutomation` | View › Automation | `ui.showPanel` panel=automation | covered |
 | `checkUpdates` | Help › Check for updates… | `app.checkUpdates`, `app.installUpdate`, `app.relaunch` (also app.restart, the lsuite name for it) | covered; an open window also checks every six hours |

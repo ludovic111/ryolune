@@ -219,6 +219,20 @@ click its automation button to open that parameter's lane.
 - **Presets**: every stock plugin has factory presets and you can save your own from its panel.
 - **State**: an external plugin's own state is saved with the song, so its sound comes back when
   you reopen it and when you export.
+- **The Plugins window** (Mix > Plugins…, `⇧⌘P`) has four parts. **Stock** lists ryolune's
+  instruments and effects with what each does. **Installed** lists what was found on this
+  computer with the logo of its format, its vendor and version; every plugin has an on/off switch
+  (a plugin turned off leaves the browser and agents cannot load it, songs that use it still play
+  it) and plugins you installed have Remove. **Formats** shows what ryolune loads and where it
+  looks. **Build with your agent** is below.
+- **Build with your agent**: describe the plugin you want ("a bitcrusher with a mix knob", "a
+  simple FM bell") and press Build. The agent panel opens and the agent writes the plugin in Rust
+  on ryolune's SDK, builds it until it compiles, installs it and loads it on your track; each step
+  shows as a card. The plugin is in Installed at once, without restarting, and rebuilding it
+  reloads the tracks that use it. It needs Rust: the window says whether it is installed and opens
+  rustup.rs to install it (nothing is installed without you). Building and installing plugins is
+  a permission of its own (Settings > Agent); pressing Build allows it. The sources are in
+  `~/.lsuite/plugins-src/ryolune` (Show sources).
 - See [PLUGINS.md](PLUGINS.md) for hosting details and limits.
 
 ## Files: save, import, export, recover
@@ -243,9 +257,11 @@ click its automation button to open that parameter's lane.
 
 ## Coming from another app
 
-The first time ryolune starts, a short setup asks which app you made music in, whether you want
-the AI features (the agent and sound generation; nothing is hidden either way), lets you connect
-an agent provider and check the sound output, and starts you on the demo song, an empty song or
+The first time ryolune starts, a short setup asks which app you made music in (Ableton Live,
+Logic Pro, FL Studio, Bitwig Studio, REAPER, Cubase, Studio One, Pro Tools or GarageBand, each
+with its logo), whether you want the AI features (the agent and sound generation; nothing is
+hidden either way), lets you sign in to lsuite AI or connect another agent provider, check the
+sound output, and starts you on the demo song, an empty song or
 a song from your old app. Help > Set Up ryolune… shows it again. If you used ryolune before this
 setup existed, it counts as done.
 
@@ -286,8 +302,17 @@ set the tempo they were made at before editing to the grid.
 
 ## The agent
 
-The panel at the right edge is a music assistant that works inside your song. Choose a service in
-Settings > Agent: Codex or Claude Code (they use their own sign-in); an API key for Anthropic,
+The panel at the right edge is a music assistant that works inside your song. The simplest
+service is **lsuite AI**, first in Settings > Agent and in the first-run setup: press Sign in,
+sign in or create your lsuite account in the browser, press Connect ryolune, and the agent works,
+with no other setup. Signing in once signs in every lsuite app on this computer. Settings > Agent
+shows your plan and how much of this month's allowance is used (`Pro · 38 % used · resets 1 Nov`),
+Manage plan and Sign out. When the allowance runs out the agent says so in one line with Manage
+plan, and never moves to another service by itself. Without a browser, paste the key from your
+account page. (lsuite AI is a demo for now: no payment is taken.)
+
+You can also bring your own: Codex or Claude Code (they use their own sign-in, or Claude Code can
+run on your lsuite AI plan: Run on lsuite AI); an API key for Anthropic,
 OpenAI, Google Gemini, OpenRouter, Mistral, Groq, DeepSeek or xAI; Ollama or LM Studio running on
 this computer; any OpenAI-compatible server; or **Zenith · lsuite**, the agents you use in zenith.
 Then describe what you want in your own words and
@@ -316,8 +341,8 @@ track silent?".
   Desktop, Gemini CLI and other MCP apps to the open window, with each one's configuration ready
   to copy, or one click for Cursor and VS Code.
 - **Permissions** (Settings > Agent) decide whether the agent may touch files, the transport,
-  replace the session, change settings, control the application or generate sounds. They also apply to MCP
-  clients.
+  replace the session, change settings, control the application, generate sounds or build and
+  install plugins. They also apply to MCP clients.
 
 Scripts and external AI tools control ryolune through the same commands: see
 [AI_CONTROL.md](AI_CONTROL.md).
