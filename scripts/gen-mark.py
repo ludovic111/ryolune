@@ -27,7 +27,9 @@ def octagon(half, cut):
             (b - cut, b), (a + cut, b), (a, b - cut), (a, a + cut)]
 
 
-INNER_CUT = CUT - RING * math.tan(math.radians(22.5))
+# Offsetting the octagon inward by RING moves each diagonal by RING too only when the inner cut
+# shrinks by RING * (2 - sqrt 2): the ring is then 8 units on all eight sides, like kimchi's stem.
+INNER_CUT = CUT - RING * (2 - math.sqrt(2))
 OUT = octagon(OUTER, CUT)
 IN = octagon(OUTER - RING, INNER_CUT)
 
@@ -82,7 +84,9 @@ def dots(cell=2.2, size=1.75):
             p = (x + cell / 2, y + cell / 2)
             if inside_poly(p, OUT) and not inside_poly(p, IN) and axis(p) < SPLIT:
                 depth = min(1.0, (SPLIT - axis(p)) / (SPLIT + 0.78))
-                level = 0.95 - 0.9 * depth ** 0.9
+                # kimchi's ramp: solid where it leaves the sharp part, 40 % at the far end, so
+                # the ring still reads whole at 32 px.
+                level = 1 - 0.6 * depth ** 1.3
                 if level > (BAYER[j % 4][i % 4] + 0.5) / 16:
                     out.append(f'<rect x="{x:.2f}" y="{y:.2f}" width="{size}" height="{size}"/>')
             x += cell
@@ -123,7 +127,7 @@ def icon():
             if level > (BAYER[j % 4][i % 4] + 0.5) / 16:
                 corner.append(f'<rect x="{100 + i * cell}" y="{100 + j * cell}" '
                               f'width="{cell - 5}" height="{cell - 5}"/>')
-    scale = 478 / (2 * OUTER)
+    scale = 10.86  # kimchi's: 44 grid units -> 478 px, about 58 % of the 824 px tile
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <!-- ryolune app icon (lsuite v2): the macOS icon grid (824 px continuous-corner tile on 1024)
        in near black, a corner of dithered light like the app's page, and the mark
@@ -136,7 +140,7 @@ def icon():
   <use href="#tile" fill="#0b0b0b"/>
   <g clip-path="url(#tile-clip)" fill="#fff" fill-opacity="0.16">{"".join(corner)}</g>
   <use href="#tile" fill="none" stroke="#fff" stroke-opacity="0.16" stroke-width="3"/>
-  <g transform="translate(512 512) scale({scale:.4f}) translate({-C} {-C})">{mark("#fff")}</g>
+  <g transform="translate(512 512) scale({scale}) translate({-C} {-C})">{mark("#fff")}</g>
 </svg>'''
 
 
