@@ -358,6 +358,23 @@ impl Ryolune {
             if matches!(method, "generate.audio" | "generate.place") {
                 return self.start_generation(method, params, agent, source);
             }
+            if matches!(method, "harness.look" | "harness.measure") {
+                // An offline render of the song: seconds of work that must not hold the
+                // interface. It renders a copy of the song with its plugins' current state.
+                self.guarded(Ryolune::capture_plugin_states)?;
+                let mut scratch = Headless {
+                    store: Store::new(self.store.session().clone())?,
+                    library: self.library.clone(),
+                    path: self.path.clone(),
+                    position: self.position,
+                    clipboard: None,
+                    lane_width: self.lane_width,
+                };
+                let (method_owned, params_owned) = (method.to_string(), params.clone());
+                return Ok(self.start_worker(method, params, source, move || {
+                    control::call(&mut scratch, &method_owned, &params_owned, agent)
+                }));
+            }
             if method == "rhythm.preview" {
                 // The render runs on a scratch document that has no file: check the window's.
                 if let Some(path) = params.get("path").and_then(Value::as_str) {
@@ -1463,6 +1480,7 @@ impl Host for Ryolune {
                 Ok(json!({ "path": path }))
             }
             "agent.changes" => Ok(self.agents.changes_json(self.store.undo_depth())),
+            "agent.revertTurn" => self.revert_turn(params["redo"].as_bool().unwrap_or(false)),
             "agent.revert" => {
                 let sequence = params["sequence"]
                     .as_u64()

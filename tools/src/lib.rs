@@ -145,6 +145,21 @@ impl Backend {
     }
 }
 
+/// A result as the CLI prints it: a picture's base64 (`harness.look`) is replaced by its size,
+/// since the PNG is on disk at `image.path`.
+pub fn printable(mut value: Value) -> Value {
+    if let Some(image) = value.get_mut("image").and_then(Value::as_object_mut) {
+        if let Some(data) = image.get("data").and_then(Value::as_str) {
+            let bytes = data.len() / 4 * 3;
+            image.insert(
+                "data".into(),
+                Value::String(format!("<{bytes} bytes of PNG: see path>")),
+            );
+        }
+    }
+    value
+}
+
 /// Coerce a command-line value to the parameter's declared type. Unknown parameters fall back to
 /// JSON-then-string so the registry can name them in its error.
 pub fn coerce(command: &str, key: &str, raw: &str) -> Result<Value> {

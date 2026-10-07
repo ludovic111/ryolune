@@ -17,6 +17,10 @@ mod settings;
 mod ui;
 mod update;
 
+/// Tests that sign in or out share the process's scratch `~/.lsuite/account.json`.
+#[cfg(test)]
+pub(crate) static ACCOUNT_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 /// Asks the window to run its next tick soon. Called from any thread: the control bridge,
 /// workers and the agent use it so a waiting request is answered at once.
 pub(crate) type Wake = std::sync::Arc<dyn Fn() + Send + Sync>;

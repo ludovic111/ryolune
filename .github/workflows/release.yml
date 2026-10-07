@@ -1,6 +1,8 @@
 name: Release
-# Builds every platform from a `vX.Y.Z` tag and publishes a GitHub release with one asset per
-# platform plus SHA256SUMS. The desktop app reads that release to update itself.
+# Builds every platform from a `vX.Y.Z` tag into a DRAFT GitHub release with one asset per
+# platform plus SHA256SUMS(.sig). The builds are not public (lsuite's DISTRIBUTION.md):
+# `scripts/publish-build.sh X.Y.Z` copies the draft to ludovic111/lsuite-builds, which
+# lsuite.xyz serves to signed-in lsuite accounts and the app's updater reads.
 on:
   push:
     tags: ['v*']
@@ -148,7 +150,7 @@ jobs:
           dist/ryolune-linux-x86_64 --sign-release "$RUNNER_TEMP/release.key" dist/SHA256SUMS
           dist/ryolune-linux-x86_64 --verify-release dist/SHA256SUMS
           rm -f "$RUNNER_TEMP/release.key"
-      - name: Publish complete draft or verify existing release
+      - name: Complete the draft release (scripts/publish-build.sh publishes it to lsuite)
         env:
           GH_TOKEN: ${{ github.token }}
         run: bash scripts/publish-release.sh

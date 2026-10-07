@@ -11,3 +11,4 @@ dist/
 *.dSYM/
 target
 
+evals/results/

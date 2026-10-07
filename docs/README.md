@@ -21,6 +21,10 @@ Every document in `docs/`, one line each, with who it is for. The project overvi
   the agent.
 - [COMMANDS.md](COMMANDS.md): every registry command and its parameters. Generated from the
   registry. For script and agent authors.
+- [HARNESS.md](HARNESS.md): the agent's brief and its 13 skills, exactly as every agent gets
+  them. Generated from `engine/src/harness`. For agent authors and anyone tuning the agent.
+- [../evals/README.md](../evals/README.md): the agent evals (scripted music jobs scored on the
+  song) and their results. For contributors changing the harness.
 - [AGENT_PARITY.md](AGENT_PARITY.md): the audit that maps every window interaction to the
   commands that do the same. For contributors and agent authors.
 - [agent-parity.json](agent-parity.json): the machine-readable map from each window action id

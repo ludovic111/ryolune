@@ -1,14 +1,25 @@
-//! Updates from GitHub Releases. The check and the download run on a worker thread and the
-//! interface only reads their results between frames; nothing here touches the audio callback.
+//! Updates through lsuite (lsuite's DISTRIBUTION.md). The check and the download run on a
+//! worker thread and the interface only reads their results between frames; nothing here
+//! touches the audio callback.
 //!
-//! A release is published by `.github/workflows/release.yml` from a `vX.Y.Z` tag. It carries one
-//! asset per platform, a `SHA256SUMS` file and, when the workflow holds the signing key, a
-//! `SHA256SUMS.sig` Ed25519 signature. The app compares the latest tag with its own version,
-//! checks that every URL belongs to this repository's releases, verifies the signature against
-//! the public key compiled into `assets/update-signing.pub`, downloads its asset, verifies the
-//! checksum, checks the new binaries report the expected version, swaps the installed copy in
-//! place and relaunches. Set `RYOLUNE_PRETEND_VERSION=0.0.1` to exercise the flow against a real
-//! release.
+//! The builds are no longer public: `.github/workflows/release.yml` makes a draft release from a
+//! `vX.Y.Z` tag and `scripts/publish-build.sh` copies it to the private `lsuite-builds`
+//! repository, which lsuite.xyz serves to signed-in lsuite accounts (any plan, Free included).
+//! The app asks `<server>/api/apps/ryolune/releases/latest` (GitHub's release shape, every
+//! `browser_download_url` on the server's file route) with `Authorization: Bearer <token>`
+//! from `~/.lsuite/account.json`; the file route answers with a redirect to a short-lived
+//! download address, which never sees the token. `<server>` is `LSUITE_ACCOUNT_SERVER` or the
+//! account's server, else lsuite.xyz; the token only ever goes to the server that issued it.
+//! Signed out, a check reports [`SIGNED_OUT`] instead of failing.
+//!
+//! A release carries one asset per platform, a `SHA256SUMS` file and a `SHA256SUMS.sig` Ed25519
+//! signature. The app compares the latest tag with its own version, checks that every URL is on
+//! the update server's file route (or this repository's GitHub releases), verifies the signature
+//! against the public key compiled into `assets/update-signing.pub` (so the server cannot alter
+//! a build unnoticed), downloads its asset, verifies the checksum, checks the new binaries
+//! report the expected version, swaps the installed copy in place and relaunches. Set
+//! `RYOLUNE_PRETEND_VERSION=0.0.1` to exercise the flow against a real release, and
+//! `RYOLUNE_UPDATE_URL` to read the release document from another address (tests).
 
 use crate::app::Ryolune;
 use crate::control::LiveWait;
@@ -26,7 +37,10 @@ use std::{
 };
 
 pub const REPO: &str = "ludovic111/ryolune";
-const API: &str = "https://api.github.com/repos";
+/// The app's name on the lsuite server's routes.
+const APP: &str = "ryolune";
+/// What a check says when no lsuite account is signed in on this computer.
+pub const SIGNED_OUT: &str = "Sign in to lsuite (in the lsuite app) to get updates";
 const CHECKSUMS: &str = "SHA256SUMS";
 const SIGNATURE: &str = "SHA256SUMS.sig";
 const SIGNATURE_PREFIX: &str = "ryolune-ed25519";
@@ -34,8 +48,18 @@ const MAX_ASSET: u64 = 512 * 1024 * 1024;
 /// Hex public key; empty when no release key pair has been generated yet.
 const PUBLIC_KEY_HEX: &str = include_str!("../assets/update-signing.pub");
 
+#[cfg(test)]
+thread_local! {
+    /// A test's own release key, on its thread only.
+    static TEST_KEY: std::cell::Cell<Option<[u8; 32]>> = const { std::cell::Cell::new(None) };
+}
+
 /// The compiled-in public key, when one is configured.
 pub fn public_key() -> Option<[u8; 32]> {
+    #[cfg(test)]
+    if let Some(key) = TEST_KEY.with(std::cell::Cell::get) {
+        return Some(key);
+    }
     let hex: String = PUBLIC_KEY_HEX
         .lines()
         .map(str::trim)
@@ -136,10 +160,87 @@ pub fn verify_file(file: &Path) -> Result<()> {
         fs::read_to_string(&sig_path).map_err(|e| format!("{}: {e}", sig_path.display()))?;
     verify_signature(&message, &signature)
 }
-/// Only this repository's release assets are ever downloaded.
+/// Where updates come from: the release document's address and the token to send with it.
+#[derive(Clone)]
+pub struct Source {
+    /// `<server>/api/apps/ryolune/releases/latest`, or `RYOLUNE_UPDATE_URL`.
+    pub url: String,
+    /// The server's origin; its file route is trusted for downloads.
+    pub server: String,
+    /// The lsuite account's token, when it belongs to `server`.
+    token: Option<String>,
+}
+impl std::fmt::Debug for Source {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Source")
+            .field("url", &self.url)
+            .field("signedIn", &self.token.is_some())
+            .finish()
+    }
+}
+
+fn origin(url: &str) -> String {
+    let rest = url.split_once("://").map_or(url, |(_, r)| r);
+    let host = rest.split('/').next().unwrap_or("");
+    let scheme = url.split_once("://").map_or("https", |(s, _)| s);
+    format!("{scheme}://{host}")
+}
+
+/// The update server: `LSUITE_ACCOUNT_SERVER`, else the signed-in account's server, else
+/// lsuite.xyz.
+pub fn update_server() -> String {
+    std::env::var("LSUITE_ACCOUNT_SERVER")
+        .ok()
+        .map(|s| s.trim().trim_end_matches('/').to_string())
+        .filter(|s| s.starts_with("https://") || s.starts_with("http://"))
+        .or_else(|| ryolune_engine::account::load().map(|a| a.server))
+        .unwrap_or_else(|| ryolune_engine::account::DEFAULT_SERVER.to_string())
+}
+
+/// Where to ask and with which token. `None` when nobody is signed in (and no test address is
+/// set): the check then says [`SIGNED_OUT`].
+pub fn source() -> Option<Source> {
+    let account = ryolune_engine::account::load();
+    if let Some(url) = std::env::var("RYOLUNE_UPDATE_URL")
+        .ok()
+        .map(|u| u.trim().to_string())
+        .filter(|u| u.starts_with("https://") || u.starts_with("http://"))
+    {
+        let server = origin(&url);
+        let token = account
+            .filter(|a| origin(&a.server) == server)
+            .map(|a| a.token);
+        return Some(Source { url, server, token });
+    }
+    let server = update_server();
+    // A token never goes to a server other than the one that issued it.
+    let token = account.filter(|a| a.server == server).map(|a| a.token)?;
+    Some(Source {
+        url: format!("{server}/api/apps/{APP}/releases/latest"),
+        server,
+        token: Some(token),
+    })
+}
+
+/// The lsuite account's token for a URL on its own server, so a download from the file route
+/// is authorised and nothing else ever sees the token.
+fn token_for(url: &str) -> Option<String> {
+    let account = ryolune_engine::account::load()?;
+    (origin(url) == origin(&account.server)).then_some(account.token)
+}
+
+/// Only release files are ever downloaded: the update server's file route for ryolune, or
+/// this repository's GitHub releases.
 fn trusted_url(url: &str) -> Result<()> {
-    let prefix = format!("https://github.com/{REPO}/releases/download/");
-    if url.starts_with(&prefix) {
+    let github = format!("https://github.com/{REPO}/releases/download/");
+    let mut servers = vec![update_server()];
+    if let Ok(custom) = std::env::var("RYOLUNE_UPDATE_URL") {
+        servers.push(origin(custom.trim()));
+    }
+    let on_server = servers
+        .iter()
+        .any(|server| url.starts_with(&format!("{server}/api/apps/{APP}/files/")));
+    if url.starts_with(&github) || (on_server && !url.contains("/../")) {
         Ok(())
     } else {
         Err(format!(
@@ -295,38 +396,59 @@ fn check_agent() -> ureq::Agent {
         .into()
 }
 
-fn get_text(agent: &ureq::Agent, url: &str) -> Result<String> {
-    agent
-        .get(url)
-        .header("Accept", "application/vnd.github+json")
-        .call()
-        .map_err(|e| format!("Could not reach GitHub: {e}"))?
-        .body_mut()
-        .read_to_string()
-        .map_err(|e| format!("Could not read the reply from GitHub: {e}"))
+fn get(
+    agent: &ureq::Agent,
+    url: &str,
+    accept: &str,
+) -> ureq::RequestBuilder<ureq::typestate::WithoutBody> {
+    let request = agent.get(url).header("Accept", accept);
+    match token_for(url) {
+        Some(token) => request.header("Authorization", &format!("Bearer {token}")),
+        None => request,
+    }
 }
 
-/// Ask GitHub for the latest release and return it when it is newer than this build.
+fn get_text(agent: &ureq::Agent, url: &str) -> Result<String> {
+    match get(agent, url, "text/plain, */*").call() {
+        Ok(mut response) => response
+            .body_mut()
+            .read_to_string()
+            .map_err(|e| format!("Could not read the reply from the update server: {e}")),
+        Err(ureq::Error::StatusCode(401 | 403)) => Err(SIGNED_OUT.into()),
+        Err(e) => Err(format!("Could not reach the update server: {e}")),
+    }
+}
+
+/// Ask the update server for the latest release and return it when it is newer than this
+/// build. Signed out (or refused by the server): `Err(SIGNED_OUT)`.
 pub fn check() -> Result<Option<Release>> {
     let Some(asset) = asset_name() else {
         return Ok(None);
     };
+    check_for(asset)
+}
+
+/// [`check`] for one platform's asset (tests use every platform's name).
+pub fn check_for(asset: &str) -> Result<Option<Release>> {
+    let source = source().ok_or(SIGNED_OUT)?;
     let agent = check_agent();
-    let url = format!("{API}/{REPO}/releases/latest");
-    let text = match agent
-        .get(&url)
-        .header("Accept", "application/vnd.github+json")
-        .call()
-    {
+    let mut request = agent
+        .get(&source.url)
+        .header("Accept", "application/vnd.github+json");
+    if let Some(token) = &source.token {
+        request = request.header("Authorization", &format!("Bearer {token}"));
+    }
+    let text = match request.call() {
         Ok(mut response) => response
             .body_mut()
             .read_to_string()
-            .map_err(|e| format!("Could not read the reply from GitHub: {e}"))?,
+            .map_err(|e| format!("Could not read the reply from the update server: {e}"))?,
         Err(ureq::Error::StatusCode(404)) => return Ok(None),
-        Err(e) => return Err(format!("Could not reach GitHub: {e}")),
+        Err(ureq::Error::StatusCode(401 | 403)) => return Err(SIGNED_OUT.into()),
+        Err(e) => return Err(format!("Could not reach the update server: {e}")),
     };
-    let json: Value =
-        serde_json::from_str(&text).map_err(|e| format!("GitHub sent an unexpected reply: {e}"))?;
+    let json: Value = serde_json::from_str(&text)
+        .map_err(|e| format!("The update server sent an unexpected reply: {e}"))?;
     let Some(mut release) = find(&json, asset)? else {
         return Ok(None);
     };
@@ -357,10 +479,11 @@ pub fn check() -> Result<Option<Release>> {
 
 fn download(agent: &ureq::Agent, release: &Release, to: &Path) -> Result<()> {
     trusted_url(&release.url)?;
-    let mut response = agent
-        .get(&release.url)
-        .call()
-        .map_err(|e| format!("Download failed: {e}"))?;
+    let mut response = match get(agent, &release.url, "application/octet-stream").call() {
+        Ok(response) => response,
+        Err(ureq::Error::StatusCode(401 | 403)) => return Err(SIGNED_OUT.into()),
+        Err(e) => return Err(format!("Download failed: {e}")),
+    };
     let mut reader = response.body_mut().with_config().limit(MAX_ASSET).reader();
     let mut file = fs::File::create(to).map_err(|e| format!("{}: {e}", to.display()))?;
     let mut hasher = Sha256::new();
@@ -1124,6 +1247,8 @@ pub(crate) struct Updates {
     pub periodic: bool,
     /// When the last check started.
     pub last_check: Option<std::time::Instant>,
+    /// The last check found no lsuite account: Settings › Updates says to sign in.
+    pub signed_out: bool,
 }
 impl Updates {
     pub fn busy(&self) -> bool {
@@ -1206,14 +1331,26 @@ impl Ryolune {
                 Ok(release) => Ok(json!({
                     "current": current_version(),
                     "available": release.as_ref().map(release_value),
+                    "signedIn": true,
+                })),
+                // Signed out is a state, not a failure: say what to do.
+                Err(e) if e == SIGNED_OUT => Ok(json!({
+                    "current": current_version(),
+                    "available": null,
+                    "signedIn": false,
+                    "message": SIGNED_OUT,
                 })),
                 Err(e) => Err(e.clone()),
             };
+            self.updates.signed_out = matches!(&result, Err(e) if e == SIGNED_OUT);
             match &result {
                 Ok(Some(release)) => {
                     log::info!("update check: ryolune {} is available", release.version)
                 }
                 Ok(None) => log::info!("update check: ryolune {} is up to date", current_version()),
+                Err(e) if e == SIGNED_OUT => {
+                    log::info!("update check: no lsuite account signed in")
+                }
                 Err(e) => log::warn!("update check failed: {e}"),
             }
             match result {
@@ -1230,6 +1367,11 @@ impl Ryolune {
                     self.status = format!("ryolune {} is up to date", current_version());
                 }
                 Ok(None) => {}
+                Err(e) if e == SIGNED_OUT => {
+                    if self.updates.manual {
+                        self.status = SIGNED_OUT.into();
+                    }
+                }
                 Err(e) if self.updates.manual => self.error = Some(e),
                 Err(_) => {}
             }
@@ -1446,5 +1588,223 @@ mod tests {
                 .unwrap_err()
                 .contains("no release signing key"));
         }
+    }
+}
+
+/// The updater against a fake lsuite server: the release document with the account's token,
+/// the files through the file route and its redirect, signatures, and the signed-out state.
+#[cfg(test)]
+mod server_tests {
+    use super::*;
+    use ryolune_engine::account::{self, Account};
+    use std::{
+        io::{BufRead, BufReader},
+        net::TcpListener,
+        sync::{Arc, Mutex},
+    };
+
+    const TOKEN: &str = "lsk_update_test_token";
+    const ASSET: &str = "ryolune-linux-x86_64.zip";
+
+    /// Every request: method, path and the Authorization header it carried.
+    type Log = Arc<Mutex<Vec<(String, Option<String>)>>>;
+
+    fn fake_server(files: Vec<(String, Vec<u8>)>) -> (String, Log) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let log: Log = Arc::default();
+        let (base, requests) = (url.clone(), log.clone());
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                let mut line = String::new();
+                if reader.read_line(&mut line).is_err() {
+                    continue;
+                }
+                let mut auth = None;
+                loop {
+                    let mut header = String::new();
+                    if reader.read_line(&mut header).unwrap_or(0) <= 2 {
+                        break;
+                    }
+                    if let Some(v) = header
+                        .split_once(':')
+                        .filter(|(k, _)| k.eq_ignore_ascii_case("authorization"))
+                    {
+                        auth = Some(v.1.trim().to_string());
+                    }
+                }
+                let path = line.split_whitespace().nth(1).unwrap_or("").to_string();
+                requests.lock().unwrap().push((path.clone(), auth.clone()));
+                let authorised = auth.as_deref() == Some(&format!("Bearer {TOKEN}"));
+                let mut stream = stream;
+                let reply = |stream: &mut std::net::TcpStream,
+                             status: &str,
+                             extra: &str,
+                             body: &[u8]| {
+                    let _ = write!(
+                        stream,
+                        "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n{extra}\r\n",
+                        body.len()
+                    );
+                    let _ = stream.write_all(body);
+                };
+                if path == "/api/apps/ryolune/releases/latest" {
+                    if !authorised {
+                        reply(&mut stream, "401 Unauthorized", "", br#"{"error":{"type":"authentication_error","message":"Sign in to lsuite to get the apps: the account is free."}}"#);
+                        continue;
+                    }
+                    let assets: Vec<Value> = files
+                        .iter()
+                        .map(|(name, bytes)| json!({
+                            "name": name, "size": bytes.len(),
+                            "browser_download_url": format!("{base}/api/apps/ryolune/files/ryolune-v9.9.9/{name}"),
+                        }))
+                        .collect();
+                    let body = json!({"tag_name": "v9.9.9", "name": "ryolune 9.9.9", "body": "Notes", "assets": assets});
+                    reply(
+                        &mut stream,
+                        "200 OK",
+                        "Content-Type: application/json\r\n",
+                        body.to_string().as_bytes(),
+                    );
+                } else if let Some(name) =
+                    path.strip_prefix("/api/apps/ryolune/files/ryolune-v9.9.9/")
+                {
+                    if !authorised {
+                        reply(&mut stream, "401 Unauthorized", "", b"{}");
+                    } else {
+                        // Like GitHub's signed address: elsewhere, and needing no token.
+                        reply(
+                            &mut stream,
+                            "302 Found",
+                            &format!("Location: {base}/signed/{name}\r\n"),
+                            b"",
+                        );
+                    }
+                } else if let Some(name) = path.strip_prefix("/signed/") {
+                    match files.iter().find(|(n, _)| n == name) {
+                        Some((_, bytes)) => reply(&mut stream, "200 OK", "", bytes),
+                        None => reply(&mut stream, "404 Not Found", "", b""),
+                    }
+                } else {
+                    reply(&mut stream, "404 Not Found", "", b"");
+                }
+            }
+        });
+        (url, log)
+    }
+
+    /// A signed release of `payload` for the fake server, with this thread's test key.
+    fn release_files(dir: &Path, payload: &[u8]) -> Vec<(String, Vec<u8>)> {
+        let key = dir.join("release.key");
+        let public = write_keypair(&key).unwrap();
+        let mut bytes = [0u8; 32];
+        for (i, b) in bytes.iter_mut().enumerate() {
+            *b = u8::from_str_radix(&public[i * 2..i * 2 + 2], 16).unwrap();
+        }
+        TEST_KEY.with(|k| k.set(Some(bytes)));
+        let sums = format!("{}  {ASSET}\n", hex(&Sha256::digest(payload)));
+        let sums_path = dir.join("SHA256SUMS");
+        fs::write(&sums_path, &sums).unwrap();
+        let sig = fs::read(sign_file(&key, &sums_path).unwrap()).unwrap();
+        vec![
+            (ASSET.to_string(), payload.to_vec()),
+            ("SHA256SUMS".to_string(), sums.into_bytes()),
+            ("SHA256SUMS.sig".to_string(), sig),
+        ]
+    }
+
+    fn sign_in(server: &str, token: &str) {
+        account::save(&Account {
+            format: 1,
+            server: server.into(),
+            email: "ada@example.com".into(),
+            name: "Ada".into(),
+            plan: "free".into(),
+            token: token.into(),
+            signed_in_at: String::new(),
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn updates_come_from_lsuite_with_the_accounts_token_and_keep_their_signatures() {
+        let _account = crate::ACCOUNT_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let dir = tempfile::tempdir().unwrap();
+        let payload = b"the new ryolune".to_vec();
+        let (server, log) = fake_server(release_files(dir.path(), &payload));
+
+        // Signed out: a state to show, not an error to report.
+        account::remove().unwrap();
+        assert_eq!(check_for(ASSET).unwrap_err(), SIGNED_OUT);
+        assert!(
+            log.lock().unwrap().is_empty(),
+            "nothing is asked without an account"
+        );
+
+        sign_in(&server, TOKEN);
+        let release = check_for(ASSET).unwrap().expect("9.9.9 is newer");
+        assert_eq!(release.version, "9.9.9");
+        assert_eq!(
+            release.url,
+            format!("{server}/api/apps/ryolune/files/ryolune-v9.9.9/{ASSET}")
+        );
+        assert!(release.sha256.is_some());
+        let requests = log.lock().unwrap().clone();
+        assert_eq!(requests[0].0, "/api/apps/ryolune/releases/latest");
+        assert!(
+            requests
+                .iter()
+                .all(|(_, auth)| auth.as_deref() == Some(&*format!("Bearer {TOKEN}"))),
+            "{requests:?}"
+        );
+
+        // The download goes through the file route with the token, and its redirect without.
+        log.lock().unwrap().clear();
+        let to = dir.path().join("download.zip");
+        download(&agent(), &release, &to).unwrap();
+        assert_eq!(fs::read(&to).unwrap(), payload);
+        let requests = log.lock().unwrap().clone();
+        assert_eq!(requests.len(), 2, "{requests:?}");
+        assert!(requests[0].1.is_some());
+        assert_eq!(requests[1].0, format!("/signed/{ASSET}"));
+        assert_eq!(requests[1].1, None, "the token never follows the redirect");
+
+        // A file changed on the server fails its checksum; a forged list fails the signature.
+        let mut tampered = release.clone();
+        tampered.sha256 = Some("0".repeat(64));
+        assert!(download(&agent(), &tampered, &to)
+            .unwrap_err()
+            .contains("checksum"));
+        let trusted = TEST_KEY.with(std::cell::Cell::get);
+        let other = tempfile::tempdir().unwrap();
+        let files = release_files(other.path(), &payload); // signed with another key…
+        TEST_KEY.with(|k| k.set(trusted)); // …than the one this build trusts
+        let (forged, _) = fake_server(files);
+        sign_in(&forged, TOKEN);
+        assert!(check_for(ASSET).unwrap_err().contains("signature"));
+
+        // A token the server refuses reads as signed out too.
+        sign_in(&server, "lsk_revoked");
+        assert_eq!(check_for(ASSET).unwrap_err(), SIGNED_OUT);
+        account::remove().unwrap();
+        TEST_KEY.with(|k| k.set(None));
+    }
+
+    #[test]
+    fn only_the_update_servers_file_route_and_github_are_trusted() {
+        assert!(
+            trusted_url("https://github.com/ludovic111/ryolune/releases/download/v1/x.zip").is_ok()
+        );
+        let server = update_server();
+        assert!(trusted_url(&format!("{server}/api/apps/ryolune/files/ryolune-v1/x.zip")).is_ok());
+        assert!(trusted_url(&format!("{server}/api/apps/kimchi/files/kimchi-v1/x.zip")).is_err());
+        assert!(trusted_url("https://example.com/api/apps/ryolune/files/v1/x.zip").is_err());
+        assert!(trusted_url(&format!("{server}/api/apps/ryolune/files/../../etc")).is_err());
+        assert_eq!(origin("https://lsuite.xyz/api/apps"), "https://lsuite.xyz");
+        assert_eq!(origin("http://127.0.0.1:9/x"), "http://127.0.0.1:9");
     }
 }

@@ -295,6 +295,37 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   (`Bank::settled`), and waiting only on workers no longer ticks per frame (`Ryolune::busy`).
   The mark generator follows kimchi's constants (ring of even weight, kimchi's dither ramp and
   scale); `ryolune.icns` needs `scripts/make-icon.sh` on a Mac (iconutil).
+- 0.16 (2026-10-07, lsuite's HARNESS.md and DISTRIBUTION.md; delegated): **the agent harness**
+  lives in `engine/src/harness/`: `brief.md` (one source: the built-in agent's system prompt is
+  `harness::brief()` plus a paragraph in `desktop/src/agent/mod.rs` `BUILT_IN`; `ryolune-mcp`'s
+  `instructions` are a mode line plus the brief), `skills/*.md` (13, front matter `name`/`title`/
+  `when`, each with `## Steps` and `## Checks`; a test checks every backticked `family.action` in
+  them and in the brief is a real command; add a skill to `SKILL_FILES`), `changes.rs` (a song
+  diff in plain words), `loudness.rs` (BS.1770-4/R128 K-weighting, gating, LRA, 4x true peak,
+  tested on Tech 3341/3342 cases), `analysis.rs` (FFT, Welch spectrum, waveform columns),
+  `look.rs` (offline render of a bar range like `export::mix`, then SVG → PNG with resvg 0.45
+  `text` and the built-in IBM Plex Mono). Commands `harness.*` (brief, skills, skill, context,
+  look, measure, checkpoint, checkpoints, changes, revert). `Store` holds `marks` (per agent key,
+  the song as it last saw it; the window moves `agent`/`mcp` in `record_agent_activity`) and
+  `checkpoints` (24, cleared by `load`); a revert is `Command::RestoreTake` of the snapshot, so one
+  undo step. The built-in agent: a checkpoint per turn (`agents.rs` `TurnRecord`, Revert turn card
+  in the chat and Changes tab, `agent.revertTurn`), the live context before every model step
+  after the first (`Event::Context`, answered as a `harness_context` call that is not shown),
+  pictures as image blocks (`Part::ToolResult.images`, `#[serde(skip)]`, dropped from the history
+  when a turn ends; `sees_images` lists the providers that get them; Codex gets text only).
+  `harness.look`/`measure` run on a worker in the window. `ryolune-mcp`: skills as prompts and
+  resources, image content, a checkpoint before a connection's first edit, the person's changes
+  and a state line on results (`--no-context`). The CLI prints a look's path, not its base64.
+  `docs/HARNESS.md` is generated (command_docs test). Evals: `evals/` (Python runner, 13 jobs,
+  Claude Code + `ryolune-mcp --file`, `RESULTS.md`). **Updates through lsuite**:
+  `desktop/src/update.rs` reads `<server>/api/apps/ryolune/releases/latest` with the account's
+  Bearer token (`source()`; server = `LSUITE_ACCOUNT_SERVER`, else the account's, else
+  lsuite.xyz; the token goes only to its own server, decided, so an env server other than the
+  account's reads as signed out), downloads through the server's file route (ureq never forwards
+  Authorization on the redirect), keeps the signature checks, `RYOLUNE_UPDATE_URL` for tests;
+  signed out is `SIGNED_OUT`, a status, not an error. Release workflow makes a draft;
+  `scripts/publish-build.sh <version>` copies it to `ludovic111/lsuite-builds` as
+  `ryolune-v<version>` and deletes the draft (tests in `scripts/tests/release_workflow.py`).
 - Tests: a cargo test binary resolves settings, data, the control file, `~/.lsuite` and the kimchi
   library to a per-process scratch folder when no override is set (`host::scan::test_sandbox`);
   still run tests and the app with `RYOLUNE_SETTINGS`, `RYOLUNE_DATA_DIR`, `RYOLUNE_CONTROL` and
@@ -331,11 +362,13 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
 - Run fmt, clippy with warnings denied, and workspace tests. Check a real native window after
   UI changes. Distinguish tests, builds, actual device checks and public signing/notarization.
 - Work on a branch. Do not merge or publish a release without the owner's request.
-- Releases: bump the workspace `version` in `Cargo.toml`, add `docs/releases/X.Y.Z.md`, then push
-  a matching `vX.Y.Z` tag. `.github/workflows/release.yml` builds all platforms, writes and signs
-  `SHA256SUMS` (Ed25519, secret `RYOLUNE_SIGNING_KEY`, public key in
-  `desktop/assets/update-signing.pub`) and publishes the GitHub release that `desktop/src/update.rs`
-  installs from after verifying the signature, the download host and the new binaries' versions.
+- Releases: bump the workspace `version` in `Cargo.toml`, add `docs/releases/X.Y.Z.md`, run the
+  evals (`python3 evals/run.py --record`), then push a matching `vX.Y.Z` tag.
+  `.github/workflows/release.yml` builds all platforms, writes and signs `SHA256SUMS` (Ed25519,
+  secret `RYOLUNE_SIGNING_KEY`, public key in `desktop/assets/update-signing.pub`) and leaves a
+  draft release; `scripts/publish-build.sh X.Y.Z` publishes it to lsuite-builds, which lsuite.xyz
+  serves to `desktop/src/update.rs`, which installs after verifying the signature, the download
+  location and the new binaries' versions.
   Keep the asset names in `update::asset_name` and the workflow in sync. The secret key stays in
   `~/.ryolune/keys/update-signing.key` on the owner's machine; never commit it. Builds are ad-hoc
   signed, not notarized.
@@ -371,5 +404,18 @@ Still to do:
       (`../lsuite/assets/img/ryolune/`). The version shown comes from the latest GitHub release.
 - [x] Point `SUPPORT_URL` (desktop/src/control.rs) at `https://lsuite.xyz/ryolune/support` in the
       next release.
+
+- [x] **Agent harness** (0.16, lsuite's HARNESS.md parts 1-7): brief, 13 skills, `harness.*`,
+      live context per model step, `harness.look`/`measure` (picture + LUFS/true peak), the
+      finish routine, one undo per turn, `evals/`. Part 8 (the suite agent) belongs to the lsuite
+      app; zenith should append ryolune's brief to its threads (it can read `harness.brief` or
+      the MCP `instructions`).
+- [x] **Distribution** (0.16, lsuite's DISTRIBUTION.md): updater on `<server>/api/apps/ryolune/
+      releases/latest` with the account token; draft releases + `scripts/publish-build.sh`.
+      Still to do by the owner: create `ludovic111/lsuite-builds`, publish the first build with
+      the script, then make the old public releases drafts once 0.16 is out.
+- [ ] Harness gaps: a picture of the window is only on macOS (`ui.screenshot`); the Codex
+      provider gets the numbers of a look, not the picture; evals run through MCP (Claude Code),
+      not through the built-in agent's own loop.
 
 When done, tick these, and update the status table at the end of `../lsuite/STANDARD.md`.

@@ -326,6 +326,7 @@ pub static COMMANDS: std::sync::LazyLock<Vec<Spec>> = std::sync::LazyLock::new(|
         .chain(crate::control_interop::SPECS)
         .chain(crate::control_account::SPECS)
         .chain(crate::plugin_dev::SPECS)
+        .chain(crate::harness::SPECS)
         .copied()
         .collect()
 });
@@ -882,6 +883,9 @@ pub fn call(host: &mut dyn Host, name: &str, params: &Value, agent: bool) -> Res
     }
     if crate::plugin_dev::serves(name) {
         return crate::plugin_dev::call(host, name, &a);
+    }
+    if crate::harness::serves(name) {
+        return crate::harness::call(host, name, &a);
     }
     let result = match name {
         "session.info" => Ok(info(host)),

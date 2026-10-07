@@ -2,7 +2,7 @@
 
 <!-- Generated from the command registry by tools/tests/command_docs.rs. Do not edit by hand: run `RYOLUNE_BLESS=1 cargo test -p ryolune-tools --test command_docs`. -->
 
-ryolune has 239 commands. The window, `ryolune-cli`, `ryolune-mcp` and the built-in agent all run these same commands, with the same undo history. On the CLI a command is `ryolune-cli <name> --param value`; in MCP it is the tool `<name>` with the dot replaced by an underscore (`track.add` is `track_add`); the agent sees the same tools.
+ryolune has 250 commands. The window, `ryolune-cli`, `ryolune-mcp` and the built-in agent all run these same commands, with the same undo history. On the CLI a command is `ryolune-cli <name> --param value`; in MCP it is the tool `<name>` with the dot replaced by an underscore (`track.add` is `track_add`); the agent sees the same tools.
 
 Conventions: bars and beats are zero-based; note `start` and `length` are beats relative to their clip; pitch 60 is C4; velocity is 1–127; a fader value of 0.75 is unity gain. Strip commands accept a track id or `master`, `bus-a`, `bus-b`; insert slots are 0–7.
 
@@ -34,11 +34,12 @@ Names shared across the lsuite apps are accepted too, and run the ryolune comman
 - [audio](#audio) — `audio.devices`, `audio.status`, `audio.allowSpeakerMonitoring`, `audio.setOutput`, `audio.setInput`, `audio.setMidiInput`, `audio.reconnect`
 - [ui](#ui) — `ui.screenshot`, `ui.showPanel`, `ui.openPluginWindow`, `ui.closePluginWindow`, `ui.dismissError`, `ui.closePluginWindows`, `ui.musicalTyping`, `ui.setTool`, `ui.status`, `ui.state`
 - [app](#app) — `app.info`, `app.checkUpdates`, `app.installUpdate`, `app.quit`, `app.confirm`, `app.openGuide`, `app.relaunch`, `app.logs`, `app.crashReports`, `app.clearCrashReports`, `app.diagnostics`, `app.reportProblem`, `app.whatsNew`, `app.suite`, `app.onboarding`, `app.finishOnboarding`, `app.recent`, `app.openRecent`
-- [agent](#agent) — `agent.status`, `agent.configure`, `agent.providers`, `agent.mcp`, `agent.openClient`, `agent.models`, `agent.connection`, `agent.send`, `agent.stop`, `agent.transcript`, `agent.changes`, `agent.revert`, `agent.clear`, `agent.conversations`, `agent.newConversation`, `agent.selectConversation`, `agent.renameConversation`, `agent.deleteConversation`, `agent.memory`, `agent.setMemory`, `agent.steer`
+- [agent](#agent) — `agent.status`, `agent.configure`, `agent.providers`, `agent.mcp`, `agent.openClient`, `agent.models`, `agent.connection`, `agent.send`, `agent.stop`, `agent.transcript`, `agent.changes`, `agent.revert`, `agent.revertTurn`, `agent.clear`, `agent.conversations`, `agent.newConversation`, `agent.selectConversation`, `agent.renameConversation`, `agent.deleteConversation`, `agent.memory`, `agent.setMemory`, `agent.steer`
 - [generate](#generate) — `generate.services`, `generate.audio`, `generate.list`, `generate.preview`, `generate.place`, `generate.delete`
 - [export](#export) — `export.toKimchi`
 - [handoff](#handoff) — `handoff.inbox`
 - [account](#account) — `account.status`, `account.signIn`, `account.signOut`, `account.plans`, `account.manage`
+- [harness](#harness) — `harness.brief`, `harness.skills`, `harness.skill`, `harness.context`, `harness.look`, `harness.measure`, `harness.checkpoint`, `harness.checkpoints`, `harness.changes`, `harness.revert`
 
 ## session
 
@@ -2224,6 +2225,16 @@ Undo back to just before one agent change, or redo up to it. Same as the buttons
 | `sequence` | integer | yes | Change sequence from agent.changes. |
 | `redo` | boolean |  | Redo up to the change instead of undoing it (default false). |
 
+### `agent.revertTurn`
+
+*Edits · Needs the app*
+
+Undo the built-in agent's whole last turn in one step, back to the checkpoint taken before its first edit (or, with redo, bring the turn back). Same as Revert turn in the panel's Changes tab; agent.status lists the turn's changes.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `redo` | boolean |  | Bring a reverted turn back instead (default false). |
+
 ### `agent.clear`
 
 *Edits · Needs the app*
@@ -2426,3 +2437,86 @@ The lsuite AI plans as the server offers them: prices, models and monthly allowa
 *Edits*
 
 Open the lsuite account page (plan, allowance, key) in the web browser; headless, returns its address. Only a person can do this.
+
+## harness
+
+### `harness.brief`
+
+The agent's expert brief (markdown): the music producer's role in ryolune, the song's mental model, the commands for common jobs, the quality bar (levels, loudness targets), the finish routine and the index of skills. The built-in agent and ryolune-mcp's instructions use this same text.
+
+### `harness.skills`
+
+The playbooks for music jobs (compose, drums, bass and chords, melody, arrangement, sound design, automation, mixing, mastering, export, scoring to picture, writing a plugin, review): [{name, title, when}]. Load one with harness.skill.
+
+### `harness.skill`
+
+One skill's playbook (markdown): when to use it, the steps with the exact commands, and the checks that prove the job worked.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | Skill name from harness.skills, for example mixing. |
+
+### `harness.context`
+
+The live context an agent gets before each step: the song in brief (tempo, key, meter, length, sections), every track in one line, the selection, the playhead, the newest checkpoint and what changed since this agent's last command (the person's edits while it was thinking).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `key` | string |  | Whose last look to compare with: `agent` (the built-in agent, default) or `mcp` (an outside agent). The window moves it after each of that agent's commands. |
+
+### `harness.look`
+
+Look at and listen to a bar range: renders it offline like an export and returns a picture (waveform with the bar grid and sections, short-term loudness, average spectrum against a pink slope, piano roll of the notes in track colours) plus the numbers: integrated/short-term/momentary loudness (LUFS), loudness range, true peak (dBTP), sample peak, clipped samples, energy per band, and findings that name the fix. The picture reaches the model as an image (built-in agent with a vision model; MCP image content) and is written as a PNG (`image.path`).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `fromBar` | number |  | Zero-based first bar (default 0). |
+| `toBar` | number |  | Exclusive end bar (default the end of the song). At most 600 seconds. |
+| `trackId` | string |  | Only this track, soloed (its buses and the master chain still apply). |
+| `view` | string |  | all (default), mix (waveform, loudness, spectrum) or notes (piano roll only: no render, quick). |
+| `targetLufs` | number |  | A loudness target to draw and compare with, for example -14. |
+| `tailSeconds` | number |  | Seconds after the range to include (reverb tails), 0-30, default 0. |
+| `path` | string |  | Where to write the PNG. Defaults to a new file in the app data folder (looks/). |
+
+### `harness.measure`
+
+Measure loudness without a picture: integrated, short-term max and momentary max loudness (LUFS, ITU-R BS.1770 / EBU R128 gating), loudness range (LU), true peak (dBTP, 4x oversampled), sample peak (dBFS), clipped samples, energy per band (sub, bass, low mids, high mids, air) and findings. tracks=true measures each track on its own as well (gain staging).
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `fromBar` | number |  | Zero-based first bar (default 0). |
+| `toBar` | number |  | Exclusive end bar (default the end of the song). At most 600 seconds. |
+| `trackId` | string |  | Only this track, soloed. |
+| `tracks` | boolean |  | Also measure every track on its own (ranges up to 120 seconds). |
+| `targetLufs` | number |  | Integrated loudness to aim for; findings say how far off it is. |
+| `tailSeconds` | number |  | Seconds after the range to include, 0-30, default 0. |
+
+### `harness.checkpoint`
+
+Take a checkpoint of the song before a job, so the whole job can be reverted in one step (harness.revert) and its changes listed (harness.changes). The built-in agent takes one at the start of every turn. Checkpoints last until another song is opened.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `label` | string |  | What the job is, for example "Mix pass". |
+
+### `harness.checkpoints`
+
+The checkpoints of this song, oldest first, each with how many changes were made since.
+
+### `harness.changes`
+
+What changed since a checkpoint (default the newest), in plain words: tracks, clips, notes, sounds, levels, sections, tempo and key.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `checkpoint` | string |  | Checkpoint id from harness.checkpoints (default the newest). |
+
+### `harness.revert`
+
+*Edits*
+
+Return the song to a checkpoint (default the newest) in one undo step: everything changed since is undone together, and history.undo brings it back. Answers with the changes it undid.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `checkpoint` | string |  | Checkpoint id from harness.checkpoints (default the newest). |

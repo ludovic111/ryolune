@@ -288,6 +288,9 @@ impl AgentPanel {
                 Item::Steps { key, indices } => self.steps(key, &indices, entries, cx),
             });
         }
+        if let Some(turn) = self.turn_card("chat-turn", cx) {
+            column = column.child(div().mt(px(8.0)).child(turn));
+        }
         column.into_any_element()
     }
 

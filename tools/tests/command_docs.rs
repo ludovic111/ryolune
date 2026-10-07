@@ -127,3 +127,72 @@ fn the_command_reference_matches_the_registry() {
         "docs/COMMANDS.md is out of date: run `RYOLUNE_BLESS=1 cargo test -p ryolune-tools --test command_docs`"
     );
 }
+
+/// `docs/HARNESS.md`: the agent's brief and every skill, as the agents get them (lsuite's
+/// HARNESS.md parts 1 and 2), generated from the same text.
+fn harness_reference() -> String {
+    use ryolune_engine::harness;
+    let mut out = String::new();
+    out.push_str("# The agent harness: brief and skills\n\n");
+    out.push_str(
+        "<!-- Generated from engine/src/harness by tools/tests/command_docs.rs. Do not edit by \
+         hand: edit engine/src/harness/brief.md or skills/*.md, then run \
+         `RYOLUNE_BLESS=1 cargo test -p ryolune-tools --test command_docs`. -->\n\n",
+    );
+    out.push_str(
+        "Every ryolune agent works from this text: the built-in agent's system prompt is the \
+         brief (with a paragraph about the panel), `ryolune-mcp` sends it as its `instructions`, \
+         and `harness.brief` returns it. The skills are loaded with `harness.skill name=…`; over \
+         MCP each is also a prompt and the resource `ryolune://skills/<name>`. See \
+         [AI_CONTROL.md](AI_CONTROL.md#the-agent-harness) for the commands.\n\n",
+    );
+    out.push_str("| Skill | When |\n| --- | --- |\n");
+    for s in harness::skills() {
+        let _ = writeln!(out, "| [`{}`](#{}) | {} |", s.name, s.name, s.when);
+    }
+    out.push_str("\n---\n\n");
+    // The brief's own headings move down a level under this page's.
+    for line in harness::brief().lines() {
+        if let Some(rest) = line.strip_prefix('#') {
+            let _ = writeln!(out, "##{rest}");
+        } else {
+            let _ = writeln!(out, "{line}");
+        }
+    }
+    for s in harness::skills() {
+        let _ = writeln!(out, "\n---\n\n<a id=\"{}\"></a>\n", s.name);
+        let _ = writeln!(
+            out,
+            "## Skill `{}`: {}\n\n*When:* {}\n",
+            s.name, s.title, s.when
+        );
+        for line in s.body.lines() {
+            if line.starts_with("# ") {
+                continue;
+            }
+            if let Some(rest) = line.strip_prefix("## ") {
+                let _ = writeln!(out, "### {rest}");
+            } else {
+                let _ = writeln!(out, "{line}");
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn the_harness_reference_matches_the_brief_and_skills() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/HARNESS.md");
+    let fresh = harness_reference();
+    if std::env::var_os("RYOLUNE_BLESS").is_some() {
+        std::fs::write(&path, &fresh).unwrap();
+        return;
+    }
+    let current = std::fs::read_to_string(&path)
+        .unwrap_or_default()
+        .replace("\r\n", "\n");
+    assert!(
+        current == fresh,
+        "docs/HARNESS.md is out of date: run `RYOLUNE_BLESS=1 cargo test -p ryolune-tools --test command_docs`"
+    );
+}

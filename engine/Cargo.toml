@@ -38,6 +38,9 @@ ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] 
 getrandom = { version = "0.2", features = ["std"] }
 # plugin.toml, the lsuite plugin bundle manifest (plugin_dev.rs); already in the build.
 toml = "0.8"
+# harness.look draws its picture as SVG and rasterises it (text with the built-in IBM Plex
+# Mono); resvg 0.45 with text is already in the build for GPUI's icons.
+resvg = { version = "0.45", default-features = false, features = ["text"] }
 
 [dev-dependencies]
 ryolune-plugin-gain = { path = "../plugins/gain" }

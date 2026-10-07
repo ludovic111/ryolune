@@ -194,6 +194,9 @@ pub const SPECS: &[Spec] = &[
         req("sequence", Kind::Integer, "Change sequence from agent.changes."),
         opt("redo", Kind::Boolean, "Redo up to the change instead of undoing it (default false)."),
     ]),
+    edit("agent.revertTurn", "Undo the built-in agent's whole last turn in one step, back to the checkpoint taken before its first edit (or, with redo, bring the turn back). Same as Revert turn in the panel's Changes tab; agent.status lists the turn's changes.", &[
+        opt("redo", Kind::Boolean, "Bring a reverted turn back instead (default false)."),
+    ]),
     edit("agent.clear", "Clear the agent conversation; the edits it made stay in Undo.", &[]),
     query("app.logs", "The last lines of ryolune's log (this run's by default, or an earlier run's), with the log folder and every log file. Logs stay on this computer and never hold API keys.", &[
         opt("lines", Kind::Integer, "Lines from the end, 1-2000 (default 100)."),
@@ -269,7 +272,7 @@ pub fn denied_for_agent_request(
 ) -> Option<String> {
     if matches!(
         name,
-        "rhythm.preview" | "ui.screenshot" | "strip.loadSample"
+        "rhythm.preview" | "ui.screenshot" | "strip.loadSample" | "harness.look"
     ) && params.get("path").is_some_and(|p| !p.is_null())
         && !permissions.file_operations
     {
