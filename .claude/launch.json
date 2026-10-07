@@ -6,12 +6,6 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
       "port": 1420
-    },
-    {
-      "name": "ryolune-site",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["site/server.js"],
-      "port": 3000
     }
   ]
 }

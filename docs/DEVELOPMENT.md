@@ -18,8 +18,6 @@ engine/    command registry (control*.rs), session model and validation, undo/re
            CPAL input callback → meter, monitor ring and takes → workers
 sdk/       ryolune-plugin: the Plugin trait, DSP primitives and the frozen C ABI
 plugins/   example native plugin bundle (plugins/gain) and the ABI 1 fixture
-site/      the marketing site (plain HTML/CSS/JS behind a small Node server)
-legacy/    the previous Electron/TypeScript source, reference only, never built
 ```
 
 **The command registry is the contract.** Every user-facing action is a command in
@@ -148,7 +146,8 @@ callback.
 1. Bump `version` in the workspace `Cargo.toml` and add `docs/releases/X.Y.Z.md`. The notes
    are built into the app (`engine/build.rs`) for What's New and `app.whatsNew`; a test fails
    when the version has no notes file.
-2. Update the site's release content (checklist in `site/README.md`).
+2. Update the public page, lsuite.xyz/ryolune: `ryolune/index.html` in the lsuite repo
+   (ludovic111/lsuite).
 3. Merge to `main`, then push a matching tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
 The `Release` workflow builds macOS (arm64 and x86_64), Linux and Windows, writes and signs
@@ -184,5 +183,6 @@ repository has had all six secrets since 0.11.0 (team `YYJU63HSD4`, App Store Co
 
 ## Website
 
-`site/` deploys to Railway from `main`. Run it locally with `npm --prefix site start`. See
-`site/README.md` for its structure, design references and the per-release checklist.
+The public page is lsuite.xyz/ryolune, in the lsuite repo (ludovic111/lsuite, file
+`ryolune/index.html`); ryolune.com redirects there. The former standalone site (`site/`) was
+removed; it is in git history at `7fb6116`.

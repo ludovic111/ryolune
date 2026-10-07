@@ -19,7 +19,8 @@ ryolune is one Cargo workspace (`Cargo.toml`). All crates share one version.
 | `ryolune-plugin-gain` | `plugins/gain/` | An example native plugin bundle (Trim and Tilt EQ), used by tests. |
 | `ondera-abi1-fixture` | `plugins/abi1-fixture/` | A plugin frozen at ABI 1 with no SDK dependency, so tests prove old libraries still load. Its name is kept on purpose. |
 
-`legacy/` is the former Electron and TypeScript app, kept as reference only.
+The former Electron and TypeScript app (`legacy/`) was removed; it is in git history at
+`7fb6116`, for reference only.
 
 ## Threads
 
