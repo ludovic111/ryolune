@@ -160,7 +160,7 @@ impl Provider {
             Provider::Ollama => "Ollama on this computer",
             Provider::LmStudio => "LM Studio on this computer",
             Provider::Compatible => "OpenAI-compatible endpoint",
-            Provider::Zenith => "Zenith · lsuite",
+            Provider::Zenith => "zenith · lsuite",
         }
     }
     pub fn key(self) -> &'static str {

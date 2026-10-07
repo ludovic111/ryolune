@@ -210,7 +210,7 @@ pub(crate) const PROVIDERS: [ProviderInfo; 15] = [
     },
     ProviderInfo {
         provider: Provider::Zenith,
-        name: "Zenith · lsuite",
+        name: "zenith · lsuite",
         description: "The agents you use in zenith, lsuite's agent hub, signed in there. They work on this song through ryolune's own tools.",
         help: "https://lsuite.xyz/zenith",
         destination: "Requests and session context go to zenith and the agent you chose there.",
