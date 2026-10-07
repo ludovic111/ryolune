@@ -315,7 +315,8 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   when a turn ends; `sees_images` lists the providers that get them; Codex gets text only).
   `harness.look`/`measure` run on a worker in the window. `ryolune-mcp`: skills as prompts and
   resources, image content, a checkpoint before a connection's first edit, the person's changes
-  and a state line on results (`--no-context`). The CLI prints a look's path, not its base64.
+  and a state line on results, plus a finish-routine reminder after edits until it looks or
+  measures (`--no-context` drops both). The CLI prints a look's path, not its base64.
   `docs/HARNESS.md` is generated (command_docs test). Evals: `evals/` (Python runner, 13 jobs,
   Claude Code + `ryolune-mcp --file`, `RESULTS.md`). **Updates through lsuite**:
   `desktop/src/update.rs` reads `<server>/api/apps/ryolune/releases/latest` with the account's

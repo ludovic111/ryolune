@@ -85,7 +85,9 @@ app's suite agent), it works from the same harness (lsuite's HARNESS.md), all in
   `redo=true` brings it back), one undo step either way. Any agent can do the same with
   `harness.checkpoint label=…`, `harness.changes` (what changed since, in plain words),
   `harness.checkpoints` and `harness.revert`; `ryolune-mcp` takes one before a connection's
-  first edit. Checkpoints last until another song is opened.
+  first edit, and until the connection calls `harness.look` or `harness.measure` after an edit,
+  each edit's result ends with a reminder of the finish routine. Checkpoints last until another
+  song is opened.
 
 ```sh
 ryolune-cli --file song.ryolune harness.measure --targetLufs -14
