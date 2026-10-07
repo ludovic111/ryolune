@@ -696,6 +696,14 @@ pub fn draw(
         for index in seen {
             let t = &session.tracks[index];
             let label = format!("{}{}", t.name, if t.mute { " (muted)" } else { "" });
+            // A plate behind the label so notes under it do not hide it.
+            let _ = write!(
+                p.svg,
+                r#"<rect x="{:.1}" y="{:.1}" width="{:.1}" height="16" fill="{PAGE}" opacity="0.8"/>"#,
+                x - 3.0,
+                top + 1.0,
+                18.0 + label.chars().count() as f64 * 6.7
+            );
             let _ = write!(
                 p.svg,
                 r#"<rect x="{x:.1}" y="{:.1}" width="8" height="8" fill="{}"/>"#,

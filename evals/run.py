@@ -100,7 +100,10 @@ def run_job(job, args, bins, claude, root):
                RYOLUNE_DATA_DIR=str(scratch / "data"),
                RYOLUNE_CONTROL=str(scratch / "no-app-control.json"),
                LSUITE_HOME=str(scratch / "lsuite"),
-               RYOLUNE_NO_UPDATE="1")
+               RYOLUNE_NO_UPDATE="1",
+               # Renders take seconds (minutes in a debug build): let tool calls finish.
+               MCP_TOOL_TIMEOUT=os.environ.get("MCP_TOOL_TIMEOUT", "600000"),
+               MCP_TIMEOUT=os.environ.get("MCP_TIMEOUT", "60000"))
     cli = Cli(bins / "ryolune-cli", env)
     song_path = work / "song.ryolune"
     FIXTURES[job["fixture"]](cli, song_path, work)
