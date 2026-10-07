@@ -468,8 +468,11 @@ impl Ryolune {
                 self.agents
                     .runtime
                     .attach_result(method, &without_image_data(result), sequence);
-            } else {
-                // A CLI provider working through the bridge: show the call in the chat too.
+            } else if !matches!(method, "harness.context" | "harness.checkpoint") {
+                // A CLI provider working through the bridge: show the call in the chat too,
+                // but not ryolune-mcp's bookkeeping (its context per call and the checkpoint
+                // before its first edit; the turn has its own), as the built-in agent's live
+                // context is not shown either.
                 self.agents.runtime.transcript.push(agent::Entry {
                     role: Role::Tool,
                     text: String::new(),
@@ -861,6 +864,22 @@ mod tests {
             app.agents.runtime.transcript[1].tool.as_ref().unwrap().name,
             "session.info"
         );
+        // ryolune-mcp's bookkeeping stays out of the chat.
+        app.run_control_command(
+            "harness.checkpoint",
+            &json!({"label": "Before the MCP agent's first edit"}),
+            true,
+            "MCP / agent",
+        )
+        .unwrap();
+        app.run_control_command(
+            "harness.context",
+            &json!({"key": "mcp"}),
+            true,
+            "MCP / agent",
+        )
+        .unwrap();
+        assert_eq!(app.agents.runtime.transcript.len(), 2);
         complete();
         app.agents.runtime.poll();
         assert!(!app.agents.runner_busy());
