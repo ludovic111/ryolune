@@ -208,6 +208,33 @@ impl Ryolune {
             }
             if matches!(
                 method,
+                "plugin.build"
+                    | "plugin.publishLocal"
+                    | "plugin.toolchain"
+                    | "plugin.remove"
+                    | "plugin.install"
+                    | "plugin.new"
+            ) {
+                // A compiler or a scan: minutes of work that must not hold the window. The
+                // plugin list is taken again (and rebuilt plugins reload) when it is done.
+                let mut scratch = Headless::new();
+                let (method_owned, params_owned) = (method.to_string(), params.clone());
+                self.plugin_job = Some(method.to_string());
+                self.status = match method {
+                    "plugin.build" => "Building the plugin…".into(),
+                    "plugin.publishLocal" => "Building and installing the plugin…".into(),
+                    _ => self.status.clone(),
+                };
+                return Ok(self.start_worker(method, params, source, move || {
+                    control::call(&mut scratch, &method_owned, &params_owned, agent)
+                }));
+            }
+            if ryolune_engine::control_account::serves(method) {
+                // lsuite AI: the account server (or the browser) answers on a worker.
+                return self.start_account(method, params, source);
+            }
+            if matches!(
+                method,
                 "session.new" | "session.open" | "session.importFrom" | "app.openRecent"
             ) {
                 self.can_replace_document()?;
@@ -494,8 +521,7 @@ impl Ryolune {
                     value["session"] = control::call(self, "session.info", &json!({}), false)?;
                 }
                 "plugin.scan" => {
-                    self.catalog = ryolune_engine::host::scan::installed();
-                    self.plugins.failed.clear();
+                    value["reloaded"] = json!(self.adopt_catalog());
                 }
                 _ => {}
             }
@@ -535,7 +561,7 @@ impl Ryolune {
     }
     /// Run `work` off the interface thread as a live job: the caller is told "running" and
     /// gets the result when it arrives, and the window never waits on the network.
-    fn start_worker(
+    pub(crate) fn start_worker(
         &mut self,
         method: &str,
         params: &Value,
@@ -688,6 +714,12 @@ impl Ryolune {
             let job = self.live_jobs.remove(index);
             if self.attach_live.is_some_and(|waiting| waiting >= index) {
                 self.attach_live = None;
+            }
+            if job.method.starts_with("account.") {
+                self.account_finished(&job.method, &result);
+            }
+            if job.method.starts_with("plugin.") {
+                self.plugin_finished(&job.method, &result);
             }
             self.record_agent_activity(
                 &job.method,
@@ -862,6 +894,8 @@ impl Ryolune {
             "controllers": self.show_controllers,
             "tempo": self.show_tempo,
             "palette": self.show_palette,
+            "plugins": self.show_plugins.map(|p| ["stock", "installed", "formats", "build"][p.min(3)]),
+            "pluginJob": self.plugin_job,
             "tool": TOOLS[self.tool.min(2)],
             "musicalTyping": self.musical_typing,
             "pluginWindows": self.plugins.windows.keys().cloned().collect::<Vec<_>>(),
@@ -1530,6 +1564,16 @@ impl Host for Ryolune {
                             self.settings_ui.open = false;
                         }
                     }
+                    "plugins" => {
+                        const PARTS: [&str; 4] = ["stock", "installed", "formats", "build"];
+                        let part = match params["section"].as_str() {
+                            Some(key) => PARTS.iter().position(|p| *p == key).ok_or_else(|| {
+                                format!("Unknown Plugins part `{key}`: stock, installed, formats or build")
+                            })?,
+                            None => self.show_plugins.unwrap_or(1),
+                        };
+                        self.show_plugins = visible.then_some(part);
+                    }
                     "master" | "bus-a" | "bus-b" => {
                         self.try_dispatch(Command::Select {
                             track: Some(panel.into()),
@@ -1539,7 +1583,7 @@ impl Host for Ryolune {
                     }
                     other => {
                         return Err(format!(
-                            "Unknown panel `{other}`. Panels: agent, automation, mixer, controllers, tempo, palette, settings, help, export, recovery, whatsNew, diagnostics, master, bus-a, bus-b."
+                            "Unknown panel `{other}`. Panels: agent, automation, mixer, controllers, tempo, palette, settings, plugins, help, export, recovery, whatsNew, diagnostics, master, bus-a, bus-b."
                         ))
                     }
                 }

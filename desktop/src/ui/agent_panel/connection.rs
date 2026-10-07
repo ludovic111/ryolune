@@ -8,6 +8,7 @@ use serde_json::Value;
 /// The short name the header and the model menu show (Settings > Agent uses the long one).
 pub fn provider_name(provider: Provider) -> &'static str {
     match provider {
+        Provider::Lsuite => "lsuite AI",
         Provider::Codex => "Codex",
         Provider::Claude => "Claude Code",
         Provider::Anthropic => "Anthropic API",
@@ -112,8 +113,16 @@ pub fn model_brand(provider: &str, model: &str) -> Option<(&'static str, &'stati
     None
 }
 
+/// The lsuite AI allowance ran out: the panel says it in one line, with Manage plan.
+pub fn allowance_used(error: &str) -> bool {
+    error == ryolune_engine::account::ALLOWANCE_MESSAGE
+}
+
 /// An agent error in words a musician can act on; `unsent` when the message never left.
 pub fn error_message(error: &str, unsent: bool) -> &'static str {
+    if allowance_used(error) {
+        return ryolune_engine::account::ALLOWANCE_MESSAGE;
+    }
     let text = error.to_lowercase();
     let any = |words: &[&str]| words.iter().any(|w| text.contains(w));
     if any(&[
@@ -209,6 +218,9 @@ mod tests {
         assert!(error_message("error sending request for url", false).contains("could not reach"));
         assert!(error_message("boom", true).starts_with("Your message was not sent"));
         assert!(error_message("boom", false).starts_with("The agent could not finish"));
+        let used = ryolune_engine::account::ALLOWANCE_MESSAGE;
+        assert!(allowance_used(used));
+        assert_eq!(error_message(used, false), used);
         assert_eq!(effort_name("xhigh"), "Extra high");
         assert_eq!(effort_name("custom"), "custom");
     }

@@ -44,99 +44,18 @@ pub const SPECS: &[Spec] = &[
         req("pluginId", Kind::String, "Plugin id from plugin.list."),
         opt("folder", Kind::String, "Folder name, 1-40 characters."),
     ]),
-    edit("plugin.scaffold", "Start a new ryolune native plugin in Rust: writes a crate with a working effect or instrument, a test that runs it through the real plugin ABI, and build notes. Build it with cargo, then plugin.install.", &[
+    edit("plugin.scaffold", "Start a new ryolune native plugin in Rust at a path of your choice: writes a crate with a working effect or instrument, its plugin.toml, a test that runs it through the real plugin ABI, and build notes. Build it with cargo, then plugin.install. plugin.new does the same in the lsuite sources folder, for plugin.build and plugin.publishLocal.", &[
         req("path", Kind::String, "Directory to create. It must not exist yet."),
         req("name", Kind::String, "Plugin display name, for example Warm Drive."),
         opt("kind", Kind::String, "effect (default) or instrument."),
         opt("vendor", Kind::String, "Your name or label, default My Studio."),
     ]),
-    edit("plugin.install", "Copy a built native plugin library (.dylib, .so, .dll or .onplug) into ryolune's plugin folder. Run plugin.scan afterwards to load it.", &[
-        req("path", Kind::String, "The built library, for example target/release/libwarm_drive.dylib."),
+    edit("plugin.install", "Install a built plugin: an lsuite bundle (a folder with plugin.toml and its library) goes to ~/.lsuite/plugins/ryolune and is loaded at once; a bare library (.dylib, .so, .dll or .onplug) is copied into ryolune's plugin folder, then plugin.scan loads it.", &[
+        req("path", Kind::String, "The bundle folder, or the built library such as target/release/libwarm_drive.dylib."),
     ]),
 ];
 
-const SDK_GIT: &str = "https://github.com/ludovic111/ryolune";
-
-fn slug(name: &str) -> String {
-    let mut out = String::new();
-    for c in name.trim().chars() {
-        if c.is_ascii_alphanumeric() {
-            out.push(c.to_ascii_lowercase());
-        } else if !out.ends_with('-') && !out.is_empty() {
-            out.push('-');
-        }
-    }
-    out.trim_end_matches('-').to_string()
-}
-
-fn scaffold(path: &std::path::Path, name: &str, instrument: bool, vendor: &str) -> Result<Value> {
-    let crate_name = slug(name);
-    if crate_name.is_empty() || name.len() > 60 || name.chars().any(|c| c.is_control() || c == '"')
-    {
-        return Err(
-            "The plugin name needs letters or digits, at most 60 characters, no quotes".into(),
-        );
-    }
-    if vendor.len() > 60 || vendor.chars().any(|c| c.is_control() || c == '"') {
-        return Err("The vendor is at most 60 characters, no quotes".into());
-    }
-    if path.exists() {
-        return Err(format!(
-            "{} already exists; choose a new directory",
-            path.display()
-        ));
-    }
-    let ty: String = crate_name
-        .split('-')
-        .map(|w| {
-            let mut c = w.chars();
-            c.next()
-                .map(|f| f.to_ascii_uppercase().to_string() + c.as_str())
-                .unwrap_or_default()
-        })
-        .collect();
-    let ty = if ty.starts_with(|c: char| c.is_ascii_digit()) {
-        format!("P{ty}")
-    } else {
-        ty
-    };
-    let id = format!(
-        "com.{}.{}",
-        slug(vendor).replace('-', ""),
-        crate_name.replace('-', "")
-    );
-    let cargo = format!(
-        "[package]\nname = \"{crate_name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[lib]\ncrate-type = [\"cdylib\", \"rlib\"]\n\n[dependencies]\nryolune-plugin = {{ git = \"{SDK_GIT}\", package = \"ryolune-plugin\" }}\n"
-    );
-    let body = if instrument {
-        INSTRUMENT_TEMPLATE
-    } else {
-        EFFECT_TEMPLATE
-    }
-    .replace("__TYPE__", &ty)
-    .replace("__ID__", &id)
-    .replace("__NAME__", name)
-    .replace("__VENDOR__", vendor);
-    let lib_name = crate_name.replace('-', "_");
-    let readme = format!(
-        "# {name}\n\nAn ryolune native plugin.\n\n    cargo test              # runs the plugin through the real plugin ABI\n    cargo build --release\n    ryolune-cli plugin.install path=target/release/lib{lib_name}.dylib   # .so on Linux, {lib_name}.dll on Windows\n    ryolune-cli plugin.scan\n\n`process` runs on the audio thread: no allocation, locks, files or logging there.\nParameters are stored in the session by ryolune, so they undo, save and automate for free.\nGuide: {SDK_GIT}/blob/main/docs/NATIVE_PLUGINS.md\n"
-    );
-    std::fs::create_dir_all(path.join("src")).map_err(|e| e.to_string())?;
-    for (file, text) in [
-        ("Cargo.toml", cargo),
-        ("src/lib.rs", body),
-        ("README.md", readme),
-    ] {
-        std::fs::write(path.join(file), text).map_err(|e| e.to_string())?;
-    }
-    Ok(
-        json!({ "path": path, "crate": crate_name, "pluginId": format!("native:{id}"),
-        "files": ["Cargo.toml", "src/lib.rs", "README.md"],
-        "next": ["cargo test", "cargo build --release", "plugin.install", "plugin.scan"] }),
-    )
-}
-
-const EFFECT_TEMPLATE: &str = r#"use ryolune_plugin::{export_plugins, prelude::*};
+pub(crate) const EFFECT_TEMPLATE: &str = r#"use ryolune_plugin::{export_plugins, prelude::*};
 
 /// A drive stage with a wet/dry blend. Replace the maths in `process` with your own.
 pub struct __TYPE__ {
@@ -210,7 +129,7 @@ mod tests {
 }
 "#;
 
-const INSTRUMENT_TEMPLATE: &str = r#"use ryolune_plugin::{export_plugins, prelude::*};
+pub(crate) const INSTRUMENT_TEMPLATE: &str = r#"use ryolune_plugin::{export_plugins, prelude::*};
 use std::f64::consts::TAU;
 
 const VOICES: usize = 16;
@@ -945,6 +864,7 @@ fn entry(d: &Descriptor, library: &Plugins, auto: &AutoFolders) -> Value {
     let mut value = serde_json::to_value(d).unwrap_or_else(|_| json!({}));
     value["folder"] = json!(folder(d, library, auto));
     value["favorite"] = json!(library.favorites.contains(&d.id));
+    value["enabled"] = json!(!library.disabled.contains(&d.id));
     value
 }
 
@@ -1140,7 +1060,17 @@ pub fn choose(
     search: Option<&str>,
     kind: Option<bool>,
 ) -> Result<Descriptor> {
-    let installed = scan::installed();
+    // Plugins turned off in the Plugins window are not offered.
+    let disabled = crate::settings::Settings::load().plugins.disabled;
+    if let Some(id) = plugin_id.filter(|id| disabled.iter().any(|d| d == id)) {
+        return Err(format!(
+            "{id} is turned off in the Plugins window; plugin.enable turns it back on."
+        ));
+    }
+    let installed: Vec<Descriptor> = scan::installed()
+        .into_iter()
+        .filter(|d| !disabled.contains(&d.id))
+        .collect();
     let instrument = kind.unwrap_or(false);
     let fits = |d: &Descriptor| match kind {
         None => true,
@@ -1232,7 +1162,7 @@ pub fn choose(
     let short = crate::control_refs::normalize(search).len() < 3 && best < 10_000;
     if short {
         let mut near: Vec<&(u32, &Descriptor)> = matches.iter().collect();
-        near.sort_by(|a, b| b.0.cmp(&a.0));
+        near.sort_by_key(|a| std::cmp::Reverse(a.0));
         return Err(format!(
             "`{search}` is too short to choose a plugin. Some that match: {}.",
             near.iter()
@@ -1286,6 +1216,7 @@ pub(crate) fn page(args: &Args, library: &Plugins) -> Result<Value> {
     let query = args.opt_str("query").unwrap_or("").trim().to_string();
     let wanted_folder = args.opt_str("folder").map(str::to_lowercase);
     let favorite = args.opt_bool("favorite").unwrap_or(false);
+    let with_disabled = args.opt_bool("includeDisabled").unwrap_or(false);
     let installed = scan::installed();
     let auto = AutoFolders::new(&installed);
     let mut filtered: Vec<Descriptor> = installed
@@ -1300,6 +1231,7 @@ pub(crate) fn page(args: &Args, library: &Plugins) -> Result<Value> {
                     }
                 })
                 && (!favorite || library.favorites.contains(&plugin.id))
+                && (with_disabled || !library.disabled.contains(&plugin.id))
                 && wanted_folder
                     .as_ref()
                     .is_none_or(|f| folder(plugin, library, &auto).to_lowercase() == *f)
@@ -1444,7 +1376,7 @@ pub(crate) fn call(host: &mut dyn Host, name: &str, a: &Args) -> Result<Value> {
             if !["effect", "instrument"].contains(&kind) {
                 return Err("kind must be effect or instrument".into());
             }
-            scaffold(
+            crate::plugin_dev::scaffold(
                 std::path::Path::new(a.str("path")?),
                 a.str("name")?,
                 kind == "instrument",
@@ -1453,6 +1385,12 @@ pub(crate) fn call(host: &mut dyn Host, name: &str, a: &Args) -> Result<Value> {
         }
         "plugin.install" => {
             let source = std::path::Path::new(a.str("path")?);
+            if source.join("plugin.toml").is_file() {
+                // An lsuite bundle: plugin.toml and its library.
+                let mut reply = crate::plugin_dev::install_bundle(source)?;
+                reply["scan"] = crate::plugin_dev::rescan()?;
+                return Ok(reply);
+            }
             let extension = source
                 .extension()
                 .and_then(|e| e.to_str())
@@ -1491,7 +1429,7 @@ mod tests {
     fn scaffold_writes_a_crate_and_refuses_to_overwrite() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("warm-drive");
-        let reply = scaffold(&path, "Warm Drive 2", false, "Night Owl").unwrap();
+        let reply = crate::plugin_dev::scaffold(&path, "Warm Drive 2", false, "Night Owl").unwrap();
         assert_eq!(reply["crate"], "warm-drive-2");
         assert_eq!(reply["pluginId"], "native:com.nightowl.warmdrive2");
         let lib = std::fs::read_to_string(path.join("src/lib.rs")).unwrap();
@@ -1499,9 +1437,9 @@ mod tests {
             lib.contains("pub struct WarmDrive2") && lib.contains("export_plugins!(WarmDrive2);")
         );
         assert!(!lib.contains("__"));
-        assert!(scaffold(&path, "Warm Drive 2", false, "Night Owl").is_err());
+        assert!(crate::plugin_dev::scaffold(&path, "Warm Drive 2", false, "Night Owl").is_err());
         let synth = dir.path().join("synth");
-        scaffold(&synth, "9 Lives", true, "x").unwrap();
+        crate::plugin_dev::scaffold(&synth, "9 Lives", true, "x").unwrap();
         assert!(std::fs::read_to_string(synth.join("src/lib.rs"))
             .unwrap()
             .contains("pub struct P9Lives"));

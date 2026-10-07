@@ -197,6 +197,14 @@ impl Focusable for Workspace {
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // TEMPORARY: count root renders (RYOLUNE_TRACE_REDRAWS).
+        if std::env::var_os("RYOLUNE_TRACE_REDRAWS").is_some() {
+            static RENDERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+            let n = RENDERS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if n % 20 == 0 {
+                log::info!("redraw: workspace render #{n}");
+            }
+        }
         self.sync_window(window, cx);
         let theme = Theme::get(cx).clone();
         let app = &self.daw.read(cx).app;

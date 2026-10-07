@@ -128,10 +128,10 @@ pub const SPECS: &[Spec] = &[
     edit("ui.screenshot", "Capture the window to a PNG so an agent can see the interface. Returns the file path and size.", &[
         opt("path", Kind::String, "Destination .png. Defaults to a timestamped file in the app data directory."),
     ]),
-    edit("ui.showPanel", "Show or hide an interface panel: agent, automation, mixer (every channel, in place of the region editor), controllers (the controller lane under the piano roll), tempo (the tempo track under the ruler), palette (the command palette), settings, help, export, recovery, whatsNew (the release notes of this version), diagnostics (Settings › Diagnostics), or master / bus-a / bus-b in the inspector.", &[
-        req("panel", Kind::String, "agent, automation, mixer, controllers, tempo, palette, settings, help, export, recovery, whatsNew, diagnostics, master, bus-a or bus-b."),
+    edit("ui.showPanel", "Show or hide an interface panel: agent, automation, mixer (every channel, in place of the region editor), controllers (the controller lane under the piano roll), tempo (the tempo track under the ruler), palette (the command palette), settings, plugins (the Plugins window: stock, installed, formats, build with your agent), help, export, recovery, whatsNew (the release notes of this version), diagnostics (Settings › Diagnostics), or master / bus-a / bus-b in the inspector.", &[
+        req("panel", Kind::String, "agent, automation, mixer, controllers, tempo, palette, settings, plugins, help, export, recovery, whatsNew, diagnostics, master, bus-a or bus-b."),
         opt("visible", Kind::Boolean, "Show (default) or hide."),
-        opt("section", Kind::String, "Settings section: general, audio, interface, agent, generation, plugins, control, updates, diagnostics or about."),
+        opt("section", Kind::String, "Settings section: general, audio, interface, agent, generation, plugins, control, updates, diagnostics or about. Plugins window part: stock, installed, formats or build."),
     ]),
     edit("ui.openPluginWindow", "Open a plugin's parameter panel in the window, or its native editor with native=true.", &[
         TRACK_ID, SLOT,
@@ -171,7 +171,7 @@ pub const SPECS: &[Spec] = &[
     ]),
     query("agent.status", "The built-in agent: provider, model, whether a task is running, turn count and last reply.", &[]),
     edit("agent.configure", "Select the agent provider, model and reasoning effort together. Only while idle.", &[
-        req("provider", Kind::String, "codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio, compatible or zenith."),
+        req("provider", Kind::String, "lsuite (lsuite AI, after account.signIn), codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio, compatible or zenith."),
         req("model", Kind::String, "Model ID; empty uses the provider default."),
         req("reasoningEffort", Kind::String, "Provider effort level; empty uses its default."),
     ]),
@@ -287,6 +287,12 @@ pub fn denied_for_agent(name: &str, permissions: &settings::Permissions) -> Opti
         ))
     };
     if let Some(denied) = crate::control_interop::denied_for_agent(name, permissions) {
+        return Some(denied);
+    }
+    if let Some(denied) = crate::control_account::denied_for_agent(name, permissions) {
+        return Some(denied);
+    }
+    if let Some(denied) = crate::plugin_dev::denied_for_agent(name, permissions) {
         return Some(denied);
     }
     match name {
@@ -595,7 +601,7 @@ pub(crate) fn call(host: &mut dyn Host, name: &str, a: &Args, agent: bool) -> Re
                 })
                 .collect();
             if a.opt_str("query").is_some() {
-                params.sort_by(|x, y| y.0.cmp(&x.0));
+                params.sort_by_key(|x| std::cmp::Reverse(x.0));
             }
             let total = params.len();
             Ok(json!({

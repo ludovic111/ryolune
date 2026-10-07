@@ -73,6 +73,9 @@ static FILE: Mutex<Option<(File, u64)>> = Mutex::new(None);
 static RECENT: Mutex<VecDeque<String>> = Mutex::new(VecDeque::new());
 /// Text never written to the log: the API keys in the settings.
 static SECRETS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+/// Secrets that do not come from the settings (the lsuite account token): `set_secrets`
+/// keeps them.
+static KEPT: Mutex<Vec<String>> = Mutex::new(Vec::new());
 /// Reports this run wrote, and what they were about.
 static WRITTEN: AtomicUsize = AtomicUsize::new(0);
 static SEEN: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -154,11 +157,26 @@ pub fn clean_exit() {
 
 /// The settings' secrets, masked in every log line from now on.
 pub fn set_secrets(secrets: Vec<String>) {
+    let kept = lock(&KEPT).clone();
     *lock(&SECRETS) = secrets
         .into_iter()
+        .chain(kept)
         .map(|s| s.trim().to_string())
         .filter(|s| s.len() >= 6)
         .collect();
+}
+
+/// Mask one more secret in every log line from now on (the lsuite account token).
+pub fn add_secret(secret: &str) {
+    let secret = secret.trim().to_string();
+    if secret.len() < 6 {
+        return;
+    }
+    let mut kept = lock(&KEPT);
+    if !kept.contains(&secret) {
+        kept.push(secret.clone());
+        lock(&SECRETS).push(secret);
+    }
 }
 
 /// A warning for the log when the window logs, else for stderr (the CLI, the MCP server).

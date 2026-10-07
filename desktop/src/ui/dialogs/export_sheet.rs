@@ -526,37 +526,29 @@ impl ExportForm {
         let draft = &daw.read(cx).app.export;
         let chosen = draft.app.and_then(|i| apps.get(i));
         let format = draft.app_format.min(APP_FORMATS.len() - 1);
-        let mut items: Vec<MenuItem> = apps
-            .iter()
-            .enumerate()
-            .map(|(i, app)| {
-                MenuItem::new(
-                    app.name,
-                    pick(daw, move |d| {
-                        d.app = Some(i);
-                        d.app_format = best_format(Some(i));
-                    }),
-                )
-                .checked(draft.app == Some(i))
-            })
-            .collect();
-        items.push(
-            MenuItem::new(
+        let chosen_index = draft.app;
+        let picker = {
+            let daw = daw.clone();
+            super::apps::picker(
+                if import { "import-app" } else { "export-app" },
+                chosen_index,
                 "Another app",
-                pick(daw, |d| {
-                    d.app = None;
-                    d.app_format = best_format(None);
-                }),
+                move |index, _, cx| {
+                    daw.update(cx, |daw, cx| {
+                        let draft = &mut daw.app.export;
+                        draft.app = index;
+                        draft.app_format = best_format(index);
+                        cx.notify();
+                    })
+                },
+                cx,
             )
-            .checked(draft.app.is_none()),
-        );
-        let label = chosen.map_or("Another app", |a| a.name);
-        let mut rows = vec![row(
-            if import { "Coming from" } else { "For" },
-            None,
-            self.select("interop-app", label, items, cx),
-            cx,
-        )];
+        };
+        let mut rows =
+            vec![
+                modal::stacked(if import { "Coming from" } else { "For" }, None, picker, cx)
+                    .into_any_element(),
+            ];
         if !import {
             let formats = APP_FORMATS
                 .iter()

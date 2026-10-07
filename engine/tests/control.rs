@@ -343,7 +343,7 @@ fn parity_commands_cover_view_regions_tracks_inserts_presets_and_settings() {
     call(&mut host, "settings.reset", json!({}));
     assert_eq!(
         call(&mut host, "settings.get", json!({"path":"agent.provider"})),
-        json!("codex")
+        json!("lsuite")
     );
     let info = call(&mut host, "app.info", json!({}));
     assert_eq!(info["mode"], "headless");
@@ -368,6 +368,7 @@ fn agent_permissions_gate_dangerous_commands() {
         settings: false,
         app_control: false,
         generation: false,
+        plugins: false,
     };
     for name in [
         "session.save",

@@ -230,7 +230,7 @@ pub(crate) const FIELDS: [Field; 22] = [
 /// Settings kept on purpose out of the window: bookkeeping, the theme's mode (edited by the
 /// Appearance picker) and what the browser edits itself (favourites, folders, recents).
 #[cfg(test)]
-pub(crate) const HIDDEN: [&str; 9] = [
+pub(crate) const HIDDEN: [&str; 10] = [
     "general.lastSession",
     "general.recentSessions",
     "general.exportsCompleted",
@@ -240,6 +240,8 @@ pub(crate) const HIDDEN: [&str; 9] = [
     "plugins.favorites",
     "plugins.folders",
     "plugins.recent",
+    // The switches of the Plugins window (Mix › Plugins…).
+    "plugins.disabled",
 ];
 
 /// Devices to choose from, as `audio.devices` lists them.

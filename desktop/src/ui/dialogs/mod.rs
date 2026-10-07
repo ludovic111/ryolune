@@ -10,10 +10,12 @@
 //! (`Ryolune::export`), whose file chooser runs the `session.export*` / `session.importMidi`
 //! commands.
 
+pub mod apps;
 pub mod export_sheet;
 pub mod help;
 pub mod modal;
 pub mod onboarding;
+pub mod plugins;
 pub mod recent;
 
 use super::{
@@ -41,6 +43,8 @@ pub(crate) enum Shown {
     Onboarding,
     /// File › Open Recent….
     Recent,
+    /// The Plugins window.
+    Plugins,
 }
 
 pub struct Dialogs {
@@ -48,6 +52,7 @@ pub struct Dialogs {
     focus: ModalFocus,
     menu: MenuHost,
     export: export_sheet::ExportForm,
+    plugins: plugins::PluginsForm,
     /// "Keep muted" was chosen; the warning returns the next time monitoring is blocked.
     monitor_dismissed: bool,
     /// The error text was copied (the Copy key says so until the next error).
@@ -61,6 +66,7 @@ impl Dialogs {
         cx.observe(&daw, |_, _, cx| cx.notify()).detach();
         Self {
             export: export_sheet::ExportForm::new(window, cx),
+            plugins: plugins::PluginsForm::new(window, cx),
             focus: ModalFocus::new(cx),
             menu: MenuHost::default(),
             monitor_dismissed: false,
@@ -93,6 +99,8 @@ impl Dialogs {
             Some(Shown::Export)
         } else if app.interop.show_recent {
             Some(Shown::Recent)
+        } else if app.show_plugins.is_some() {
+            Some(Shown::Plugins)
         } else if app.recovery.open {
             Some(Shown::Recovery)
         } else if app.whats_new.is_some() {
@@ -147,6 +155,7 @@ impl Dialogs {
                 daw.app.interop.show_recent = false;
                 cx.notify();
             }),
+            Some(Shown::Plugins) => self.panel("plugins", false, cx),
             None => {}
         }
     }
@@ -628,6 +637,7 @@ impl Render for Dialogs {
             Shown::Help => self.help_sheet(cx),
             Shown::Onboarding => self.onboarding_sheet(cx),
             Shown::Recent => self.recent_sheet(cx),
+            Shown::Plugins => self.plugins_sheet(window, cx),
         };
         // Sheets that only inform close on a click outside; forms and questions do not.
         let outside = matches!(

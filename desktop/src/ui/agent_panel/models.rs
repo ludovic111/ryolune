@@ -170,6 +170,16 @@ pub fn provider_logo(provider: &str, model: &str, size_px: f32, cx: &App) -> Any
         .border_1()
         .border_color(theme.line);
     let inner = size_px * 0.68;
+    if provider == "lsuite" && model.is_empty() {
+        // lsuite's own mark is a tile already: the grain tile, edge to edge.
+        return div()
+            .flex_none()
+            .size(px(size_px))
+            .border_1()
+            .border_color(theme.line)
+            .child(img("providers/lsuite.svg").size(px(size_px - 2.0)))
+            .into_any_element();
+    }
     match connection::model_brand(provider, model) {
         Some((_, file)) if file.ends_with("-color") => tile
             .child(img(format!("providers/{file}.svg")).size(px(inner)))

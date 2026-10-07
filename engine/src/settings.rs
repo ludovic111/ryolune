@@ -78,6 +78,9 @@ pub struct Interface {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
+    /// lsuite AI: the lsuite subscription, signed in once for every lsuite app
+    /// (`~/.lsuite/account.json`). Anthropic's Messages API at `<server>/api/ai`.
+    Lsuite,
     /// The installed Codex CLI with its own sign-in.
     Codex,
     /// The installed Claude Code CLI with its own sign-in.
@@ -124,7 +127,8 @@ pub struct Hosted {
     pub strict: bool,
 }
 impl Provider {
-    pub const ALL: [Provider; 14] = [
+    pub const ALL: [Provider; 15] = [
+        Provider::Lsuite,
         Provider::Codex,
         Provider::Claude,
         Provider::Anthropic,
@@ -142,6 +146,7 @@ impl Provider {
     ];
     pub fn label(self) -> &'static str {
         match self {
+            Provider::Lsuite => "lsuite AI (lsuite account)",
             Provider::Codex => "Codex CLI (OpenAI sign-in)",
             Provider::Claude => "Claude Code CLI (Anthropic sign-in)",
             Provider::Anthropic => "Anthropic API key",
@@ -160,6 +165,7 @@ impl Provider {
     }
     pub fn key(self) -> &'static str {
         match self {
+            Provider::Lsuite => "lsuite",
             Provider::Codex => "codex",
             Provider::Claude => "claude",
             Provider::Anthropic => "anthropic",
@@ -189,7 +195,11 @@ impl Provider {
     pub fn speaks_openai(self) -> bool {
         !matches!(
             self,
-            Provider::Codex | Provider::Claude | Provider::Anthropic | Provider::Zenith
+            Provider::Codex
+                | Provider::Claude
+                | Provider::Anthropic
+                | Provider::Zenith
+                | Provider::Lsuite
         )
     }
     /// The fixed address of a hosted or local OpenAI-compatible service.
@@ -271,7 +281,8 @@ impl Provider {
             Provider::Mistral => "mistral-large-latest",
             Provider::DeepSeek => "deepseek-chat",
             Provider::Gemini => "gemini-flash-latest",
-            Provider::Codex
+            Provider::Lsuite
+            | Provider::Codex
             | Provider::Claude
             | Provider::Groq
             | Provider::Xai
@@ -315,6 +326,9 @@ pub struct Agent {
     pub permissions: Permissions,
     /// `zenith-cli`; blank finds it ($RYOLUNE_ZENITH_CLI, the lsuite discovery entry, PATH).
     pub zenith_executable: String,
+    /// Claude Code runs on the lsuite AI subscription (`ANTHROPIC_BASE_URL` and
+    /// `ANTHROPIC_AUTH_TOKEN` from the lsuite account) instead of its own sign-in.
+    pub claude_through_lsuite: bool,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -331,6 +345,9 @@ pub struct Permissions {
     pub app_control: bool,
     /// generate.audio: sounds made through the generation service in Settings, on its credits.
     pub generation: bool,
+    /// plugin.new / writeSource / build / publishLocal / install / remove / enable / disable:
+    /// building and installing plugins (lsuite's PLUGINS.md). Off until the person allows it.
+    pub plugins: bool,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase", default)]
@@ -345,6 +362,9 @@ pub struct Plugins {
     pub folders: std::collections::BTreeMap<String, String>,
     /// Most recently loaded plugin ids, newest first.
     pub recent: Vec<String>,
+    /// Plugin ids turned off in the Plugins window (`plugin.disable`): not offered in the
+    /// browser or to agents; songs that use them still play them.
+    pub disabled: Vec<String>,
 }
 /// A service that makes audio from a description.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -546,7 +566,8 @@ impl Interface {
 impl Default for Agent {
     fn default() -> Self {
         Self {
-            provider: Provider::Codex,
+            // lsuite AI first (AI.md): signing in is the only setup.
+            provider: Provider::Lsuite,
             model: String::new(),
             reasoning_effort: String::new(),
             anthropic_api_key: String::new(),
@@ -568,6 +589,7 @@ impl Default for Agent {
             instructions: String::new(),
             permissions: Permissions::default(),
             zenith_executable: String::new(),
+            claude_through_lsuite: false,
         }
     }
 }
@@ -580,6 +602,7 @@ impl Default for Permissions {
             settings: false,
             app_control: false,
             generation: true,
+            plugins: false,
         }
     }
 }
@@ -807,6 +830,7 @@ impl Settings {
             return Err("Buffer size is a power of two from 32 to 4096 frames, or empty for the system default".into());
         }
         if self.plugins.favorites.len() > 4096
+            || self.plugins.disabled.len() > 4096
             || self.plugins.folders.len() > 4096
             || self.plugins.recent.len() > 64
             || self.plugins.folders.values().any(|f| {
@@ -844,7 +868,8 @@ impl Settings {
             Provider::DeepSeek => (&a.deepseek_api_key, &["DEEPSEEK_API_KEY"]),
             Provider::Xai => (&a.xai_api_key, &["XAI_API_KEY"]),
             Provider::Compatible => (&a.compatible_api_key, &[]),
-            Provider::Codex
+            Provider::Lsuite
+            | Provider::Codex
             | Provider::Claude
             | Provider::Ollama
             | Provider::LmStudio
@@ -1108,6 +1133,7 @@ mod tests {
     #[test]
     fn switching_provider_resets_an_incompatible_model_but_keeps_credentials() {
         let mut settings = Settings::default();
+        settings.agent.provider = Provider::Codex;
         settings.agent.model = "a-codex-model".into();
         settings.agent.openai_api_key = "keep-this-key".into();
         settings.set("agent.provider", json!("codex")).unwrap();

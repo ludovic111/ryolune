@@ -242,6 +242,19 @@
     "rescanPlugins": [
       "plugin.scan"
     ],
+    "showPlugins": [
+      "ui.showPanel",
+      "plugin.list",
+      "plugin.info",
+      "plugin.enable",
+      "plugin.disable",
+      "plugin.remove"
+    ],
+    "buildPlugin": [
+      "ui.showPanel",
+      "plugin.toolchain",
+      "agent.send"
+    ],
     "showMaster": [
       "ui.showPanel",
       "strip.get"

@@ -7,7 +7,7 @@ use ryolune_engine::{
     plugin::Descriptor,
     render::Renderer,
     session_file::SessionFileLock,
-    settings::Settings,
+    settings::{Provider, Settings},
     store::{self, Command, Store},
     Result,
 };
@@ -181,6 +181,16 @@ pub struct Ryolune {
     pub(crate) bridge_wanted: bool,
     /// The What's New sheet is open (by itself once after an update, or on request).
     pub(crate) whats_new: Option<crate::diagnostics::WhatsNew>,
+    /// lsuite AI: the shared lsuite account as the window last heard of it.
+    pub(crate) account: crate::account::AccountState,
+    /// The plugin build or install running now (`plugin.build`, `plugin.publishLocal`…).
+    pub(crate) plugin_job: Option<String>,
+    /// What the last one answered, for the Plugins window.
+    pub(crate) plugin_result: Option<(String, Result<serde_json::Value>)>,
+    /// The Plugins window is open, on this part (0 Stock, 1 Installed, 2 Formats, 3 Build).
+    pub(crate) show_plugins: Option<usize>,
+    /// `plugin.toolchain` as last asked (Rust installed or not).
+    pub(crate) plugin_toolchain: Option<serde_json::Value>,
 }
 pub fn id(prefix: &str) -> String {
     ryolune_engine::control::new_id(prefix)
@@ -233,6 +243,10 @@ impl Ryolune {
         }
         if settings.plugins.scan_on_start && !screenshot_run {
             app.scan_plugins();
+        }
+        if !screenshot_run {
+            // Signed in to lsuite AI: the plan and allowance for Settings and the agent.
+            app.refresh_account();
         }
         if !screenshot_run {
             app.attach_conversations(host::scan::data_dir().join(crate::conversations::FILE));
@@ -364,6 +378,11 @@ impl Ryolune {
             monitor_speakers_ok: false,
             bridge_wanted: false,
             whats_new: None,
+            account: Default::default(),
+            plugin_job: None,
+            plugin_result: None,
+            show_plugins: None,
+            plugin_toolchain: None,
         }
     }
     pub fn dispatch(&mut self, command: Command) {
@@ -1592,6 +1611,13 @@ impl Ryolune {
     }
     pub(crate) fn poll_agent(&mut self) {
         self.run_agent_tools();
+        // An lsuite AI turn spent part of the allowance: ask how much is left.
+        let running = self.agents.runtime.running();
+        if self.account.turn_running && !running && self.settings.agent.provider == Provider::Lsuite
+        {
+            self.refresh_account();
+        }
+        self.account.turn_running = running;
         if !self.agents.runner_busy() && self.job.is_none() && self.control_job.is_none() {
             if let Some(intent) = self.after_agent.take() {
                 // The runner joins its MCP children before becoming idle. Reject commands
@@ -1843,7 +1869,12 @@ impl Ryolune {
             || self.midi_recording
             || self.record_enabled
             || self.updates.busy()
-            || !self.live_jobs.is_empty()
+            // A worker wakes the window when it is done: waiting on one (a browser sign-in,
+            // the network) needs no frame ticks.
+            || self
+                .live_jobs
+                .iter()
+                .any(|job| !matches!(job.wait, crate::control::LiveWait::Worker(_)))
             || self.agents.runtime.running()
             || self.control_job.is_some()
     }

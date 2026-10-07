@@ -136,6 +136,7 @@ pub const BASE_COMMANDS: &[Spec] = &[
     query("session.catalog", "List built-in instruments, effects and bundled MIDI loops.", &[]),
     query("plugin.list", "Search a page of installed plugins from the scanner cache. Use query/kind/format to avoid returning a large library; follow nextOffset for more. Channel layouts that a vendor registers as separate plugins (\"C1 comp (m)\", \"(s)\", \"(m->s)\") are one row: its id is the layout a stereo track wants and `layouts` lists the others.", &[
         opt("everyLayout", Kind::Boolean, "List each channel layout as its own row instead (default false)."),
+        opt("includeDisabled", Kind::Boolean, "Also list plugins turned off with plugin.disable (each row says `enabled`)."),
         opt("query",Kind::String,"Case-insensitive name, vendor or plugin ID search."),
         opt("format",Kind::String,"stock, native, clap, vst3 or au."),
         opt("kind",Kind::String,"instrument or effect."),
@@ -323,6 +324,8 @@ pub static COMMANDS: std::sync::LazyLock<Vec<Spec>> = std::sync::LazyLock::new(|
         .chain(crate::control_generate::SPECS)
         .chain(crate::control_suite::SPECS)
         .chain(crate::control_interop::SPECS)
+        .chain(crate::control_account::SPECS)
+        .chain(crate::plugin_dev::SPECS)
         .copied()
         .collect()
 });
@@ -345,6 +348,8 @@ pub const ALIASES: &[(&str, &str)] = &[
     ("project.formats", "session.formats"),
     ("project.importFrom", "session.importFrom"),
     ("project.exportTo", "session.exportTo"),
+    // lsuite's PLUGINS.md: the same plugin vocabulary in every app.
+    ("plugin.rescan", "plugin.scan"),
 ];
 
 /// The registry name for a command or one of its shared aliases.
@@ -871,6 +876,12 @@ pub fn call(host: &mut dyn Host, name: &str, params: &Value, agent: bool) -> Res
     }
     if crate::control_suite::serves(name) {
         return crate::control_suite::call(host, name, &a, agent);
+    }
+    if crate::control_account::serves(name) {
+        return crate::control_account::call(name, &a);
+    }
+    if crate::plugin_dev::serves(name) {
+        return crate::plugin_dev::call(host, name, &a);
     }
     let result = match name {
         "session.info" => Ok(info(host)),

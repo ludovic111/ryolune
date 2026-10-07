@@ -24,6 +24,59 @@ pub struct Daw {
     _wake: Option<Task<()>>,
 }
 
+/// TEMPORARY: which part of the fingerprint moved (RYOLUNE_TRACE_REDRAWS).
+fn trace_parts(app: &Ryolune) {
+    use std::hash::{Hash, Hasher};
+    let h = |f: &dyn Fn(&mut std::collections::hash_map::DefaultHasher)| {
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        f(&mut h);
+        h.finish()
+    };
+    let parts = [
+        h(&|h| (app.store.revision, app.position.to_bits(), app.playing).hash(h)),
+        h(&|h| (&app.status, &app.error).hash(h)),
+        h(&|h| app.agents.fingerprint(app.store.undo_depth()).hash(h)),
+        h(&|h| {
+            if let Some(d) = &app.device {
+                for p in d.telemetry.peaks() {
+                    ((p * 200.0) as i32).hash(h)
+                }
+                for p in d.telemetry.track_peaks() {
+                    ((p * 200.0) as i32).hash(h)
+                }
+            }
+        }),
+        h(&|h| {
+            app.device
+                .as_ref()
+                .map(|d| (d.telemetry.load() * 100.0) as i32)
+                .hash(h)
+        }),
+        h(&|h| app.account.fingerprint().hash(h)),
+        h(&|h| {
+            (
+                app.plugins.loaded.len(),
+                app.catalog.len(),
+                app.plugins.windows.len(),
+            )
+                .hash(h)
+        }),
+        h(&|h| {
+            (
+                app.updates.busy(),
+                app.settings_ui.job.is_some(),
+                app.live_jobs.len(),
+            )
+                .hash(h)
+        }),
+    ];
+    static LAST: std::sync::Mutex<[u64; 8]> = std::sync::Mutex::new([0; 8]);
+    let mut last = LAST.lock().unwrap();
+    let moved: Vec<usize> = (0..8).filter(|i| last[*i] != parts[*i]).collect();
+    *last = parts;
+    log::info!("redraw: parts moved {moved:?}");
+}
+
 /// What a tick compares to decide whether the window must redraw.
 fn fingerprint(app: &Ryolune) -> u64 {
     use std::hash::{Hash, Hasher};
@@ -79,6 +132,18 @@ fn fingerprint(app: &Ryolune) -> u64 {
     app.settings_ui.notice.as_ref().map(|n| &n.0).hash(&mut h);
     app.settings_ui.error.hash(&mut h);
     app.whats_new.hash(&mut h);
+    app.account.fingerprint().hash(&mut h);
+    (&app.plugin_job, app.show_plugins).hash(&mut h);
+    app.plugin_toolchain
+        .as_ref()
+        .map(|t| t.to_string())
+        .hash(&mut h);
+    app.settings.plugins.disabled.len().hash(&mut h);
+    app.settings.agent.permissions.plugins.hash(&mut h);
+    app.plugin_result
+        .as_ref()
+        .map(|(m, r)| (m.clone(), r.is_ok()))
+        .hash(&mut h);
     if let Some(device) = &app.device {
         // Meters move without anything else changing; a coarse step is enough to redraw.
         for peak in device.telemetry.peaks() {
@@ -161,6 +226,9 @@ impl Daw {
     /// Tell the views when anything they show changed.
     pub fn changed(&mut self, cx: &mut Context<Self>) {
         let now = fingerprint(&self.app);
+        if now != self.fingerprint && std::env::var_os("RYOLUNE_TRACE_REDRAWS").is_some() {
+            trace_parts(&self.app);
+        }
         if now != self.fingerprint {
             self.fingerprint = now;
             cx.notify();

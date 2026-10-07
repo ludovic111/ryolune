@@ -1,7 +1,9 @@
 //! Native audio and document services. No webview or GUI dependencies.
+pub mod account;
 pub mod audio;
 pub mod automation;
 pub mod control;
+pub mod control_account;
 pub mod control_app;
 pub mod control_arrange;
 pub mod control_automation;
@@ -31,6 +33,7 @@ pub mod midi;
 pub mod midi_file;
 pub mod model;
 pub mod plugin;
+pub mod plugin_dev;
 pub mod preset;
 pub mod recovery;
 pub mod release_notes;

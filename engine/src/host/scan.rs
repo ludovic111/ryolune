@@ -39,7 +39,7 @@ impl Cache {
             .iter()
             .flat_map(|e| e.descriptors.iter().cloned())
             .collect();
-        all.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        all.sort_by_key(|a| a.name.to_lowercase());
         all.dedup_by(|a, b| a.id == b.id);
         all
     }
@@ -145,6 +145,9 @@ pub fn directories(format: Format) -> Vec<PathBuf> {
     let home = home();
     match format {
         Format::Native => {
+            // lsuite plugin bundles (PLUGINS.md): `~/.lsuite/plugins/ryolune/<id>/`, the
+            // library beside its `plugin.toml`.
+            dirs.push(crate::plugin_dev::installed_dir());
             dirs.push(data_dir().join("plugins"));
             // Folders under the former name stay scanned, after the new ones.
             for name in ["ryolune", LEGACY_NAME] {
@@ -331,6 +334,10 @@ pub fn probe(format: Format, path: &Path) -> crate::Result<Vec<Descriptor>> {
 }
 /// Probe a bundle in a child process with a timeout.
 fn probe_isolated(format: Format, path: &Path) -> Result<Vec<Descriptor>, String> {
+    // A test binary is not ryolune and cannot be the child: it probes in its own process.
+    if test_sandbox().is_some() && std::env::var_os("RYOLUNE_SCAN_CHILD").is_none() {
+        return probe(format, path);
+    }
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let mut child = std::process::Command::new(exe)
         .arg("--scan-plugin")

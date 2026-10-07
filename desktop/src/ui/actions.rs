@@ -141,6 +141,7 @@ pub const ACTIONS: &[ActionDef] = &[
     ),
     a("stopAgent", "Stop Current Agent Action", &[]),
     a("newAgentConversation", "New Agent Conversation", &[]),
+    a("buildPlugin", "Build a Plugin with Your Agent…", &[]),
     g("musicalTyping", "Musical Typing", &["secondary-k"]),
     // File.
     g("newSession", "New Session", &["secondary-n"]),
@@ -159,6 +160,7 @@ pub const ACTIONS: &[ActionDef] = &[
     a("saveRecoveredTake", "Save Recovered Take…", &[]),
     a("reconnectOutput", "Reconnect Output", &[]),
     a("audioSettings", "Audio and MIDI Devices…", &[]),
+    g("showPlugins", "Plugins…", &["secondary-shift-p"]),
     a("rescanPlugins", "Rescan Plugins", &[]),
     a("showMaster", "Show Master Strip", &[]),
     a("showBusA", "Show Reverb Bus (A)", &[]),
@@ -274,6 +276,7 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
             Some("audioSettings"),
             Some("musicalTyping"),
             None,
+            Some("showPlugins"),
             Some("rescanPlugins"),
         ],
     ),
@@ -284,6 +287,7 @@ pub const MENUS: &[(&str, &[Option<&str>])] = &[
             Some("askAgent"),
             Some("stopAgent"),
             Some("newAgentConversation"),
+            Some("buildPlugin"),
             Some("agentSettings"),
         ],
     ),
@@ -888,6 +892,16 @@ pub fn perform(id: &str, daw: &mut Daw, cx: &mut Context<Daw>) -> bool {
         "agentSettings" => settings_section(daw, "agent", cx),
         "rescanPlugins" => {
             daw.fire("plugin.scan", cx);
+        }
+        "showPlugins" => {
+            daw.run("ui.showPanel", json!({"panel": "plugins"}), cx);
+        }
+        "buildPlugin" => {
+            daw.run(
+                "ui.showPanel",
+                json!({"panel": "plugins", "section": "build"}),
+                cx,
+            );
         }
         "showMaster" => panel(daw, "master", true, cx),
         "showBusA" => panel(daw, "bus-a", true, cx),

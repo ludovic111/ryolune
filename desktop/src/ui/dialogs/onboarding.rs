@@ -10,9 +10,9 @@
 use super::{modal, Dialogs};
 use crate::ui::{
     daw::Daw,
-    widgets::{select_button, Button, MenuItem, Switch},
+    widgets::{Button, Switch},
 };
-use gpui::{div, prelude::*, px, Context, Entity, MouseButton, MouseDownEvent};
+use gpui::{div, prelude::*, px, Context, Entity};
 use ryolune_engine::interop::apps::APPS;
 use serde_json::json;
 
@@ -74,43 +74,27 @@ impl Dialogs {
             .unwrap_or_else(|| "No output device is open yet".into());
         let daw = self.daw.clone();
 
-        let mut items: Vec<MenuItem> = APPS
-            .iter()
-            .enumerate()
-            .map(|(i, a)| {
-                MenuItem::new(a.name, edit(&daw, move |d| d.app.interop.from = Some(i)))
-                    .checked(interop.from == Some(i))
-            })
-            .collect();
-        items.push(
-            MenuItem::new(
-                "Nothing yet, or another app",
-                edit(&daw, |d| d.app.interop.from = None),
+        let select = {
+            let daw = daw.clone();
+            super::apps::picker(
+                "onboarding-app",
+                interop.from,
+                "Nothing yet, or another",
+                move |index, _, cx| {
+                    daw.update(cx, |d, cx| {
+                        d.app.interop.from = index;
+                        cx.notify();
+                    })
+                },
+                cx,
             )
-            .checked(interop.from.is_none()),
-        );
-        let items = std::cell::RefCell::new(Some(items));
-        let select = select_button(
-            "onboarding-app",
-            from.map_or("Nothing yet, or another app", |a| a.name),
-            cx,
-        )
-        .min_w(px(220.0))
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(move |this, e: &MouseDownEvent, window, cx| {
-                if let Some(items) = items.borrow_mut().take() {
-                    this.menu.open(items, e.position, window, cx);
-                }
-            }),
-        );
-
+        };
         let mut body = modal::body("onboarding-body")
             .child(modal::text(
                 "ryolune is a free music studio. A few questions so it starts the way you work; you can change all of it later in Settings.",
                 cx,
             ))
-            .child(modal::field_row(
+            .child(modal::stacked(
                 "Coming from",
                 Some("The app you made music in until now.".into()),
                 select,
@@ -137,18 +121,67 @@ impl Dialogs {
             cx,
         ));
         if ai {
-            body = body.child(modal::field_row(
-                "Agent provider",
-                Some(
-                    format!(
-                        "Now: {provider}. Add a key, or use an installed Codex or Claude Code."
+            // lsuite AI first (lsuite's AI.md): signing in is the whole setup.
+            let account = &app.account;
+            let signed_in = account.signed_in();
+            let waiting = account.waiting_for_browser();
+            let detail = if signed_in {
+                let summary = account.summary();
+                format!(
+                    "lsuite AI · {}",
+                    if summary.is_empty() {
+                        "signed in".into()
+                    } else {
+                        summary
+                    }
+                )
+            } else if waiting {
+                "Finish signing in in your browser.".to_string()
+            } else {
+                "lsuite AI: no setup. Sign in and your agent works. Or use Codex, Claude Code, an API key or a local model.".to_string()
+            };
+            let lsuite_chosen =
+                app.settings.agent.provider == ryolune_engine::settings::Provider::Lsuite;
+            let row = div()
+                .flex()
+                .gap(px(8.0))
+                .when(!signed_in || !lsuite_chosen, |d| {
+                    d.child(
+                        Button::new(
+                            "onboarding-lsuite",
+                            if signed_in {
+                                "Use lsuite AI"
+                            } else {
+                                "Sign in"
+                            },
+                        )
+                        .primary()
+                        .disabled(waiting)
+                        .on_click({
+                            let daw = daw.clone();
+                            move |_, _, cx| {
+                                daw.update(cx, |d, cx| {
+                                    d.run(
+                                        "settings.set",
+                                        json!({ "path": "agent.provider", "value": "lsuite" }),
+                                        cx,
+                                    );
+                                    if !d.app.account.signed_in() {
+                                        d.run("account.signIn", json!({}), cx);
+                                    }
+                                    cx.notify();
+                                })
+                            }
+                        }),
                     )
-                    .into(),
-                ),
-                Button::new("onboarding-provider", "Connect…")
-                    .on_click(click(&daw, Start::Settings("agent"))),
-                cx,
-            ));
+                })
+                .child(
+                    Button::new("onboarding-provider", "Other services…")
+                        .ghost()
+                        .on_click(click(&daw, Start::Settings("agent"))),
+                );
+            let _ = provider;
+            body = body.child(modal::field_row("Agent", Some(detail.into()), row, cx));
         }
         body = body.child(modal::field_row(
             "Sound",
@@ -193,19 +226,6 @@ impl Dialogs {
                         .on_click(click(&daw, Start::Skip)),
                 ),
             )
-    }
-}
-
-fn edit(
-    daw: &Entity<Daw>,
-    f: impl Fn(&mut Daw) + 'static,
-) -> impl Fn(&mut gpui::Window, &mut gpui::App) + 'static {
-    let daw = daw.clone();
-    move |_, cx| {
-        daw.update(cx, |d, cx| {
-            f(d);
-            cx.notify();
-        })
     }
 }
 

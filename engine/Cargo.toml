@@ -32,6 +32,12 @@ vorbis_rs = { version = "0.5", default-features = false }
 # the desktop's update archives, roxmltree under usvg and fontconfig), so nothing new is fetched.
 zip = { version = "2", default-features = false, features = ["deflate"] }
 roxmltree = "0.20"
+# lsuite AI (account.rs): the account server and the loopback sign-in. Both were already in
+# the build (the desktop's HTTP client; getrandom under rand_core), so nothing new is fetched.
+ureq = { version = "3", default-features = false, features = ["rustls", "gzip"] }
+getrandom = { version = "0.2", features = ["std"] }
+# plugin.toml, the lsuite plugin bundle manifest (plugin_dev.rs); already in the build.
+toml = "0.8"
 
 [dev-dependencies]
 ryolune-plugin-gain = { path = "../plugins/gain" }

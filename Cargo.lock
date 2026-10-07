@@ -5261,6 +5261,7 @@ dependencies = [
  "clap-sys",
  "cpal",
  "fs2",
+ "getrandom 0.2.17",
  "hound",
  "libloading",
  "log",
@@ -5280,6 +5281,8 @@ dependencies = [
  "serde_json",
  "symphonia",
  "tempfile",
+ "toml 0.8.23",
+ "ureq",
  "vorbis_rs",
  "vst3",
  "zip",
@@ -5291,6 +5294,20 @@ version = "0.14.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "ryolune-plugin-bitcrusher"
+version = "0.14.0"
+dependencies = [
+ "ryolune-plugin",
+]
+
+[[package]]
+name = "ryolune-plugin-chorus"
+version = "0.14.0"
+dependencies = [
+ "ryolune-plugin",
 ]
 
 [[package]]

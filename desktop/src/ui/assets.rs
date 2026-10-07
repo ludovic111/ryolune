@@ -1,4 +1,6 @@
-//! Files bundled into the binary: fonts, icons and provider logos (`desktop/assets`). Icons
+//! Files bundled into the binary: fonts, icons, provider logos and the logos of the plugin
+//! formats and music apps ryolune works with (`desktop/assets`, sources in
+//! `assets/logos/NOTICE.md`). Icons
 //! are ryolune's own drawings and a few from Lucide (ISC, `icons/LICENSE.lucide.txt`); the
 //! mark is written by `scripts/gen-mark.py`.
 
@@ -9,6 +11,7 @@ use std::borrow::Cow;
 #[folder = "assets"]
 #[include = "icons/*.svg"]
 #[include = "providers/*.svg"]
+#[include = "logos/*.svg"]
 #[include = "fonts/*.ttf"]
 pub struct Assets;
 

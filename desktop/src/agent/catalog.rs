@@ -37,6 +37,7 @@ pub(crate) fn discover(settings: &Settings) -> Vec<Group> {
         let jobs: Vec<_> = Provider::ALL
             .into_iter()
             .filter(|p| match p {
+                Provider::Lsuite => ryolune_engine::account::load().is_some(),
                 Provider::Codex => {
                     super::discover_codex(&settings.agent.codex_executable).is_file()
                 }
@@ -56,6 +57,7 @@ pub(crate) fn discover(settings: &Settings) -> Vec<Group> {
                 (
                     provider,
                     scope.spawn(move || match provider {
+                        Provider::Lsuite => lsuite_models(),
                         Provider::Codex | Provider::Claude => cli_models(settings, provider),
                         Provider::Zenith => {
                             super::zenith::models(&settings.agent.zenith_executable)
@@ -150,6 +152,17 @@ fn normalized(raw: &Value, provider: Provider) -> Option<Model> {
         name: bounded(name, 200),
         efforts,
     })
+}
+
+/// The lsuite AI plan's models, from the subscription's endpoint.
+fn lsuite_models() -> Result<Vec<Model>> {
+    let account =
+        ryolune_engine::account::load().ok_or("Sign in to lsuite AI to list its models")?;
+    let models = ryolune_engine::account::models(&account).map_err(|f| f.message())?;
+    Ok(models
+        .iter()
+        .filter_map(|m| normalized(m, Provider::Anthropic))
+        .collect())
 }
 
 fn api_models(settings: &Settings, provider: Provider) -> Result<Vec<Model>> {

@@ -34,6 +34,38 @@ pub(crate) fn check(settings: &Settings) -> Connection {
             super::discover_claude(&settings.agent.claude_executable),
             vec!["auth".into(), "status".into()],
         ),
+        Provider::Lsuite => {
+            // The account server says whether the plan has room; no model is asked.
+            let status = ryolune_engine::account::status(true);
+            return match status["state"].as_str().unwrap_or("") {
+                "signedIn" if status["exhausted"] == true => {
+                    result("allowanceUsed", ryolune_engine::account::ALLOWANCE_MESSAGE)
+                }
+                "signedIn" => {
+                    let summary = status["summary"].as_str().unwrap_or("");
+                    let plan = status["plan"].as_str().unwrap_or("");
+                    if plan.is_empty() || plan == "free" {
+                        result(
+                            "planRequired",
+                            "Signed in. Choose a plan to use lsuite AI: Manage plan.",
+                        )
+                    } else {
+                        result("signedIn", &format!("Signed in to lsuite AI · {summary}."))
+                    }
+                }
+                "offline" => result(
+                    "configured",
+                    status["message"]
+                        .as_str()
+                        .unwrap_or("Signed in; the lsuite server did not answer."),
+                ),
+                "expired" => result(
+                    "signInRequired",
+                    "Your lsuite sign-in has expired. Sign in again.",
+                ),
+                _ => result("signInRequired", "No setup. Sign in and your agent works."),
+            };
+        }
         Provider::Anthropic | Provider::OpenAi => {
             return if settings.api_key(provider).is_some() {
                 result(
@@ -125,6 +157,19 @@ pub(crate) fn check(settings: &Settings) -> Connection {
             }
         }
     }
+    if provider == Provider::Claude && settings.agent.claude_through_lsuite {
+        return if ryolune_engine::account::load().is_some() {
+            result(
+                "signedIn",
+                "Claude Code runs on your lsuite AI plan. No Claude sign-in needed.",
+            )
+        } else {
+            result(
+                "signInRequired",
+                "Claude Code is set to run on lsuite AI: sign in to lsuite AI first.",
+            )
+        };
+    }
     match crate::settings::run_cli(&executable, &args, Duration::from_secs(15)) {
         Ok(_) => result("signedIn", "Signed in. Your next message will use this account."),
         Err(_) => result("signInRequired", "Sign in to your account, then return to ryolune. If you are already signed in, check the installation and try again."),
@@ -138,6 +183,7 @@ mod tests {
     #[test]
     fn disabled_bridge_blocks_cli_setup_without_changing_the_preference() {
         let mut settings = Settings::default();
+        settings.agent.provider = Provider::Codex;
         settings.control.enable_bridge = false;
         assert_eq!(check(&settings).state, "bridgeDisabled");
         assert!(!settings.control.enable_bridge);
@@ -150,6 +196,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let executable = dir.path().join("codex");
         let mut settings = Settings::default();
+        settings.agent.provider = Provider::Codex;
         settings.agent.codex_executable = executable.to_string_lossy().into();
         for (script, expected) in [
             ("#!/bin/sh\nprintf old-version\n", "updateRequired"),
@@ -188,6 +235,7 @@ mod tests {
     #[test]
     fn missing_companion_has_an_actionable_state() {
         let mut settings = Settings::default();
+        settings.agent.provider = Provider::Codex;
         let dir = tempfile::tempdir().unwrap();
         settings.agent.codex_executable = dir.path().join("absent").to_string_lossy().into();
         assert_eq!(check(&settings).state, "missingCli");

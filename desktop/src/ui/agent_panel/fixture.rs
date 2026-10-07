@@ -43,7 +43,7 @@ impl AgentPanel {
             state: "configured".into(),
             message: String::new(),
         });
-        self.connection_key = Some((false, provider));
+        self.connection_key = Some((false, provider, String::new()));
         let tool = |name: &str, args: serde_json::Value, ok: bool| Entry {
             role: Role::Tool,
             text: String::new(),

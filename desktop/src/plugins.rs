@@ -10,7 +10,10 @@ use ryolune_engine::{
     plugin::{Editor, Format, Processor},
     store::Command,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 pub struct Loaded {
     pub key: String,
@@ -40,6 +43,11 @@ pub struct Bank {
     free: Vec<u32>,
     next_slot: u32,
     pub rate: u32,
+    /// What the last reconcile that left nothing to do saw: the next one with the same
+    /// document, rate, device and plugin set returns at once. The window ticks ten times a
+    /// second while idle, and walking the document (plugin states can be megabytes) every
+    /// tick kept a core busy for nothing.
+    settled: Option<(usize, u64, u32, bool, usize, usize, usize)>,
 }
 impl Bank {
     fn allocate(&mut self) -> u32 {
@@ -74,6 +82,20 @@ impl Ryolune {
     pub(crate) fn reconcile_plugins(&mut self) {
         let session = self.store.snapshot();
         let rate = self.device.as_ref().map_or(48000, |d| d.sample_rate);
+        let key = (
+            Arc::as_ptr(&session) as usize,
+            self.store.revision,
+            rate,
+            self.device.is_some(),
+            self.plugins.loaded.len(),
+            self.plugins.failed.len(),
+            self.catalog.len(),
+        );
+        if self.plugins.settled == Some(key) {
+            return;
+        }
+        self.plugins.settled = None;
+        let mut unsettled = false;
         if self.plugins.rate != rate && !self.plugins.loaded.is_empty() {
             self.unload_plugins();
         }
@@ -197,6 +219,7 @@ impl Ryolune {
                         }
                         Err(Message::Mount(_, processor)) => {
                             entry.processor = Some(processor);
+                            unsettled = true;
                             self.status = "Waiting for the audio queue to load the plugin…".into();
                             break;
                         }
@@ -222,13 +245,16 @@ impl Ryolune {
                         }
                     }
                     for (&id, &value) in &need.params {
-                        if entry.sent.get(&id) != Some(&value)
-                            && device
+                        if entry.sent.get(&id) != Some(&value) {
+                            if device
                                 .send(Message::SetParam(entry.slot, id, value))
                                 .is_ok()
-                        {
-                            entry.sent.insert(id, value);
-                            entry.editor.set_value(id, value);
+                            {
+                                entry.sent.insert(id, value);
+                                entry.editor.set_value(id, value);
+                            } else {
+                                unsettled = true;
+                            }
                         }
                     }
                 }
@@ -239,6 +265,101 @@ impl Ryolune {
         }
         if loaded_external && self.status.starts_with("Loading ") {
             self.status = "Ready".into();
+        }
+        // Settled: every plugin the song needs is loaded (or failed), mounted when there is a
+        // device, nothing is being retired and every parameter reached the audio thread.
+        let all_there = needs.iter().all(|n| {
+            self.plugins.failed.contains_key(&n.key)
+                || self
+                    .plugins
+                    .loaded
+                    .get(&n.key)
+                    .is_some_and(|l| !l.retiring && (self.device.is_none() || l.mounted))
+        });
+        let retiring = self.plugins.loaded.values().any(|l| l.retiring);
+        if !unsettled && !changed && all_there && !retiring {
+            self.plugins.settled = Some((
+                Arc::as_ptr(&session) as usize,
+                self.store.revision,
+                rate,
+                self.device.is_some(),
+                self.plugins.loaded.len(),
+                self.plugins.failed.len(),
+                self.catalog.len(),
+            ));
+        }
+    }
+    /// The plugins on disk changed (a rescan, an install, a plugin built by the agent): take
+    /// the new list and reload, without a restart, every insert whose lsuite plugin was
+    /// rebuilt (its library moved). Returns the plugin ids that were reloaded.
+    pub(crate) fn adopt_catalog(&mut self) -> Vec<String> {
+        let next = host::scan::installed();
+        let changed: Vec<String> = next
+            .iter()
+            .filter(|d| d.format == ryolune_engine::plugin::Format::Native)
+            .filter(|d| {
+                self.catalog
+                    .iter()
+                    .find(|old| old.id == d.id)
+                    .is_none_or(|old| old.path != d.path)
+            })
+            .map(|d| d.id.clone())
+            .collect();
+        self.catalog = next;
+        let stale: Vec<String> = self
+            .plugins
+            .loaded
+            .values()
+            .filter(|l| !l.retiring && changed.contains(&l.plugin_id))
+            .map(|l| l.key.clone())
+            .collect();
+        for key in &stale {
+            self.retire_plugin(key);
+        }
+        // Inserts that could not load may load now.
+        self.plugins.failed.clear();
+        if !stale.is_empty() {
+            self.status = format!(
+                "Reloaded {} plugin{}",
+                stale.len(),
+                if stale.len() == 1 { "" } else { "s" }
+            );
+        }
+        changed
+    }
+    /// A plugin job finished (a build, an install, a removal): keep its answer for the
+    /// Plugins window and take the new plugin list.
+    pub(crate) fn plugin_finished(
+        &mut self,
+        method: &str,
+        result: &ryolune_engine::Result<serde_json::Value>,
+    ) {
+        if self.plugin_job.as_deref() == Some(method) {
+            self.plugin_job = None;
+        }
+        if matches!(
+            method,
+            "plugin.publishLocal" | "plugin.install" | "plugin.remove"
+        ) && result.is_ok()
+        {
+            self.adopt_catalog();
+        }
+        if method == "plugin.publishLocal" {
+            match result {
+                Ok(v) if v["ok"] == true => {
+                    self.status = format!(
+                        "{} is installed",
+                        v["plugins"][0]["name"].as_str().unwrap_or("The plugin")
+                    )
+                }
+                Ok(_) => self.status = "The plugin did not build; see its errors".into(),
+                Err(e) => self.status = e.clone(),
+            }
+        }
+        if method == "plugin.toolchain" {
+            self.plugin_toolchain = result.as_ref().ok().cloned();
+        } else {
+            self.plugin_result = Some((method.to_string(), result.clone()));
         }
     }
     fn retire_plugin(&mut self, key: &str) {

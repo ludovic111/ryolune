@@ -28,6 +28,8 @@ use serde_json::{json, Value};
 /// How a service connects, which decides the form.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Kind {
+    /// lsuite AI: the lsuite account every lsuite app shares, signed in once.
+    Lsuite,
     /// An account signed in through a companion app (Codex, Claude Code).
     Account,
     /// An API key.
@@ -75,7 +77,18 @@ const fn hosted(
     }
 }
 
-pub(crate) const PROVIDERS: [ProviderInfo; 14] = [
+pub(crate) const PROVIDERS: [ProviderInfo; 15] = [
+    ProviderInfo {
+        provider: Provider::Lsuite,
+        name: "lsuite AI",
+        description: "No setup. Sign in and your agent works: Claude models on an lsuite plan, shared by every lsuite app.",
+        help: "https://lsuite.xyz/account",
+        destination: "Requests and session context are sent to lsuite, which passes them to Anthropic for your plan.",
+        kind: Kind::Lsuite,
+        key_path: None,
+        url_path: None,
+        default_url: None,
+    },
     ProviderInfo {
         provider: Provider::Codex,
         name: "Codex",
@@ -209,7 +222,8 @@ pub(crate) const PROVIDERS: [ProviderInfo; 14] = [
 ];
 
 /// How the service picker groups them.
-pub(crate) const PROVIDER_GROUPS: [(&str, &[Provider]); 4] = [
+pub(crate) const PROVIDER_GROUPS: [(&str, &[Provider]); 5] = [
+    ("lsuite", &[Provider::Lsuite]),
     (
         "Your account",
         &[Provider::Codex, Provider::Claude, Provider::Zenith],
@@ -239,7 +253,7 @@ pub(crate) fn info(provider: Provider) -> &'static ProviderInfo {
 }
 
 /// What the agent may do, in Settings words: (permission, title, description).
-pub(crate) const PERMISSIONS: [(&str, &str, &str); 6] = [
+pub(crate) const PERMISSIONS: [(&str, &str, &str); 7] = [
     (
         "fileOperations",
         "Save, import and export files",
@@ -269,6 +283,11 @@ pub(crate) const PERMISSIONS: [(&str, &str, &str); 6] = [
         "generation",
         "Generate sounds",
         "Let the agent make sounds with your generation service, on its credits.",
+    ),
+    (
+        "plugins",
+        "Build and install plugins",
+        "Let the agent write, build and install the plugins you ask for, and turn plugins on or off.",
     ),
 ];
 
@@ -532,6 +551,7 @@ impl AgentForm {
     /// Load what the section shows: the connection, the models and the outside agents.
     pub fn refresh(&mut self, cx: &mut Context<Self>) {
         self.check(cx);
+        self.daw.update(cx, |daw, _| daw.app.refresh_account());
         let daw = self.daw.clone();
         request_async(
             self,
@@ -631,6 +651,10 @@ impl AgentForm {
 
     /// Save connection: every draft field, the key only when one was typed.
     fn save_connection(&mut self, cx: &mut Context<Self>) {
+        if self.provider == Provider::Lsuite && !self.key.read(cx).is_empty() {
+            self.lsuite_sign_in(true, cx);
+            return;
+        }
         if !self.unsaved(cx) || self.running(cx) {
             return;
         }
@@ -676,6 +700,226 @@ impl AgentForm {
 
     fn running(&self, cx: &App) -> bool {
         self.daw.read(cx).app.agents.runtime.running()
+    }
+
+    /// lsuite AI: sign in through the browser, or with the key pasted in the field.
+    fn lsuite_sign_in(&mut self, with_key: bool, cx: &mut Context<Self>) {
+        let key = self.key.read(cx).text().trim().to_string();
+        let params = if with_key {
+            json!({ "key": key })
+        } else {
+            json!({})
+        };
+        self.error = None;
+        self.notice = None;
+        let result = self
+            .daw
+            .update(cx, |daw, cx| daw.request("account.signIn", params, cx));
+        match result {
+            Ok(_) => {
+                self.key.update(cx, |key, cx| key.clear(cx));
+                if !with_key {
+                    self.notice = Some(
+                        "Finish in your browser: sign in or create your account, then press Connect ryolune."
+                            .into(),
+                    );
+                }
+            }
+            Err(error) => self.error = Some(error),
+        }
+        cx.notify();
+    }
+
+    fn lsuite_command(&mut self, method: &str, cx: &mut Context<Self>) {
+        self.error = None;
+        self.notice = None;
+        let method = method.to_string();
+        if let Err(error) = self
+            .daw
+            .update(cx, |daw, cx| daw.request(&method, json!({}), cx))
+        {
+            self.error = Some(error);
+        }
+        cx.notify();
+    }
+
+    /// The lsuite AI card: what the account is, the plan and its allowance, and the one or
+    /// two things to do next.
+    fn lsuite_block(&mut self, window: &Window, cx: &mut Context<Self>) -> gpui::Div {
+        let theme = Theme::get(cx).clone();
+        let app = &self.daw.read(cx).app;
+        let account = &app.account;
+        let status = account.status.clone().unwrap_or(Value::Null);
+        let signed_in = account.signed_in();
+        let busy = account.busy.clone();
+        let waiting = account.waiting_for_browser();
+        let failed = account.error.clone();
+        let state = status["state"].as_str().unwrap_or("");
+        let plan = status["plan"].as_str().unwrap_or("");
+        let needs_plan = signed_in && state == "signedIn" && (plan.is_empty() || plan == "free");
+        let used_up = status["exhausted"] == true;
+        let title = if waiting {
+            "Waiting for your browser…".to_string()
+        } else if signed_in {
+            status["email"]
+                .as_str()
+                .map_or("lsuite AI connected".to_string(), |e| e.to_string())
+        } else {
+            "lsuite AI".to_string()
+        };
+        let summary = account.summary();
+        let line = if signed_in && !summary.is_empty() {
+            summary
+        } else {
+            status["message"]
+                .as_str()
+                .unwrap_or("No setup. Sign in and your agent works.")
+                .to_string()
+        };
+        let key_focused = self.key.read(cx).is_focused(window);
+        let checking = busy.as_deref() == Some("account.status");
+        let blocked = busy.is_some() && !checking;
+        let lit = signed_in && state == "signedIn" && !used_up && !needs_plan;
+        let mut buttons = div().flex().flex_wrap().gap(px(8.0));
+        if signed_in {
+            if lit {
+                buttons = buttons.child(
+                    Button::new("lsuite-chat", "Start chatting")
+                        .primary()
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.daw.update(cx, |daw, cx| {
+                                daw.run(
+                                    "ui.showPanel",
+                                    json!({"panel": "settings", "visible": false}),
+                                    cx,
+                                );
+                                daw.run("ui.showPanel", json!({"panel": "agent"}), cx);
+                            })
+                        })),
+                );
+            }
+            buttons =
+                buttons
+                    .child(
+                        Button::new(
+                            "lsuite-manage",
+                            if needs_plan {
+                                "Choose a plan"
+                            } else {
+                                "Manage plan"
+                            },
+                        )
+                        .when(needs_plan || used_up, |b| b.primary())
+                        .with_icon("external")
+                        .on_click(
+                            cx.listener(|this, _, _, cx| this.lsuite_command("account.manage", cx)),
+                        ),
+                    )
+                    .child(
+                        Button::new("lsuite-sign-out", "Sign out")
+                            .ghost()
+                            .disabled(blocked)
+                            .tooltip("Signs out every lsuite app on this computer")
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.lsuite_command("account.signOut", cx)
+                            })),
+                    );
+        } else if waiting {
+            buttons = buttons.child(Button::new("lsuite-cancel", "Cancel").on_click(cx.listener(
+                |this, _, _, cx| {
+                    this.daw.update(cx, |daw, cx| {
+                        daw.app.cancel_sign_in();
+                        cx.notify();
+                    });
+                    this.notice = None;
+                    cx.notify();
+                },
+            )));
+        } else {
+            buttons = buttons.child(
+                Button::new("lsuite-sign-in", "Sign in")
+                    .primary()
+                    .disabled(blocked)
+                    .on_click(cx.listener(|this, _, _, cx| this.lsuite_sign_in(false, cx))),
+            );
+        }
+        let has_key = !self.key.read(cx).is_empty();
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(10.0))
+            .p(px(14.0))
+            .bg(theme.bg_raised)
+            .border_1()
+            .border_color(if lit { theme.accent_ring } else { theme.line })
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.0))
+                    .child(crate::ui::agent_panel::provider_logo(
+                        "lsuite", "", 28.0, cx,
+                    ))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .min_w_0()
+                            .child(
+                                div()
+                                    .text_size(px(size::BASE))
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_color(theme.text)
+                                    .child(title),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(size::SM))
+                                    .text_color(theme.text_2)
+                                    .child(if checking && signed_in {
+                                        format!("{line} · checking…")
+                                    } else {
+                                        line
+                                    }),
+                            ),
+                    ),
+            )
+            .when(used_up, |d| {
+                d.child(modal::text(ryolune_engine::account::ALLOWANCE_MESSAGE, cx))
+            })
+            .when_some(self.notice.clone().filter(|_| waiting), |d, m| {
+                d.child(modal::text(m, cx))
+            })
+            .when_some(failed.or(self.error.clone()), |d, e| {
+                d.child(modal::error_line(e, cx))
+            })
+            .child(buttons)
+            .when(!signed_in && !waiting, |d| {
+                d.child(modal::stacked(
+                    "Or paste a key",
+                    Some(
+                        "From your lsuite account page (lsk_…), for a computer without a browser."
+                            .into(),
+                    ),
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .flex_1()
+                                .child(secret_field(&self.key, key_focused, cx)),
+                        )
+                        .child(
+                            Button::new("lsuite-key", "Sign in with key")
+                                .disabled(!has_key || blocked)
+                                .on_click(
+                                    cx.listener(|this, _, _, cx| this.lsuite_sign_in(true, cx)),
+                                ),
+                        ),
+                    cx,
+                ))
+            })
     }
 
     fn sign_in(&mut self, cx: &mut Context<Self>) {
@@ -1090,8 +1334,10 @@ impl Render for AgentForm {
             cx.defer_in(window, |this, _, cx| this.check(cx));
         }
         let info = info(self.provider);
+        let lsuite = info.kind == Kind::Lsuite;
         let account = info.kind == Kind::Account;
-        let model_required = !account && Provider::default_model(self.provider).is_empty();
+        let model_required =
+            !account && !lsuite && Provider::default_model(self.provider).is_empty();
         let unsaved = self.unsaved(cx);
         let running = self.running(cx);
         let locked = unsaved || running || self.signing_in;
@@ -1259,7 +1505,28 @@ impl Render for AgentForm {
                 ));
             form = form.child(advanced);
         }
-        if unsaved || !account {
+        if self.provider == Provider::Claude {
+            let on = self.daw.read(cx).app.settings.agent.claude_through_lsuite;
+            form = form.child(modal::field_row(
+                "Run on lsuite AI",
+                Some("Claude Code uses your lsuite plan instead of its own sign-in.".into()),
+                div().when(locked, |d| d.opacity(0.4)).child(
+                    Switch::new("claude-through-lsuite", on).on_toggle({
+                        let set = cx.listener(move |this, on: &bool, _, cx| {
+                            if !this.unsaved(cx) && !this.running(cx) {
+                                this.save(vec![("claudeThroughLsuite".into(), json!(on))], cx);
+                                this.check(cx);
+                            }
+                        });
+                        move |on, window, cx| set(&on, window, cx)
+                    }),
+                ),
+                cx,
+            ));
+        }
+        // A key pasted for lsuite AI signs in from its own card, not through Save.
+        let key_only = lsuite && !self.key.read(cx).is_empty();
+        if (unsaved && !key_only) || (!account && !lsuite) {
             form = form.child(
                 div().flex().child(
                     Button::new("agent-save", "Save connection")
@@ -1283,6 +1550,7 @@ impl Render for AgentForm {
             "replaceSession" => permissions.replace_session,
             "settings" => permissions.settings,
             "appControl" => permissions.app_control,
+            "plugins" => permissions.plugins,
             _ => permissions.generation,
         };
         let mut can = div().flex().flex_col();
@@ -1308,7 +1576,11 @@ impl Render for AgentForm {
             }
         }
 
-        let connection = self.connection_block(unsaved, cx);
+        let connection = if lsuite {
+            self.lsuite_block(window, cx)
+        } else {
+            self.connection_block(unsaved, cx)
+        };
         let external = self.external_agents(cx);
         div()
             .w_full()
