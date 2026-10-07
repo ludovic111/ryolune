@@ -1,0 +1,14 @@
+# An lsuite plugin bundle (lsuite's PLUGINS.md): this file beside the built library.
+id = "org.ryolune.examples.chorus"
+name = "Simple Chorus"
+version = "1.0.0"
+app = "ryolune"
+kind = "effect"
+abi = 2
+description = "Two modulated voices, spread left and right, for width and shimmer."
+authors = ["ryolune Examples"]
+
+[library]
+macos = "libryolune_plugin_chorus.dylib"
+linux = "libryolune_plugin_chorus.so"
+windows = "ryolune_plugin_chorus.dll"

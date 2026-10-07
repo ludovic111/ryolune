@@ -1,0 +1,14 @@
+# An lsuite plugin bundle (lsuite's PLUGINS.md): this file beside the built library.
+id = "org.ryolune.examples.bitcrusher"
+name = "Bitcrusher"
+version = "1.0.0"
+app = "ryolune"
+kind = "effect"
+abi = 2
+description = "Fewer bits and a lower sample rate: from warm grit to broken 8-bit."
+authors = ["ryolune Examples"]
+
+[library]
+macos = "libryolune_plugin_bitcrusher.dylib"
+linux = "libryolune_plugin_bitcrusher.so"
+windows = "ryolune_plugin_bitcrusher.dll"

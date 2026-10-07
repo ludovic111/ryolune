@@ -1,0 +1,14 @@
+[package]
+name = "ryolune-plugin-bitcrusher"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Example ryolune plugin written on the SDK: Bitcrusher (bit depth, sample rate reduction, mix)"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ryolune-plugin = { path = "../../sdk" }
