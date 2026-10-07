@@ -535,6 +535,12 @@ fn mcp_serves_the_harness_brief_skills_pictures_and_checkpoints() {
     assert!(made_text.contains("Song now:"));
     // The finish routine is due until the agent looks or measures.
     assert!(made_text.contains("Not checked yet"), "{made_text}");
+    // The same notes ride in the structured result, which some clients show instead.
+    let notes = made["structuredContent"]["harnessNotes"].to_string();
+    assert!(
+        notes.contains("Song now:") && notes.contains("Not checked yet"),
+        "{made}"
+    );
     let changes = mcp.tool(8, "harness_changes", json!({}));
     assert!(
         changes["content"][0]["text"]

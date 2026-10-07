@@ -345,7 +345,7 @@ impl Server {
         };
         format!(
             "ryolune-mcp. {mode}\n\
-             In live mode ui_screenshot also returns the window as an image. Tool names are the registry's commands with the first dot as an underscore (harness.look is harness_look). Results of edits end with the song's state and, in live mode, what the person changed since your last call.\n\n{}",
+             In live mode ui_screenshot also returns the window as an image. Tool names are the registry's commands with the first dot as an underscore (harness.look is harness_look). Results of edits end with the song's state, a reminder of the finish routine until you look or measure and, in live mode, what the person changed since your last call (also under harnessNotes in the structured result).\n\n{}",
             harness::brief()
         )
     }
@@ -423,14 +423,17 @@ impl Server {
                 })
             }
         }
+        // What the harness adds to a result (HARNESS.md parts 3 and 5). Also kept in the
+        // structured result: some clients (Claude Code) show that instead of the text.
+        let mut notes = vec![];
         if let Some(changed) = person {
             let lines: Vec<String> = changed
                 .iter()
                 .filter_map(Value::as_str)
                 .map(|c| format!("  - {c}"))
                 .collect();
-            text.push_str(&format!(
-                "\n\nBefore this call, the person changed (keep their changes):\n{}",
+            notes.push(format!(
+                "Before this call, the person changed (keep their changes):\n{}",
                 lines.join("\n")
             ));
         }
@@ -440,8 +443,8 @@ impl Server {
                     .call("harness.context", &json!({ "key": "mcp-state" }), true)
             {
                 let line = |k: &str| context[k].as_str().unwrap_or("").to_string();
-                text.push_str(&format!(
-                    "\n\nSong now: {} · {} tracks · playhead {}",
+                notes.push(format!(
+                    "Song now: {} · {} tracks · playhead {}",
                     line("song"),
                     context["tracks"].as_array().map_or(0, Vec::len)
                         + context["moreTracks"].as_u64().unwrap_or(0) as usize,
@@ -450,14 +453,21 @@ impl Server {
             }
         }
         if self.with_context && self.unchecked && mutates {
-            text.push_str(
-                "\nNot checked yet: before you report, run the finish routine (harness_look over what you changed, harness_measure when levels matter).",
+            notes.push(
+                "Not checked yet: before you report, run the finish routine (harness_look over what you changed, harness_measure when levels matter).".into(),
             );
+        }
+        for note in &notes {
+            text.push_str("\n\n");
+            text.push_str(note);
         }
         let mut content = vec![json!({ "type": "text", "text": text })];
         content.extend(images);
         let mut reply = json!({ "content": content, "isError": false });
-        if result.is_object() {
+        if let Some(object) = result.as_object_mut() {
+            if !notes.is_empty() {
+                object.insert("harnessNotes".into(), json!(notes));
+            }
             reply["structuredContent"] = result;
         }
         reply
