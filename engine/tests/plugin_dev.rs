@@ -179,6 +179,10 @@ fn an_agent_builds_installs_and_rebuilds_a_plugin_without_a_restart() {
         "plugin.publishLocal",
         json!({"name": "Night Crush"}),
     );
+    assert_eq!(
+        again["ok"], true,
+        "rebuilding a loaded plugin failed: {again}"
+    );
     let second_library = PathBuf::from(again["library"].as_str().unwrap());
     assert_ne!(first_library, second_library);
     assert!(!first_library.exists());

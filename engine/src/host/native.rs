@@ -185,6 +185,14 @@ fn load(bundle: &Path) -> Result<Arc<Loaded>> {
     if let Some(loaded) = guard.get(bundle) {
         return Ok(loaded.clone());
     }
+    let loaded = Arc::new(load_uncached(bundle)?);
+    guard.insert(bundle.to_path_buf(), loaded.clone());
+    Ok(loaded)
+}
+
+// Only cached host instances may retain the vtables. Inspection returns owned metadata and
+// releases the module, leaving Cargo free to replace its output on Windows.
+fn load_uncached(bundle: &Path) -> Result<Loaded> {
     let binary = library_path(bundle)?;
     // SAFETY: loading a plugin binary runs its initialisers; this is inherent to hosting.
     let library = unsafe { libloading::Library::new(&binary) }
@@ -210,12 +218,10 @@ fn load(bundle: &Path) -> Result<Arc<Loaded>> {
             }
         }
     };
-    let loaded = Arc::new(Loaded {
+    Ok(Loaded {
         _library: library,
         tables,
-    });
-    guard.insert(bundle.to_path_buf(), loaded.clone());
-    Ok(loaded)
+    })
 }
 
 fn descriptor_of(manifest: &Manifest, path: &Path) -> Descriptor {
@@ -240,6 +246,20 @@ pub fn scan(bundle: &Path) -> Result<Vec<Descriptor>> {
     }
     Ok(out)
 }
+/// Inspect a build artifact without keeping it loaded or locking its file on Windows.
+pub fn inspect(bundle: &Path) -> Result<Vec<Descriptor>> {
+    let loaded = load_uncached(bundle)?;
+    loaded
+        .tables
+        .iter()
+        .map(|table| {
+            // SAFETY: the library remains loaded until every manifest is copied into owned data.
+            let manifest = unsafe { ffi::read_manifest(table.base)? };
+            Ok(descriptor_of(&manifest, bundle))
+        })
+        .collect()
+}
+
 /// Manifests of a static in-process table (the stock library, tests).
 pub fn manifests(tables: &'static [PluginVTable]) -> Result<Vec<Manifest>> {
     tables

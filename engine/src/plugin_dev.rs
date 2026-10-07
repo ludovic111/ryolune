@@ -679,7 +679,7 @@ pub fn publish_local(name: &str) -> Result<Value> {
     let manifest = read_manifest(&dir)?;
     let library = PathBuf::from(built["library"].as_str().unwrap_or(""));
     // The library must load and export the id its manifest names before it is installed.
-    let exported = native::scan(&library)?;
+    let exported = native::inspect(&library)?;
     let wanted = format!("native:{}", manifest.id);
     if !exported.iter().any(|d| d.id == wanted) {
         let ids: Vec<&str> = exported.iter().map(|d| d.id.as_str()).collect();
