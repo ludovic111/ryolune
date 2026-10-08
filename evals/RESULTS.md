@@ -19,3 +19,21 @@ never saw the reminder.
 | Job | Skill | Result | Checks | Tool calls | Time | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | drums-house | drum-programming | pass | 6/6 | 6 | 26.8s | all checks passed |
+
+### 2026-10-08 · opus · 12/13 jobs passed · 65/68 checks · $4.71
+
+| Job | Skill | Result | Checks | Tool calls | Time | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| drums-house | drum-programming | pass | 6/6 | 6 | 49.1s | all checks passed |
+| bass-chords | bass-and-chords | pass | 8/8 | 7 | 136.4s | all checks passed |
+| compose-lofi | compose-from-brief | pass | 8/8 | 18 | 913.8s | all checks passed |
+| arrange-demo | arrangement | pass | 6/6 | 12 | 375.9s | all checks passed |
+| fix-clipping | mixing | pass | 5/5 | 10 | 838.9s | all checks passed |
+| master-streaming | mastering | pass | 5/5 | 26 | 706.6s | all checks passed |
+| master-broadcast | mastering | pass | 5/5 | 9 | 365.0s | all checks passed |
+| darker-pad | sound-design | pass | 4/4 | 7 | 98.2s | all checks passed |
+| melody | melody-and-hooks | pass | 5/5 | 8 | 227.6s | all checks passed |
+| score-cut | score-to-picture | pass | 5/5 | 15 | 504.2s | all checks passed |
+| export-stems | stems-and-export | FAIL | 1/4 | 4 | 42.1s | a 44.1 kHz 16-bit WAV mix (no mix.wav); one stem per track (0 files); looked or measured before finishing (finish routine) (0 looks/measures) |
+| ritardando | arrangement | pass | 4/4 | 5 | 65.8s | all checks passed |
+| fade-out | automation-and-movement | pass | 3/3 | 3 | 92.7s | all checks passed |

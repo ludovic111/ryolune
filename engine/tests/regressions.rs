@@ -640,3 +640,43 @@ fn a_song_keeps_one_id_across_opening_saving_and_takes() {
     call(&mut host, "take.select", json!({"id": id}));
     assert_eq!(host.store.session().id, "song-1");
 }
+
+/// Exports to a folder that did not exist yet failed with "No such file or directory", and an
+/// agent (eval `export-stems`, 0.16) has no other command that makes folders.
+#[test]
+fn exports_make_the_folders_they_are_given() {
+    let dir = tempfile::tempdir().unwrap();
+    let out = dir.path().join("out");
+    let mut host = Headless::new();
+    let track = midi_track(&mut host);
+    call(
+        &mut host,
+        "clip.create",
+        json!({"trackId":track,"startBar":0,"lengthBars":1,"notes":[{"start":0,"length":1,"pitch":60}]}),
+    );
+    call(
+        &mut host,
+        "session.exportAudio",
+        json!({"path": out.join("mix.wav"), "sampleRate": 44100, "format": "pcm16", "tailSeconds": 0}),
+    );
+    assert!(out.join("mix.wav").is_file());
+    let stems = call(
+        &mut host,
+        "session.exportStems",
+        json!({"directory": out.join("deeper").join("stems"), "tailSeconds": 0}),
+    );
+    assert!(!stems["files"].as_array().unwrap().is_empty(), "{stems}");
+    call(
+        &mut host,
+        "session.exportMidi",
+        json!({"path": out.join("midi").join("song.mid")}),
+    );
+    assert!(out.join("midi").join("song.mid").is_file());
+    // Stems still refuse a folder that already exists.
+    assert!(fail(
+        &mut host,
+        "session.exportStems",
+        json!({"directory": out.join("deeper").join("stems")}),
+    )
+    .contains("exist"));
+}

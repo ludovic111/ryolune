@@ -825,6 +825,22 @@ pub fn call(host: &mut dyn Host, name: &str, params: &Value, agent: bool) -> Res
     ) {
         protect_session_file(host.path(), Path::new(a.str("path")?))?;
     }
+    // An export to a folder that does not exist yet makes it: a person who names
+    // `out/mix.wav` means it, and an agent has no other way to make folders.
+    let target = match name {
+        "session.bounce" | "session.exportMidi" | "session.exportAudio" | "session.exportTo" => {
+            a.opt_str("path")
+        }
+        "session.exportStems" => a.opt_str("directory"),
+        _ => None,
+    };
+    if let Some(parent) = target
+        .and_then(|t| Path::new(t).parent())
+        .filter(|p| !p.as_os_str().is_empty() && !p.exists())
+    {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Could not create the folder {}: {e}", parent.display()))?;
+    }
     if name == "rhythm.preview" {
         if let Some(path) = a.opt_str("path") {
             protect_session_file(host.path(), Path::new(path))?;
