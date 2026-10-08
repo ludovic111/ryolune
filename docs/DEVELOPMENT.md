@@ -146,15 +146,25 @@ callback.
 1. Bump `version` in the workspace `Cargo.toml` and add `docs/releases/X.Y.Z.md`. The notes
    are built into the app (`engine/build.rs`) for What's New and `app.whatsNew`; a test fails
    when the version has no notes file.
-2. Update the public page, lsuite.xyz/ryolune: `ryolune/index.html` in the lsuite repo
+2. Run the agent evals (`python3 evals/run.py --record`, see `evals/README.md`): a harness change
+   that lowers the pass rate does not ship.
+3. Update the public page, lsuite.xyz/ryolune: `ryolune/index.html` in the lsuite repo
    (ludovic111/lsuite).
-3. Merge to `main`, then push a matching tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Merge to `main`, then push a matching tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. When the workflow is done, publish the build to lsuite: `scripts/publish-build.sh X.Y.Z`.
 
 The `Release` workflow builds macOS (arm64 and x86_64), Linux and Windows, writes and signs
 `SHA256SUMS` (Ed25519, repository secret `RYOLUNE_SIGNING_KEY`, public key in
-`desktop/assets/update-signing.pub`) and publishes the GitHub release. Installed apps verify the
-signature, the download host and the new binaries' versions before replacing themselves. A new
-key pair comes from `ryolune --release-keygen <file>`. Windows binaries are unsigned.
+`desktop/assets/update-signing.pub`) and leaves a complete **draft** release: since 0.16 the
+builds are not public (lsuite's DISTRIBUTION.md). `scripts/publish-build.sh X.Y.Z` (needs `gh`
+with access to both repositories) checks the draft's files against `SHA256SUMS`, copies them and
+the notes to the private `ludovic111/lsuite-builds` as `ryolune-vX.Y.Z`, and deletes the draft.
+lsuite.xyz serves that release to signed-in lsuite accounts: the updater reads
+`<server>/api/apps/ryolune/releases/latest` with the account's token and downloads through the
+server's file route. Installed apps verify the signature, the download location and the new
+binaries' versions before replacing themselves. `RYOLUNE_UPDATE_URL` points the updater at
+another release document (tests). A new key pair comes from `ryolune --release-keygen <file>`.
+Windows binaries are unsigned.
 
 ### Signing and notarizing for macOS
 

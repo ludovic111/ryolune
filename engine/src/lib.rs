@@ -26,6 +26,7 @@ pub mod document;
 pub mod dsp;
 pub mod export;
 pub mod flac;
+pub mod harness;
 pub mod host;
 pub mod interop;
 pub mod lsuite;

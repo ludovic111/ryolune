@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 pub enum Backend {
     /// Talks to the desktop app. The client reconnects on the next call after a lost connection.
     Live(Option<Client>),
-    Headless(Headless, bool, Option<SessionFileLock>),
+    Headless(Box<Headless>, bool, Option<SessionFileLock>),
 }
 impl Backend {
     pub fn live() -> Result<Self> {
@@ -31,7 +31,7 @@ impl Backend {
             }
             None => Headless::new(),
         };
-        Ok(Backend::Headless(host, false, lock))
+        Ok(Backend::Headless(Box::new(host), false, lock))
     }
 
     pub fn mode(&self) -> &'static str {
@@ -94,7 +94,7 @@ impl Backend {
                     }
                     params["path"] = Value::String(resolved.to_string_lossy().into_owned());
                 }
-                let result = control::call(host, name, &params, agent);
+                let result = control::call(&mut **host, name, &params, agent);
                 if result.is_ok() {
                     if replacement.is_some() {
                         *ownership = replacement;
@@ -130,7 +130,7 @@ impl Backend {
                     .as_deref()
                     .is_some_and(|p| *changed || h.store.dirty() || !p.exists()) =>
             {
-                let path = Host::save(h, None)?;
+                let path = Host::save(&mut **h, None)?;
                 *changed = false;
                 Ok(Some(path))
             }
@@ -143,6 +143,21 @@ impl Backend {
             Backend::Live(_) => None,
         }
     }
+}
+
+/// A result as the CLI prints it: a picture's base64 (`harness.look`) is replaced by its size,
+/// since the PNG is on disk at `image.path`.
+pub fn printable(mut value: Value) -> Value {
+    if let Some(image) = value.get_mut("image").and_then(Value::as_object_mut) {
+        if let Some(data) = image.get("data").and_then(Value::as_str) {
+            let bytes = data.len() / 4 * 3;
+            image.insert(
+                "data".into(),
+                Value::String(format!("<{bytes} bytes of PNG: see path>")),
+            );
+        }
+    }
+    value
 }
 
 /// Coerce a command-line value to the parameter's declared type. Unknown parameters fall back to

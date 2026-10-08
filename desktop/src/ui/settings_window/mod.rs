@@ -500,9 +500,20 @@ impl SettingsWindow {
                 let installing = updates.installing.is_some();
                 let available = updates.available.as_ref().map(|r| r.version.clone());
                 let installed = updates.installed.is_some();
+                let signed_out = updates.signed_out;
                 vec![
-                    modal::text(format!("This is ryolune {version}. Every update is free."), cx)
-                        .into_any_element(),
+                    modal::text(
+                        if signed_out {
+                            format!(
+                                "This is ryolune {version}. Every update is free. {}: your free lsuite account gets every update.",
+                                crate::update::SIGNED_OUT
+                            )
+                        } else {
+                            format!("This is ryolune {version}. Every update is free, through your lsuite account.")
+                        },
+                        cx,
+                    )
+                    .into_any_element(),
                     div()
                         .flex()
                         .gap(px(8.0))

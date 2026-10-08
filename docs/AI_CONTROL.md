@@ -39,7 +39,66 @@ ryolune-cli session.overview --trackId Bass       # one track in full
 
 Then drill down only where needed: `clip.get` or `note.list` for notes, `strip.parameters` for a
 plugin's parameters, `automation.list`, `controller.list`, `ui.state` for the window and
-`ui.screenshot` to see it.
+`ui.screenshot` to see it. `harness.context` is the same song in a dozen lines, and
+`harness.look` a picture of it (see [The agent harness](#the-agent-harness)).
+
+## The agent harness
+
+Whatever the agent (the built-in one, Claude Code or Codex through `ryolune-mcp`, the lsuite
+app's suite agent), it works from the same harness (lsuite's HARNESS.md), all in
+`engine/src/harness/` and readable in full in [HARNESS.md](HARNESS.md):
+
+- **A brief**: the system prompt of a music producer and mix engineer in ryolune (the song's
+  model, the commands for common jobs, the quality bar for parts, levels and loudness, the usual
+  mistakes and the finish routine). `harness.brief` returns it; it is the built-in agent's system
+  prompt and `ryolune-mcp`'s `instructions`, from one file (`brief.md`).
+- **Skills**: 13 playbooks (compose from a brief, drums, bass and chords, melody, arrangement,
+  sound design, automation, mixing, mastering to a loudness target, export and stems, scoring a
+  kimchi cut, writing a plugin, review and fix), each with steps, exact commands and the checks
+  that prove the job worked. `harness.skills` lists them, `harness.skill name=mixing` loads one;
+  over MCP each is also a prompt (`mixing`, with an optional `request`) and a resource
+  (`ryolune://skills/mixing`; `ryolune://brief` is the brief).
+- **Live context**: `harness.context` is the song in brief (tempo, key, meter, length,
+  sections), every track in one line, the selection, the playhead and the newest checkpoint, and
+  what changed since this agent's last command (`key`: `agent` for the built-in agent, `mcp`
+  for outside ones). The built-in agent gets it before every model step after the first; through
+  `ryolune-mcp` in live mode each tool result ends with what the person changed since the
+  agent's last call, and each edit's result with a line of the song's state (`--no-context`
+  turns both off).
+- **Eyes and ears**: `harness.look fromBar toBar` renders the range offline (like an export,
+  plugins and buses included) and draws a picture: the waveform with the bar grid and sections
+  (clipping in red), the short-term loudness, the average spectrum against a pink slope and a
+  piano roll of the notes in track colours, with the numbers. The picture reaches the model as an
+  image: an image block for the built-in agent's vision providers (lsuite AI, Anthropic, OpenAI,
+  Gemini, OpenRouter, xAI), MCP image content outside (and the PNG is at `image.path`; the CLI
+  prints the path, not the bytes). `view=notes` draws only the piano roll (no render),
+  `view=mix` leaves it out, `trackId` solos a track, `targetLufs` draws a target.
+  `harness.measure` gives the numbers alone: integrated, short-term and momentary loudness
+  (ITU-R BS.1770-4 / EBU R128 gating), loudness range (EBU Tech 3342), true peak (4x
+  oversampled), sample peak, clipped samples, energy in five bands and `findings` that name the
+  fix; `tracks=true` measures every track on its own. Ranges are limited to 600 seconds (120
+  with `tracks`).
+- **The finish routine** (in the brief and every skill): look and measure, compare with the
+  request, fix what is off (up to three passes), then report in a few lines with the numbers.
+- **One undo per turn**: the built-in agent takes a checkpoint before each turn; the chat and
+  the Changes tab then show what the turn changed with **Revert turn** (`agent.revertTurn`,
+  `redo=true` brings it back), one undo step either way. Any agent can do the same with
+  `harness.checkpoint label=…`, `harness.changes` (what changed since, in plain words),
+  `harness.checkpoints` and `harness.revert`; `ryolune-mcp` takes one before a connection's
+  first edit, and until the connection calls `harness.look` or `harness.measure` after an edit,
+  each edit's result ends with a reminder of the finish routine. Checkpoints last until another
+  song is opened.
+
+```sh
+ryolune-cli --file song.ryolune harness.measure --targetLufs -14
+ryolune-cli --file song.ryolune harness.look --fromBar 8 --toBar 16 --path /tmp/chorus.png
+ryolune-cli harness.skill --name mastering
+```
+
+**Evals** (`evals/`, see its README): 13 scripted music jobs run headless through Claude Code
+and `ryolune-mcp`, scored by checks on the song (tempo, key, notes in key, registers, sections,
+loudness and true peak, clipping, files, the person's work kept, the finish routine). Results are
+in `evals/RESULTS.md`; run them before a release.
 
 ## Conventions
 
@@ -389,9 +448,10 @@ flags a track whose bus is muted.
 ### Check a mix
 
 1. `session.overview`: read `problems` for silent tracks and the fader and insert summary.
-2. `session.exportAudio --path /tmp/check.wav`: the report gives the peak and the number of
-   clipped samples. `session.exportStems` does the same per track.
-3. Adjust with `track.setVolume`, `strip.setParameter` or a limiter on `master`, then export again.
+2. `harness.measure --tracks true`: the mix's loudness, true peak and clipping, and every track's
+   own level. `harness.look` shows the waveform, loudness and spectrum.
+3. Adjust with `track.setVolume`, `strip.setParameter` or a limiter on `master`, then measure
+   again. The skills `mixing` and `mastering` (`harness.skill`) walk through it.
 
 ### See and steer the window
 

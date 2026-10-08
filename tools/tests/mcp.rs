@@ -336,7 +336,12 @@ fn mcp_serves_prompts_resources_and_parity_tools() {
         .iter()
         .map(|p| p["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, ["compose", "mix-review", "see-the-window"]);
+    assert_eq!(&names[..3], ["compose", "mix-review", "see-the-window"]);
+    // Every skill is a prompt too (lsuite's HARNESS.md part 2).
+    assert!(
+        names.contains(&"mixing") && names.contains(&"mastering"),
+        "{names:?}"
+    );
     let compose = mcp.request(
         3,
         "prompts/get",
@@ -403,7 +408,7 @@ fn mcp_starts_from_the_overview_and_takes_names_for_ids() {
     assert!(init["result"]["instructions"]
         .as_str()
         .unwrap()
-        .contains("Start with session_overview"));
+        .contains("**Orient.** `session.overview`"));
     let tools = mcp.request(2, "tools/list", json!({}))["result"]["tools"].clone();
     let overview = tools
         .as_array()
@@ -474,4 +479,116 @@ fn mcp_starts_from_the_overview_and_takes_names_for_ids() {
         .cloned()
         .unwrap();
     assert_eq!(bass["problems"][0], "muted", "{bass}");
+}
+
+#[test]
+fn mcp_serves_the_harness_brief_skills_pictures_and_checkpoints() {
+    let dir = tempfile::tempdir().unwrap();
+    let song = dir.path().join("song.ryolune");
+    let mut mcp = Mcp::start(dir.path(), &["--file", song.to_str().unwrap()]);
+    let init = mcp.request(1, "initialize", json!({ "protocolVersion": "2025-06-18" }));
+    let instructions = init["result"]["instructions"].as_str().unwrap();
+    assert!(instructions.contains("finish routine") && instructions.contains("harness.skill"));
+
+    // Skills: a tool, a prompt with the request, and resources.
+    let skills = mcp.tool(2, "harness_skills", json!({}));
+    assert!(skills["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("mastering"));
+    let prompt = mcp.request(
+        3,
+        "prompts/get",
+        json!({ "name": "mastering", "arguments": { "request": "-14 LUFS please" } }),
+    );
+    let text = prompt["result"]["messages"][0]["content"]["text"]
+        .as_str()
+        .unwrap();
+    assert!(text.contains("-14 LUFS please") && text.contains("Limiter"));
+    let resources = mcp.request(4, "resources/list", json!({}))["result"]["resources"].clone();
+    assert!(resources
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|r| r["uri"] == "ryolune://skills/mixing"));
+    let brief = mcp.request(5, "resources/read", json!({ "uri": "ryolune://brief" }));
+    assert_eq!(brief["result"]["contents"][0]["mimeType"], "text/markdown");
+    let skill = mcp.request(
+        6,
+        "resources/read",
+        json!({ "uri": "ryolune://skills/drum-programming" }),
+    );
+    assert!(skill["result"]["contents"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("36 kick"));
+
+    // An edit: a checkpoint is taken before it, and the song's state follows the result.
+    let made = mcp.tool(
+        7,
+        "clip_create",
+        json!({ "trackId": "Drums", "startBar": 0, "lengthBars": 2,
+                "notes": [{"start": 0, "length": 0.5, "pitch": 36}, {"start": 1, "length": 0.5, "pitch": 38}] }),
+    );
+    assert_eq!(made["isError"], false, "{made}");
+    let made_text = made["content"][0]["text"].as_str().unwrap();
+    assert!(made_text.contains("Song now:"));
+    // The finish routine is due until the agent looks or measures.
+    assert!(made_text.contains("Not checked yet"), "{made_text}");
+    // The same notes ride in the structured result, which some clients show instead.
+    let notes = made["structuredContent"]["harnessNotes"].to_string();
+    assert!(
+        notes.contains("Song now:") && notes.contains("Not checked yet"),
+        "{made}"
+    );
+    let changes = mcp.tool(8, "harness_changes", json!({}));
+    assert!(
+        changes["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("Added 1 clip"),
+        "{changes}"
+    );
+
+    // Eyes: the picture comes back as MCP image content, and not as text.
+    let look = mcp.tool(9, "harness_look", json!({ "fromBar": 0, "toBar": 2 }));
+    assert_eq!(look["isError"], false, "{look}");
+    let content = look["content"].as_array().unwrap();
+    let image = content
+        .iter()
+        .find(|c| c["type"] == "image")
+        .expect("an image block");
+    assert_eq!(image["mimeType"], "image/png");
+    assert!(image["data"].as_str().unwrap().len() > 1000);
+    assert!(!content[0]["text"]
+        .as_str()
+        .unwrap()
+        .contains(image["data"].as_str().unwrap()));
+    assert!(
+        look["structuredContent"]["loudness"]["integratedLufs"].is_number(),
+        "{look}"
+    );
+
+    // One step back to before the edit.
+    let reverted = mcp.tool(10, "harness_revert", json!({}));
+    assert_eq!(
+        reverted["structuredContent"]["reverted"], true,
+        "{reverted}"
+    );
+    assert!(!reverted["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("Not checked yet"));
+    let clips = mcp.tool(11, "clip_list", json!({}));
+    let text = clips["content"][0]["text"].as_str().unwrap();
+    let listed: Value = serde_json::from_str(
+        text.split("\n\n")
+            .next()
+            .unwrap()
+            .split("\n(saved")
+            .next()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(listed, json!([]), "{text}");
 }

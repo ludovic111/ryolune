@@ -55,7 +55,29 @@ pub struct Store {
     /// The redo history a gesture's first edit set aside, restored if the gesture is
     /// cancelled (a failed atomic batch changes nothing, Redo included).
     gesture_future: Option<Vec<(Arc<Session>, u64)>>,
+    /// The document as an agent last saw it, by agent (`harness.context` reports what
+    /// changed since). Not history: an undo does not move them.
+    marks: std::collections::HashMap<String, Arc<Session>>,
+    /// Checkpoints taken before an agent's edits (`harness.checkpoint`, one per built-in agent
+    /// turn), newest last; `harness.revert` returns to one in a single undo step.
+    checkpoints: Vec<Checkpoint>,
+    next_checkpoint: u64,
 }
+
+/// The document at a moment an agent may want to return to.
+#[derive(Clone, Debug)]
+pub struct Checkpoint {
+    pub id: String,
+    pub label: String,
+    pub session: Arc<Session>,
+    /// The store's revision when it was taken.
+    pub revision: u64,
+    pub created_at: String,
+}
+
+/// Checkpoints kept per document.
+pub const CHECKPOINTS: usize = 24;
+
 impl Store {
     pub fn new(mut session: Session) -> Result<Self> {
         session.normalize();
@@ -71,7 +93,45 @@ impl Store {
             past: vec![],
             future: vec![],
             revision: 0,
+            marks: Default::default(),
+            checkpoints: vec![],
+            next_checkpoint: 0,
         })
+    }
+    /// Remember the document as `key` (an agent) sees it now.
+    pub fn set_mark(&mut self, key: &str) {
+        self.marks.insert(key.to_string(), self.session.clone());
+    }
+    /// The document as `key` last saw it.
+    pub fn mark(&self, key: &str) -> Option<Arc<Session>> {
+        self.marks.get(key).cloned()
+    }
+    /// Take a checkpoint of the document as it is now.
+    pub fn checkpoint(&mut self, label: &str) -> Checkpoint {
+        self.next_checkpoint += 1;
+        let checkpoint = Checkpoint {
+            id: format!("cp-{}", self.next_checkpoint),
+            label: label.chars().take(120).collect(),
+            session: self.session.clone(),
+            revision: self.revision,
+            created_at: crate::lsuite::now_rfc3339(),
+        };
+        self.checkpoints.push(checkpoint.clone());
+        if self.checkpoints.len() > CHECKPOINTS {
+            self.checkpoints.remove(0);
+        }
+        checkpoint
+    }
+    /// Checkpoints of this document, oldest first.
+    pub fn checkpoints(&self) -> &[Checkpoint] {
+        &self.checkpoints
+    }
+    /// One checkpoint by id, or the newest.
+    pub fn find_checkpoint(&self, id: Option<&str>) -> Option<&Checkpoint> {
+        match id {
+            Some(id) => self.checkpoints.iter().find(|c| c.id == id),
+            None => self.checkpoints.last(),
+        }
     }
     pub fn session(&self) -> &Session {
         &self.session
@@ -114,6 +174,8 @@ impl Store {
         self.saved_id = Some(self.document_id);
         self.gesture_recorded = false;
         self.gesture_future = None;
+        self.marks.clear();
+        self.checkpoints.clear();
         Ok(())
     }
     /// Update derived data (captured plugin state) without touching history

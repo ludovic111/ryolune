@@ -2,8 +2,9 @@
 //! compatible server (local models, other vendors) through Settings > Agent.
 
 use super::{
-    await_tool, bounded, http, read_line_limited, system_prompt, take_steering, tool_output,
-    tool_specs, user_text, Event, Message, Part, ToolCall, Turn,
+    await_tool, bounded, http, live_context, read_line_limited, sees_images, split_images,
+    system_prompt, take_steering, tool_output, tool_specs, user_text, Event, Message, Part,
+    ToolCall, Turn,
 };
 use ryolune_engine::{settings::Provider, Result};
 use serde_json::{json, Value};
@@ -34,10 +35,28 @@ fn wire(system: &str, messages: &[Message]) -> Vec<Value> {
                 .join("\n");
             // Tool results answer the assistant message just before; text that rides with
             // them (steering) comes after, as its own user message.
+            let mut pictures = vec![];
             for part in &m.parts {
-                if let Part::ToolResult { id, output, .. } = part {
+                if let Part::ToolResult {
+                    id,
+                    output,
+                    images,
+                    name,
+                    ..
+                } = part
+                {
                     out.push(json!({ "role": "tool", "tool_call_id": id, "content": output }));
+                    for image in images {
+                        pictures.push(json!({ "type": "text", "text": format!("The picture {name} returned:") }));
+                        pictures.push(json!({ "type": "image_url", "image_url": {
+                            "url": format!("data:{};base64,{}", image.mime, image.data)
+                        } }));
+                    }
                 }
+            }
+            // Tool messages carry text only: their pictures follow as a user message.
+            if !pictures.is_empty() {
+                out.push(json!({ "role": "user", "content": pictures }));
             }
             if !text.is_empty() {
                 out.push(json!({ "role": "user", "content": text }));
@@ -128,9 +147,16 @@ pub(crate) fn run(turn: Turn) -> Result<()> {
         let _ = turn
             .events
             .send(Event::Status(format!("Thinking with {model}…")));
+        let mut messages = wire(&system, &history);
+        if rounds > 0 {
+            // The live context before each step after the first, on the request only.
+            if let Some(context) = live_context(&turn) {
+                messages.push(json!({ "role": "user", "content": context }));
+            }
+        }
         let mut body = json!({
             "model": model,
-            "messages": wire(&system, &history),
+            "messages": messages,
             "tools": tools,
             "tool_choice": "auto",
             "stream": true,
@@ -333,13 +359,17 @@ pub(crate) fn run(turn: Turn) -> Result<()> {
                     reply: tx,
                 }))
                 .map_err(|_| "The interface stopped listening".to_string())?;
-            let result = await_tool(&rx, &turn.cancel);
+            let (result, mut images) = split_images(&name, await_tool(&rx, &turn.cancel));
+            if !sees_images(turn.settings.agent.provider) {
+                images.clear();
+            }
             let (output, is_error) = tool_output(&result);
             results.push(Part::ToolResult {
                 id,
                 name,
                 output,
                 is_error,
+                images,
             });
         }
         // Steering joins the tool results, so the next call reads it without losing them.

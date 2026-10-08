@@ -16,6 +16,7 @@ use serde_json::json;
 
 impl AgentPanel {
     pub(super) fn changes(&mut self, cx: &mut Context<Self>) -> AnyElement {
+        let turn_card = self.turn_card("changes-turn", cx);
         let theme = Theme::get(cx).clone();
         let daw = self.daw.clone();
         let app = &daw.read(cx).app;
@@ -60,6 +61,9 @@ impl AgentPanel {
                     .text_color(theme.text_2)
                     .child("Undo from here also undoes later edits, including yours. Stop the agent before reviewing changes."),
             );
+        }
+        if let Some(turn) = turn_card {
+            column = column.child(turn);
         }
         for row in app.agents.change_rows(depth) {
             let sequence = row.sequence;
@@ -226,6 +230,97 @@ impl AgentPanel {
             );
         }
         column.into_any_element()
+    }
+}
+
+impl AgentPanel {
+    /// The last turn of the built-in agent, once it ended with changes: what it changed and
+    /// one button that reverts (or restores) all of it (lsuite's HARNESS.md part 6).
+    pub(super) fn turn_card(
+        &mut self,
+        id: &'static str,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        let theme = Theme::get(cx).clone();
+        let daw = self.daw.clone();
+        let app = &daw.read(cx).app;
+        let turn = app.agents.turn.as_ref()?;
+        if turn.running || turn.changes.is_empty() || app.agents.runtime.running() {
+            return None;
+        }
+        let reverted = turn.reverted;
+        let count = turn.changes.len();
+        let shown: Vec<String> = turn.changes.iter().take(6).cloned().collect();
+        let more = count.saturating_sub(shown.len());
+        let mut list = div().flex().flex_col().gap(px(2.0));
+        for line in shown {
+            list = list.child(
+                div()
+                    .text_size(px(size::SM))
+                    .line_height(px(17.0))
+                    .text_color(theme.text_2)
+                    .when(reverted, |d| d.line_through())
+                    .child(format!("· {line}")),
+            );
+        }
+        if more > 0 {
+            list = list.child(
+                div()
+                    .text_size(px(size::SM))
+                    .text_color(theme.text_3)
+                    .child(format!("and {more} more")),
+            );
+        }
+        Some(
+            card(&theme)
+                .id(id)
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(theme.text)
+                                .child(if reverted {
+                                    "Last turn reverted".to_string()
+                                } else {
+                                    format!(
+                                        "This turn made {count} change{}",
+                                        if count == 1 { "" } else { "s" }
+                                    )
+                                }),
+                        )
+                        .child(
+                            Button::new(
+                                (id, 1usize),
+                                if reverted { "Redo turn" } else { "Revert turn" },
+                            )
+                            .compact()
+                            .tooltip(if reverted {
+                                "Bring back everything the agent did in its last turn"
+                            } else {
+                                "Undo everything the agent did in its last turn, in one step"
+                            })
+                            .on_click(cx.listener(
+                                move |this, _, _, cx| {
+                                    this.daw.update(cx, |daw, cx| {
+                                        daw.run(
+                                            "agent.revertTurn",
+                                            json!({ "redo": reverted }),
+                                            cx,
+                                        );
+                                    })
+                                },
+                            )),
+                        ),
+                )
+                .child(list)
+                .into_any_element(),
+        )
     }
 }
 

@@ -1,8 +1,9 @@
 //! The Anthropic Messages API with streaming and tool use.
 
 use super::{
-    await_tool, bounded, http, read_line_limited, system_prompt, take_steering, tool_output,
-    tool_specs, user_text, Event, Message, Part, ToolCall, Turn,
+    await_tool, bounded, http, live_context, read_line_limited, sees_images, split_images,
+    system_prompt, take_steering, tool_output, tool_specs, user_text, Event, Message, Part,
+    ToolCall, Turn,
 };
 use ryolune_engine::{settings::Provider, Result};
 use serde_json::{json, Value};
@@ -29,6 +30,14 @@ fn wire(messages: &[Message]) -> Vec<Value> {
                     Part::Text(text) => json!({ "type": "text", "text": text }),
                     Part::ToolUse { id, name, input } => {
                         json!({ "type": "tool_use", "id": id, "name": name, "input": input })
+                    }
+                    Part::ToolResult { id, output, is_error, images, .. } if !images.is_empty() => {
+                        let mut content = vec![json!({ "type": "text", "text": output })];
+                        content.extend(images.iter().map(|image| json!({
+                            "type": "image",
+                            "source": { "type": "base64", "media_type": image.mime, "data": image.data },
+                        })));
+                        json!({ "type": "tool_result", "tool_use_id": id, "content": content, "is_error": is_error })
                     }
                     Part::ToolResult { id, output, is_error, .. } => json!({
                         "type": "tool_result", "tool_use_id": id, "content": output, "is_error": is_error
@@ -137,12 +146,22 @@ fn run_on(turn: Turn, endpoint: Endpoint, model: String) -> Result<()> {
         let _ = turn
             .events
             .send(Event::Status(format!("Thinking with {model}…")));
+        // The live context goes with every step after the first (the first carries the
+        // overview), on the request only: the history keeps the conversation itself.
+        let mut messages = wire(&history);
+        if rounds > 0 {
+            if let (Some(context), Some(last)) = (live_context(&turn), messages.last_mut()) {
+                if let Some(content) = last["content"].as_array_mut() {
+                    content.push(json!({ "type": "text", "text": context }));
+                }
+            }
+        }
         let mut body = json!({
             "model": model,
             "max_tokens": turn.settings.agent.max_output_tokens,
             "system": system,
             "tools": tools,
-            "messages": wire(&history),
+            "messages": messages,
             "stream": true,
         });
         if !turn.settings.agent.reasoning_effort.is_empty() {
@@ -361,13 +380,17 @@ fn run_on(turn: Turn, endpoint: Endpoint, model: String) -> Result<()> {
                     reply: tx,
                 }))
                 .map_err(|_| "The interface stopped listening".to_string())?;
-            let result = await_tool(&rx, &turn.cancel);
+            let (result, mut images) = split_images(&name, await_tool(&rx, &turn.cancel));
+            if !sees_images(turn.settings.agent.provider) {
+                images.clear();
+            }
             let (output, is_error) = tool_output(&result);
             results.push(Part::ToolResult {
                 id,
                 name,
                 output,
                 is_error,
+                images,
             });
         }
         // Steering joins the tool results, so the next call reads it without losing them.
@@ -413,6 +436,9 @@ mod lsuite_tests {
     #[test]
     fn lsuite_ai_answers_on_the_plan_and_says_when_the_allowance_is_used_up() {
         // The account file is the test process's scratch one (no LSUITE_HOME to race on).
+        let _account = crate::ACCOUNT_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         let server = mock::start();
         account::save(&Account {
             format: 1,

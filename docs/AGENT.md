@@ -159,6 +159,15 @@ read, so you can send it as a new request.
   place again, turn into Sample Keys or delete. See [AI_CONTROL.md](AI_CONTROL.md#generation).
 - **Changes** keeps the command history and **Undo from here / Redo to here** controls. Undo
   also removes later manual edits. These controls are disabled while the agent is working.
+- **Revert turn.** Every turn starts with a checkpoint. When it ends with changes, the chat and
+  Changes show what the turn changed in plain words ("Added 2 clips on Bass (bars 0–8)", "Master:
+  inserts [] → [Limiter]") and **Revert turn** puts the song back as it was before the turn in one
+  undo step; **Redo turn** brings the turn back.
+- **The agent looks and listens.** It works from a producer's brief and loads a playbook for the
+  job (mixing, mastering, drums, arrangement…; see [HARNESS.md](HARNESS.md)). Before it says it is
+  done it renders what it made with `harness.look` (a picture of the waveform, loudness, spectrum
+  and notes, which models that read images see) and measures the loudness, then fixes what is off.
+  Before each step it also reads what you changed meanwhile, and keeps it.
 - The model picker groups the models reported by connected accounts and APIs, shows maker logos,
   supports search, and offers each model's advertised reasoning levels. Refreshing lists models
   without sending an inference request. A model's actual use still depends on provider access.

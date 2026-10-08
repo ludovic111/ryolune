@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Upload only to a draft; published releases and their checksums are immutable.
+# Since 0.16 (lsuite's DISTRIBUTION.md) the release stays a draft here: the builds are no longer
+# public. `scripts/publish-build.sh <version>` copies the draft to ludovic111/lsuite-builds,
+# which lsuite.xyz serves to signed-in lsuite accounts, and deletes the draft.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 bash scripts/verify-release.sh
@@ -45,6 +48,7 @@ test "$(gh release view "$tag" --json isDraft --jq .isDraft)" = true || {
   exit 1
 }
 gh release upload "$tag" "${uploads[@]}" --clobber
-# The tag is checked again after uploading, before making this draft available to updaters.
+# The tag is checked again after uploading, before the draft is handed on.
 bash scripts/verify-release.sh
-gh release edit "$tag" --draft=false --latest --title "ryolune ${tag#v}" --notes-file "$notes"
+gh release edit "$tag" --title "ryolune ${tag#v}" --notes-file "$notes"
+echo "Draft $tag is complete. Publish it to lsuite with: scripts/publish-build.sh ${tag#v}"

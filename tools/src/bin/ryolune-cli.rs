@@ -214,7 +214,7 @@ fn run(args: &[String]) -> Result<(), Failure> {
             ))
         })?,
     };
-    let result = backend.call(&command, &params, agent)?;
+    let result = ryolune_tools::printable(backend.call(&command, &params, agent)?);
     if let Some(path) = backend.autosave()? {
         eprintln!("saved {}", path.display());
     }
@@ -256,7 +256,7 @@ fn batch(
         }
         let result = ryolune_tools::parse_batch_line(&line).and_then(|(name, params)| {
             control::validate_request(&name, &params)?;
-            let value = backend.call(&name, &params, agent)?;
+            let value = ryolune_tools::printable(backend.call(&name, &params, agent)?);
             let saved = backend.autosave()?;
             Ok((name, value, saved))
         });

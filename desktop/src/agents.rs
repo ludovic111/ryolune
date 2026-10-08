@@ -27,6 +27,35 @@ pub(crate) struct AgentPanel {
     history: VecDeque<Activity>,
     sequence: u64,
     last_request: Option<Instant>,
+    /// The latest turn of the built-in agent: its checkpoint and what it changed, for Revert
+    /// turn (lsuite's HARNESS.md part 6).
+    pub(crate) turn: Option<TurnRecord>,
+}
+
+/// One built-in agent turn, revertable as a whole.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct TurnRecord {
+    /// The checkpoint taken before its first edit.
+    pub before: String,
+    /// The checkpoint of its result, taken when it is reverted (Redo turn returns to it).
+    pub after: Option<String>,
+    pub prompt: String,
+    /// Its changes in plain words, from when it ended.
+    pub changes: Vec<String>,
+    pub running: bool,
+    pub reverted: bool,
+}
+
+/// A tool result as the chat keeps it: a picture's base64 is left out (it is in the PNG file
+/// at `image.path` and was sent to the model).
+fn without_image_data(result: &Result<Value>) -> Result<Value> {
+    let mut result = result.clone();
+    if let Ok(value) = &mut result {
+        if let Some(image) = value.get_mut("image").and_then(Value::as_object_mut) {
+            image.remove("data");
+        }
+    }
+    result
 }
 
 struct Activity {
@@ -232,10 +261,85 @@ impl Ryolune {
                 song,
                 remote,
             })?;
+        // One undo for the whole turn: a checkpoint before its first edit, and the agent's
+        // mark so its live context reports only what the person changes meanwhile.
+        let label: String = format!(
+            "Agent: {}",
+            self.agents
+                .runtime
+                .transcript
+                .last()
+                .map_or("", |e| e.text.as_str())
+        )
+        .chars()
+        .take(80)
+        .collect();
+        let checkpoint = self.store.checkpoint(&label);
+        self.store.set_mark("agent");
+        self.agents.turn = Some(TurnRecord {
+            before: checkpoint.id,
+            prompt: label,
+            running: true,
+            ..TurnRecord::default()
+        });
         self.agents.prompt.clear();
         self.agents.tab = 0;
         self.save_conversation(false);
         Ok(())
+    }
+
+    /// The turn's changes, from its checkpoint to now.
+    fn turn_changes(&self, before: &str) -> Vec<String> {
+        self.store
+            .find_checkpoint(Some(before))
+            .map(|cp| {
+                ryolune_engine::harness::changes::describe(&cp.session, self.store.session(), 40)
+            })
+            .unwrap_or_default()
+    }
+
+    /// `agent.revertTurn`: the whole last turn undone in one step, or redone.
+    pub(crate) fn revert_turn(&mut self, redo: bool) -> Result<Value> {
+        if self.agents.runtime.running() {
+            return Err("Stop the agent before reverting its turn".into());
+        }
+        let mut turn = self
+            .agents
+            .turn
+            .clone()
+            .ok_or("The agent has not made a turn in this song yet")?;
+        let target = if redo {
+            if !turn.reverted {
+                return Err("The last turn is not reverted".into());
+            }
+            turn.after.clone().ok_or("Nothing to redo")?
+        } else {
+            if turn.reverted {
+                return Err(
+                    "The last turn is already reverted: agent.revertTurn redo=true brings it back"
+                        .into(),
+                );
+            }
+            let after = self.store.checkpoint(&format!("After {}", turn.prompt));
+            turn.after = Some(after.id);
+            turn.before.clone()
+        };
+        let result = control::call(
+            self,
+            "harness.revert",
+            &json!({ "checkpoint": target }),
+            false,
+        )?;
+        turn.reverted = !redo;
+        self.agents.turn = Some(turn);
+        self.status = if redo {
+            "Agent turn restored".into()
+        } else {
+            "Agent turn reverted".into()
+        };
+        Ok(
+            json!({ "reverted": !redo, "undone": result["undone"], "turn": self.agents.turn_json() }),
+        )
     }
 
     /// `agent.steer`: the text joins the running task at its next step.
@@ -251,6 +355,13 @@ impl Ryolune {
         let was_running = self.agents.runtime.running();
         let calls = self.agents.runtime.poll();
         if was_running && !self.agents.runtime.running() {
+            if let Some(before) = self.agents.turn.as_ref().map(|t| t.before.clone()) {
+                let changes = self.turn_changes(&before);
+                if let Some(turn) = &mut self.agents.turn {
+                    turn.changes = changes;
+                    turn.running = false;
+                }
+            }
             // The run ended: keep the conversation as it ended.
             self.agents.conversations.thread.updated_at = ryolune_engine::lsuite::now_rfc3339();
             self.save_conversation(false);
@@ -336,6 +447,10 @@ impl Ryolune {
         if source == "Interface" {
             return;
         }
+        // The agent saw the song as it is now: its next live context reports only what
+        // changes after this (the person's edits while it thinks).
+        self.store
+            .set_mark(if source == "Agent" { "agent" } else { "mcp" });
         let recorded = control::spec(method).is_none_or(|spec| spec.mutates);
         let depth_after = self.store.undo_depth();
         self.agents.sequence += 1;
@@ -350,16 +465,21 @@ impl Ryolune {
                 self.agents.runtime.note_edit();
             }
             if source == "Agent" {
-                self.agents.runtime.attach_result(method, result, sequence);
-            } else {
-                // A CLI provider working through the bridge: show the call in the chat too.
+                self.agents
+                    .runtime
+                    .attach_result(method, &without_image_data(result), sequence);
+            } else if !matches!(method, "harness.context" | "harness.checkpoint") {
+                // A CLI provider working through the bridge: show the call in the chat too,
+                // but not ryolune-mcp's bookkeeping (its context per call and the checkpoint
+                // before its first edit; the turn has its own), as the built-in agent's live
+                // context is not shown either.
                 self.agents.runtime.transcript.push(agent::Entry {
                     role: Role::Tool,
                     text: String::new(),
                     tool: Some(agent::ToolRecord {
                         name: method.into(),
                         args: params.clone(),
-                        result: Some(result.clone()),
+                        result: Some(without_image_data(result)),
                         sequence: Some(sequence),
                     }),
                     streaming: false,
@@ -392,6 +512,7 @@ impl Ryolune {
     /// conversations.
     pub(crate) fn reset_agent_history(&mut self) {
         self.agents.history.clear();
+        self.agents.turn = None;
         self.follow_song();
     }
 }
@@ -420,7 +541,18 @@ impl AgentPanel {
             },
             "steeringPending": self.runtime.pending_steering(),
             "storageError": self.conversations.storage_error(),
+            "turn": self.turn_json(),
         })
+    }
+    /// The last turn for `agent.status` and Revert turn.
+    pub(crate) fn turn_json(&self) -> Value {
+        match &self.turn {
+            Some(t) => json!({
+                "checkpoint": t.before, "request": t.prompt, "changes": t.changes,
+                "running": t.running, "reverted": t.reverted,
+            }),
+            None => Value::Null,
+        }
     }
     pub(crate) fn transcript_json(&self, limit: usize) -> Value {
         let first = self.runtime.first_id;
@@ -732,6 +864,22 @@ mod tests {
             app.agents.runtime.transcript[1].tool.as_ref().unwrap().name,
             "session.info"
         );
+        // ryolune-mcp's bookkeeping stays out of the chat.
+        app.run_control_command(
+            "harness.checkpoint",
+            &json!({"label": "Before the MCP agent's first edit"}),
+            true,
+            "MCP / agent",
+        )
+        .unwrap();
+        app.run_control_command(
+            "harness.context",
+            &json!({"key": "mcp"}),
+            true,
+            "MCP / agent",
+        )
+        .unwrap();
+        assert_eq!(app.agents.runtime.transcript.len(), 2);
         complete();
         app.agents.runtime.poll();
         assert!(!app.agents.runner_busy());

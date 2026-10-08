@@ -257,7 +257,8 @@ fn session(
                     reply: tx,
                 }))
                 .map_err(|_| "The interface stopped listening")?;
-            let result = await_tool(&answer, &turn.cancel);
+            // Pictures stay out of the text (Codex reads the numbers and the PNG's path).
+            let (result, _) = super::split_images(name, await_tool(&answer, &turn.cancel));
             let (text, failed) = tool_output(&result);
             write(
                 stdin,

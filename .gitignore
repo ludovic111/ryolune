@@ -11,3 +11,5 @@ dist/
 *.dSYM/
 target
 
+evals/results/
+__pycache__/

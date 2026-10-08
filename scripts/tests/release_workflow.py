@@ -38,7 +38,8 @@ if command == "view":
         names = os.environ["EXPECTED_ASSETS"].split(";")
         print(json.dumps({"isDraft": draft, "assets": [{"name": n} for n in names]}))
 elif command == "create": state.write_text("draft")
-elif command == "edit": state.write_text("published")
+elif command == "edit":
+    if "--draft=false" in args: state.write_text("published")
 elif command == "upload":
     if state.read_text() != "draft": raise SystemExit("Cannot overwrite a published release")
 elif command == "download":
@@ -90,11 +91,16 @@ class ReleaseWorkflow(unittest.TestCase):
         path = self.root / "gh-calls"
         return [json.loads(line)[1] for line in path.read_text().splitlines()] if path.exists() else []
 
-    def test_new_release_is_draft_until_all_uploads_finish(self):
+    def test_new_release_stays_a_draft_for_publish_build(self):
         result = self.run_release()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.calls(), ["view", "create", "view", "upload", "edit"])
-        self.assertEqual((self.root / "release-state").read_text(), "published")
+        # The builds are not public: the draft is handed to scripts/publish-build.sh.
+        self.assertEqual((self.root / "release-state").read_text(), "draft")
+        raw = (self.root / "gh-calls").read_text()
+        self.assertNotIn("--draft=false", raw)
+        self.assertNotIn("--latest", raw)
+        self.assertIn("publish-build.sh 0.3.1", result.stdout)
 
     def test_draft_can_be_completed_without_creating_another_release(self):
         (self.root / "release-state").write_text("draft")
@@ -136,6 +142,94 @@ class ReleaseWorkflow(unittest.TestCase):
                 self.assertEqual(self.calls(), [])
                 if moved: moved.with_suffix(".held").rename(moved)
                 self.env = original_env
+
+
+FAKE_GH_BUILDS = '''#!/usr/bin/env python3
+import json, os, pathlib, shutil, sys
+args = sys.argv[1:]
+root = pathlib.Path(os.environ["RELEASE_FIXTURE"])
+with (root / "gh-calls").open("a") as f:
+    f.write(json.dumps(args) + "\\n")
+repo = args[args.index("--repo") + 1]
+tag = args[2]
+release = root / "repos" / repo.replace("/", "_") / tag
+command = args[1]
+if command == "view":
+    if not release.exists(): sys.exit(1)
+    if "--jq" in args:
+        field = args[args.index("--jq") + 1]
+        print({".isDraft": (release / "state").read_text() == "draft" and "true" or "false",
+               ".body": (release / "notes").read_text()}[field])
+    else: print(json.dumps({"tagName": tag}))
+elif command == "download":
+    files = release / "files"
+    if "--pattern" in args:
+        name = args[args.index("--pattern") + 1]
+        shutil.copyfile(files / name, args[args.index("--output") + 1])
+    else:
+        target = pathlib.Path(args[args.index("--dir") + 1])
+        for f in files.iterdir(): shutil.copyfile(f, target / f.name)
+elif command == "create":
+    if release.exists(): raise SystemExit("exists")
+    (release / "files").mkdir(parents=True)
+    (release / "state").write_text("published")
+    (release / "notes").write_text(pathlib.Path(args[args.index("--notes-file") + 1]).read_text())
+    (release / "title").write_text(args[args.index("--title") + 1])
+    for f in args:
+        p = pathlib.Path(f)
+        if p.is_file() and p.parent.name == "files": shutil.copyfile(p, release / "files" / p.name)
+elif command == "delete":
+    shutil.rmtree(release)
+else: raise SystemExit("Unexpected gh command: " + str(args))
+'''
+
+
+class PublishBuild(unittest.TestCase):
+    """scripts/publish-build.sh moves a complete draft to lsuite-builds."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / "bin").mkdir()
+        path = self.root / "bin" / "gh"
+        path.write_text(FAKE_GH_BUILDS)
+        path.chmod(0o755)
+        self.draft = self.root / "repos" / "ludovic111_ryolune" / "v0.16.0"
+        (self.draft / "files").mkdir(parents=True)
+        (self.draft / "state").write_text("draft")
+        (self.draft / "notes").write_text("Notes of 0.16.0")
+        sums = []
+        for name in ASSETS:
+            (self.draft / "files" / name).write_bytes(name.encode())
+            sums.append(hashlib.sha256(name.encode()).hexdigest() + "  " + name)
+        (self.draft / "files/SHA256SUMS").write_text("\n".join(sums) + "\n")
+        (self.draft / "files/SHA256SUMS.sig").write_text("ryolune-ed25519 c2lnbmF0dXJl\n")
+        self.env = dict(os.environ, PATH=str(self.root / "bin") + os.pathsep + os.environ["PATH"],
+                        RELEASE_FIXTURE=str(self.root))
+
+    def publish(self, version="0.16.0"):
+        return subprocess.run(["bash", str(ROOT / "scripts/publish-build.sh"), version],
+                              env=self.env, capture_output=True, text=True)
+
+    def test_the_draft_becomes_a_private_build_and_is_deleted(self):
+        result = self.publish()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        build = self.root / "repos" / "ludovic111_lsuite-builds" / "ryolune-v0.16.0"
+        self.assertEqual(sorted(p.name for p in (build / "files").iterdir()),
+                         sorted(ASSETS + ["SHA256SUMS", "SHA256SUMS.sig"]))
+        self.assertEqual((build / "notes").read_text().strip(), "Notes of 0.16.0")
+        self.assertEqual((build / "title").read_text(), "ryolune 0.16.0")
+        self.assertFalse(self.draft.exists())
+
+    def test_a_public_release_or_a_damaged_draft_is_refused(self):
+        (self.draft / "state").write_text("published")
+        self.assertNotEqual(self.publish().returncode, 0)
+        (self.draft / "state").write_text("draft")
+        (self.draft / "files" / ASSETS[0]).write_bytes(b"changed")
+        self.assertNotEqual(self.publish().returncode, 0)
+        self.assertTrue(self.draft.exists())
+        self.assertNotEqual(self.publish("latest").returncode, 0)
 
 
 class PortablePackaging(unittest.TestCase):
