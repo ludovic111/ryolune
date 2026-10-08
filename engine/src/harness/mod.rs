@@ -75,11 +75,14 @@ pub struct Skill {
 }
 
 fn parse(file: &'static str, text: &'static str) -> Skill {
+    // A Windows checkout may turn the files' line endings into CRLF.
     let rest = text
         .strip_prefix("---\n")
+        .or_else(|| text.strip_prefix("---\r\n"))
         .unwrap_or_else(|| panic!("skill {file} has no front matter"));
     let (head, body) = rest
         .split_once("\n---\n")
+        .or_else(|| rest.split_once("\n---\r\n"))
         .unwrap_or_else(|| panic!("skill {file} has an unfinished front matter"));
     let field = |key: &str| {
         head.lines()
@@ -492,6 +495,18 @@ fn checkpoint(host: &dyn Host, a: &Args) -> Result<crate::store::Checkpoint> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn skills_parse_with_windows_line_endings() {
+        let text: &'static str = Box::leak(
+            "---\nname: x\ntitle: X\nwhen: always\n---\n## Steps\n"
+                .replace('\n', "\r\n")
+                .into_boxed_str(),
+        );
+        let skill = super::parse("x", text);
+        assert_eq!((skill.name, skill.title, skill.when), ("x", "X", "always"));
+        assert!(skill.body.starts_with("## Steps"));
+    }
+
     use super::*;
 
     #[test]
