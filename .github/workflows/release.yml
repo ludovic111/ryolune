@@ -1,6 +1,6 @@
 name: Release
-# Builds every platform from a `vX.Y.Z` tag into a DRAFT GitHub release with one asset per
-# platform plus SHA256SUMS(.sig). The builds are not public (lsuite's DISTRIBUTION.md):
+# Builds Linux (the only platform while lsuite is in beta; macOS and Windows are coming soon) from
+# a `vX.Y.Z` tag into a DRAFT GitHub release plus SHA256SUMS(.sig). The builds are not public (lsuite's DISTRIBUTION.md):
 # `scripts/publish-build.sh X.Y.Z` copies the draft to ludovic111/lsuite-builds, which
 # lsuite.xyz serves to signed-in lsuite accounts and the app's updater reads.
 on:
@@ -31,19 +31,16 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
+        # Linux only while lsuite is in beta (owner's decision, 2026-10-08): macOS and Windows are
+        # coming soon. Their packaging steps below stay; to ship them again, add back
+        #   { os: macos-14, asset/archive: ryolune-macos-arm64.zip }
+        #   { os: macos-15-intel, asset/archive: ryolune-macos-x86_64.zip }
+        #   { os: windows-latest, asset: ryolune-windows-x86_64.exe, archive: ryolune-windows-x86_64.zip }
+        # and their files in the Checksums step, scripts/publish-release.sh and resume-release.yml.
         include:
-          - os: macos-14
-            asset: ryolune-macos-arm64.zip
-            archive: ryolune-macos-arm64.zip
-          - os: macos-15-intel
-            asset: ryolune-macos-x86_64.zip
-            archive: ryolune-macos-x86_64.zip
           - os: ubuntu-22.04
             asset: ryolune-linux-x86_64
             archive: ryolune-linux-x86_64.zip
-          - os: windows-latest
-            asset: ryolune-windows-x86_64.exe
-            archive: ryolune-windows-x86_64.zip
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
@@ -133,7 +130,7 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Checksums
-        run: cd dist && sha256sum ryolune-macos-arm64.zip ryolune-macos-x86_64.zip ryolune-linux-x86_64.zip ryolune-linux-x86_64.tar.gz ryolune-windows-x86_64.zip ryolune-linux-x86_64 ryolune-windows-x86_64.exe ryolune-Afterglow-demo.zip > SHA256SUMS
+        run: cd dist && sha256sum ryolune-linux-x86_64.zip ryolune-linux-x86_64.tar.gz ryolune-linux-x86_64 ryolune-Afterglow-demo.zip > SHA256SUMS
       - name: Install signing binary runtime
         run: sudo apt-get update && sudo apt-get install -y libasound2 libudev1 libxkbcommon0 libxkbcommon-x11-0 libwayland-client0 libx11-xcb1 libfontconfig1 libvulkan1 mesa-vulkan-drivers
       - name: Sign checksums

@@ -358,12 +358,15 @@ ryolune is part of lsuite with kimchi (video) and zenith (hub).
 
 ## Updates
 
-`desktop/src/update.rs` checks GitHub Releases of `ludovic111/ryolune` on a worker. A release
-(built by `.github/workflows/release.yml` from a `vX.Y.Z` tag) carries one zip per platform
-(`update::asset_name`: `ryolune-macos-arm64.zip`, `ryolune-macos-x86_64.zip`,
-`ryolune-linux-x86_64.zip`, `ryolune-windows-x86_64.zip`), a `SHA256SUMS` file and its
-Ed25519 signature `SHA256SUMS.sig`. The app checks that every URL belongs to the repository's
-releases, verifies the signature against the public key compiled in from
+`desktop/src/update.rs` asks lsuite.xyz on a worker
+(`<server>/api/apps/ryolune/releases/latest`, GitHub-API-shaped, with the lsuite account's
+token; signed out it reports "Sign in to lsuite (in the lsuite app) to get updates"). A release
+(built by `.github/workflows/release.yml` from a `vX.Y.Z` tag, copied to `lsuite-builds` by
+`scripts/publish-build.sh`) carries the platform's zip (`update::asset_name`:
+`ryolune-linux-x86_64.zip`; the macOS and Windows names stay in the code, but only Linux is
+built while lsuite is in beta), a `SHA256SUMS` file and its Ed25519 signature
+`SHA256SUMS.sig`. The app checks that every URL is the server's file route (or the
+repository's releases), verifies the signature against the public key compiled in from
 `desktop/assets/update-signing.pub`, verifies the asset's checksum, checks that the new
 binaries report the expected version, swaps the installed copy in place (keeping a backup to
 roll back) and relaunches. The secret key is never in the repository.

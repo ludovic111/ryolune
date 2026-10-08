@@ -367,7 +367,7 @@ This supersedes the former Electron / TypeScript app (`legacy/`, removed; it is 
 - Work on a branch. Do not merge or publish a release without the owner's request.
 - Releases: bump the workspace `version` in `Cargo.toml`, add `docs/releases/X.Y.Z.md`, run the
   evals (`python3 evals/run.py --record`), then push a matching `vX.Y.Z` tag.
-  `.github/workflows/release.yml` builds all platforms, writes and signs `SHA256SUMS` (Ed25519,
+  `.github/workflows/release.yml` builds Linux (the only platform during the lsuite beta), writes and signs `SHA256SUMS` (Ed25519,
   secret `RYOLUNE_SIGNING_KEY`, public key in `desktop/assets/update-signing.pub`) and leaves a
   draft release; `scripts/publish-build.sh X.Y.Z` publishes it to lsuite-builds, which lsuite.xyz
   serves to `desktop/src/update.rs`, which installs after verifying the signature, the download
@@ -416,8 +416,16 @@ Still to do:
       the MCP `instructions`).
 - [x] **Distribution** (0.16, lsuite's DISTRIBUTION.md): updater on `<server>/api/apps/ryolune/
       releases/latest` with the account token; draft releases + `scripts/publish-build.sh`.
-      Still to do by the owner: create `ludovic111/lsuite-builds`, publish the first build with
-      the script, then make the old public releases drafts once 0.16 is out.
+      `lsuite-builds` exists; 0.16.0 is published there by `scripts/publish-build.sh`. The
+      coordinator turns the old public releases into drafts once all five apps are out.
+- [x] **Linux only for the beta** (owner's decision, 2026-10-08, via the lsuite coordinator):
+      while lsuite is in beta, ryolune is built and shipped for Linux only; macOS and Windows are
+      "coming soon". The platform code stays and builds from source; `release.yml`'s matrix,
+      the Checksums step, `scripts/publish-release.sh`, `resume-release.yml` and `native.yml`
+      list Linux alone (their comments say what to add back). The macOS and Windows files were
+      deleted from every existing ryolune release (public GitHub releases and `ryolune-v*` in
+      lsuite-builds); their signed `SHA256SUMS` stay as they were. README, USER_GUIDE,
+      DEVELOPMENT and the 0.16.0 notes say "beta for Linux, macOS and Windows coming soon".
 - [ ] Harness gaps: a picture of the window is only on macOS (`ui.screenshot`); the Codex
       provider gets the numbers of a look, not the picture; evals run through MCP (Claude Code),
       not through the built-in agent's own loop.

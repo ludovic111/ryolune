@@ -6,6 +6,9 @@ clients can do the same things: see [AI_CONTROL.md](AI_CONTROL.md) and the gener
 [command reference](COMMANDS.md). Keyboard shortcuts are listed in [SHORTCUTS.md](SHORTCUTS.md)
 and in the app under Help > Shortcuts and Help (⌘/). ⌘ is Ctrl on Windows and Linux.
 
+ryolune is in beta for **Linux**; ready-made builds for macOS and Windows are coming soon (the
+guide still describes their few differences, such as Audio Units on macOS).
+
 ## Contents
 
 1. [The window](#the-window)
@@ -434,5 +437,5 @@ third export, and never again. It counts exports in `settings.json` only; nothin
 - Recording latency is not measured or compensated automatically.
 - External plugin windows open on macOS; on Windows and Linux external plugins show their
   parameter list.
-- Windows builds are not code-signed, so SmartScreen may ask before the first launch. macOS
-  builds are notarized from 0.11.0.
+- While lsuite is in beta, builds are published for Linux only; macOS and Windows are coming
+  soon.
