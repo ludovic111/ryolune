@@ -18,7 +18,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, macos-15-intel, ubuntu-22.04, windows-latest]
+        # Pull requests: Linux only, on ludodesktop (1-6 min). macOS and Windows run on main and by hand (gh workflow run).
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main') && '["macos-14", "macos-15-intel", "ubuntu-22.04", "windows-latest"]' || '["ubuntu-22.04"]') }}
     runs-on: ${{ (matrix.os == 'ubuntu-22.04' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && (vars.LINUX_RUNNER || 'ludodesktop') || matrix.os }}
     timeout-minutes: 45
     steps:
