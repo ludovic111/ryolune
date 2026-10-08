@@ -1,9 +1,9 @@
 # Rust migration — 2026-09-12
 
 The owner explicitly chose a fully native Rust interface. The active build is a Cargo workspace
-with `ryolune` (desktop), `ryolune-engine` and `ryolune-tools` (CLI/MCP). The former source is
-preserved unchanged in `legacy/`. Version 0.2 integrates the native app, plugin hosting, agent
-control and updater. See [0.2.0 release notes](releases/0.2.0.md).
+with `ryolune` (desktop), `ryolune-engine` and `ryolune-tools` (CLI/MCP). The former source was
+preserved unchanged in `legacy/` until its removal; it is in git history at `7fb6116`. Version
+0.2 integrates the native app, plugin hosting, agent control and updater. See [0.2.0 release notes](releases/0.2.0.md).
 
 ## Delivered behavior
 

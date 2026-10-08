@@ -6,8 +6,8 @@ and the `ondera-session` format still load; `host::scan::data_dir` adopts the ol
 data folder once and native plugin folders under the old name are still scanned; the SDK
 exports `ondera_plugin_entry*` beside `ryolune_plugin_entry*` (`LEGACY_ENTRY_SYMBOL*`) and the
 host accepts both; `plugins/abi1-fixture` keeps its old crate name, symbol and id; the GitHub
-secret is still named `ONDERA_SIGNING_KEY`; release notes before 0.11 and `legacy/` keep the old
-name as history.
+secret is still named `ONDERA_SIGNING_KEY`; release notes before 0.11 and git history keep the old
+name.
 
 Since 0.13 (2026-10-02, owner's request: "enlève tauri, passe au GPUI") the window is drawn with
 GPUI 0.2 (gpui.rs, Zed's framework, direct upstream crate, `runtime_shaders` so no Metal
@@ -58,13 +58,15 @@ square, the ring's shadow side dissolving into dither) and the app icon are writ
 .ico with resvg. The window is still `WindowBackgroundAppearance::Blurred` (opaque with macOS
 Reduce transparency). The public page is lsuite.xyz/ryolune, in
 the lsuite repo (ludovic111/lsuite); ryolune.com redirects there with the same path, so
-`/support` and `/download/<platform>` links keep working. `site/` is the former standalone site,
-no longer deployed; its launch film (`site/video/`) is made in `marketing/` (see its README).
+`/support` and `/download/<platform>` links keep working. The former standalone site (`site/`,
+no longer deployed) and the 0.12 launch-film pipeline (`marketing/`) were removed; they are in git
+history at 7fb6116.
 When v2 is released, update lsuite's DESIGN.md ("ryolune and zenith still wear v1") and the
 captures on lsuite.xyz/ryolune.
 
 The owner requested a complete Rust rewrite on 2026-09-12, including the interface.
-This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.md`.
+This supersedes the former Electron / TypeScript app (`legacy/`, removed; it is in git history at
+7fb6116).
 
 - `desktop/`: the app. The host (`app.rs` `Ryolune`: store, audio, plugins, workers; no UI code)
   and the GPUI window in `desktop/src/ui` (above). `agents.rs` holds the agent panel's state (the
@@ -333,14 +335,13 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   still run tests and the app with `RYOLUNE_SETTINGS`, `RYOLUNE_DATA_DIR`, `RYOLUNE_CONTROL` and
   `LSUITE_HOME` in a scratch folder (a test run without them overwrote the owner's settings once).
 - Parallel worktrees must not share `CARGO_TARGET_DIR`: cargo can link another worktree's
-  `ryolune-engine` into yours. The site: `site/server.js` swaps each `?v=` on `.js`/`.css` for a
-  content hash (immutable caching), serves `/sitemap.xml` and hides its own sources; fonts are
-  self-hosted in `site/fonts` and the CSP allows only the site's origin; each release updates the
-  site's "New in" section, hero pill, changelog, limits and version (checklist in `site/README.md`).
+  `ryolune-engine` into yours. The public page is lsuite.xyz/ryolune (`ryolune/index.html` in
+  ludovic111/lsuite); each release updates its "New in" section, changelog and captures (the
+  version is filled in from the latest GitHub release).
 - Money (owner's decision, 2026-09-29): ryolune is MIT and free forever, every update included; the
   only income is optional donations, once or monthly, through GitHub Sponsors behind
   lsuite.xyz/ryolune/support (`SUPPORT_URL` in desktop control.rs, since 2026-10-01; the retired
-  `site/server.js` defaulted ryolune.com/support to `SPONSORS_URL`). Nothing
+  standalone site defaulted ryolune.com/support to `SPONSORS_URL`). Nothing
   is sold or locked, so copy says donate or sponsor, never pay, price or checkout. The app asks once,
   after the third export (`SUPPORT_AFTER_EXPORTS`); a quiet Sponsor key sits at the right of the
   title bar (`app.openGuide guide=support`), and `.github/FUNDING.yml` shows GitHub's Sponsor button.
@@ -374,7 +375,8 @@ This supersedes the former Electron / TypeScript architecture in `legacy/CLAUDE.
   Keep the asset names in `update::asset_name` and the workflow in sync. The secret key stays in
   `~/.ryolune/keys/update-signing.key` on the owner's machine; never commit it. Builds are ad-hoc
   signed, not notarized.
-- `legacy/` is reference material, not the active implementation.
+- The former Electron / TypeScript app and the retired site are in git history at 7fb6116,
+  the parent of the commit that removed them; they are reference only.
 
 ## lsuite: bring ryolune up to the suite standard (next session; notes updated 2026-10-01)
 

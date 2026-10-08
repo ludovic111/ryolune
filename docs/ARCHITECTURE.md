@@ -17,9 +17,12 @@ ryolune is one Cargo workspace (`Cargo.toml`). All crates share one version.
 | `ryolune-plugin` | `sdk/` | The native plugin SDK: the `Plugin` trait, DSP helpers, the frozen C ABI (`sdk/src/ffi.rs`) and a test bench (`sdk/src/testing.rs`). |
 | `ryolune-tools` | `tools/` | `ryolune-cli` and `ryolune-mcp`, thin clients of the registry (`tools/src/lib.rs`, `tools/src/bin/`). |
 | `ryolune-plugin-gain` | `plugins/gain/` | An example native plugin bundle (Trim and Tilt EQ), used by tests. |
+| `ryolune-plugin-bitcrusher` | `plugins/bitcrusher/` | An example plugin written on the SDK: Bitcrusher. |
+| `ryolune-plugin-chorus` | `plugins/chorus/` | An example plugin written on the SDK: Chorus. |
 | `ondera-abi1-fixture` | `plugins/abi1-fixture/` | A plugin frozen at ABI 1 with no SDK dependency, so tests prove old libraries still load. Its name is kept on purpose. |
 
-`legacy/` is the former Electron and TypeScript app, kept as reference only.
+The former Electron and TypeScript app (`legacy/`) was removed; it is in git history at
+`7fb6116`, for reference only.
 
 ## Threads
 
