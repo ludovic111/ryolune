@@ -18,29 +18,41 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, macos-15-intel, ubuntu-22.04, windows-latest]
-    runs-on: ${{ matrix.os }}
+        # Linux only, on ludodesktop. macOS and Windows only when started by hand: gh workflow run "Native Rust" --ref <branch>.
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["macos-14", "macos-15-intel", "ubuntu-22.04", "windows-latest"]' || '["ubuntu-22.04"]') }}
+    runs-on: ${{ (matrix.os == 'ubuntu-22.04' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && (vars.LINUX_RUNNER || 'ludodesktop') || matrix.os }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          # On ludodesktop, keep target/ between runs (incremental builds).
+          clean: ${{ runner.environment == 'github-hosted' }}
       - uses: actions/setup-python@v5
+        if: runner.environment == 'github-hosted'
         with:
           python-version: '3.12'
       - name: Bound Linux compiler memory
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
         run: |
           echo 'CARGO_BUILD_JOBS=2' >> "$GITHUB_ENV"
           echo 'CARGO_PROFILE_DEV_DEBUG=0' >> "$GITHUB_ENV"
           echo 'CARGO_PROFILE_TEST_DEBUG=0' >> "$GITHUB_ENV"
       - name: Linux native libraries
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-dev libx11-xcb-dev libxcb1-dev libfontconfig1-dev libfreetype6-dev libvulkan-dev libdbus-1-dev libssl-dev libzstd-dev
+      - name: Own Rust install per repo on ludodesktop
+        # The runners of several repos run at once; a shared ~/.rustup makes their installs collide.
+        if: runner.environment == 'self-hosted'
+        run: |
+          echo "RUSTUP_HOME=$HOME/.rustup-${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
+          echo "CARGO_HOME=$HOME/.cargo-${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.88.0'
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+        if: runner.environment == 'github-hosted'
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
