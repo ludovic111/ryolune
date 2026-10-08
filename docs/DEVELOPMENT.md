@@ -153,7 +153,13 @@ callback.
 4. Merge to `main`, then push a matching tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 5. When the workflow is done, publish the build to lsuite: `scripts/publish-build.sh X.Y.Z`.
 
-The `Release` workflow builds macOS (arm64 and x86_64), Linux and Windows, writes and signs
+While lsuite is in beta (owner's decision, 2026-10-08) ryolune is built and shipped for **Linux
+only**; macOS and Windows are coming soon. Their code stays and builds from source, but the
+`Release` workflow's matrix and the `Native Rust` CI run `ubuntu-22.04` alone (the comments in
+`release.yml` and `native.yml` list what to add back: the matrix entries, the files in the
+Checksums step, `scripts/publish-release.sh` and `resume-release.yml`).
+
+The `Release` workflow builds Linux, writes and signs
 `SHA256SUMS` (Ed25519, repository secret `RYOLUNE_SIGNING_KEY`, public key in
 `desktop/assets/update-signing.pub`) and leaves a complete **draft** release: since 0.16 the
 builds are not public (lsuite's DISTRIBUTION.md). `scripts/publish-build.sh X.Y.Z` (needs `gh`
@@ -164,9 +170,11 @@ lsuite.xyz serves that release to signed-in lsuite accounts: the updater reads
 server's file route. Installed apps verify the signature, the download location and the new
 binaries' versions before replacing themselves. `RYOLUNE_UPDATE_URL` points the updater at
 another release document (tests). A new key pair comes from `ryolune --release-keygen <file>`.
-Windows binaries are unsigned.
+Windows binaries, when they are built again, are unsigned.
 
 ### Signing and notarizing for macOS
+
+(Not used while macOS builds are paused for the beta.)
 
 Without Apple secrets the macOS app is ad-hoc signed and Gatekeeper blocks its first launch. With
 all six repository secrets set, `scripts/prepare-apple-signing.sh` imports the certificate into a

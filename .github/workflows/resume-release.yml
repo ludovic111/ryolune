@@ -7,7 +7,7 @@ on:
         required: true
         type: string
       run_id:
-        description: Release workflow run with all platform builds successful
+        description: Release workflow run with every platform build successful
         required: true
         type: string
 
@@ -40,10 +40,10 @@ jobs:
           from pathlib import Path
           run = json.loads((Path(os.environ['RUNNER_TEMP']) / 'source-run.json').read_text())
           commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-          required = {'verify', 'macos-14', 'macos-15-intel', 'ubuntu-22.04', 'windows-latest'}
+          required = {'verify', 'ubuntu-22.04'}  # Linux only while lsuite is in beta
           passed = {job['name'] for job in run['jobs'] if job['conclusion'] == 'success'}
           if run['workflowName'] != 'Release' or run['event'] != 'push' or run['headSha'] != commit or not required <= passed:
-              raise SystemExit('Source run must validate this exact tag on all four platforms')
+              raise SystemExit('Source run must validate this exact tag on every released platform')
           print('Verified source build at', commit)
           PY
       - uses: actions/download-artifact@v4
@@ -59,7 +59,7 @@ jobs:
           RYOLUNE_SIGNING_KEY: ${{ secrets.ONDERA_SIGNING_KEY }}
         run: |
           test -n "$RYOLUNE_SIGNING_KEY"
-          (cd dist && sha256sum ryolune-macos-arm64.zip ryolune-macos-x86_64.zip ryolune-linux-x86_64.zip ryolune-linux-x86_64.tar.gz ryolune-windows-x86_64.zip ryolune-linux-x86_64 ryolune-windows-x86_64.exe ryolune-Afterglow-demo.zip > SHA256SUMS)
+          (cd dist && sha256sum ryolune-linux-x86_64.zip ryolune-linux-x86_64.tar.gz ryolune-linux-x86_64 ryolune-Afterglow-demo.zip > SHA256SUMS)
           umask 077
           trap 'rm -f "$RUNNER_TEMP/release.key"' EXIT
           printf '%s\n' "$RYOLUNE_SIGNING_KEY" > "$RUNNER_TEMP/release.key"

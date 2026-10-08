@@ -8,7 +8,8 @@ cd "$(dirname "$0")/.."
 bash scripts/verify-release.sh
 tag=${GITHUB_REF_NAME:?Missing release tag}
 notes="docs/releases/${tag#v}.md"
-assets=(ryolune-macos-arm64.zip ryolune-macos-x86_64.zip ryolune-linux-x86_64.zip ryolune-linux-x86_64.tar.gz ryolune-windows-x86_64.zip ryolune-linux-x86_64 ryolune-windows-x86_64.exe ryolune-Afterglow-demo.zip)
+# Linux only while lsuite is in beta; macOS and Windows are coming soon (release.yml).
+assets=(ryolune-linux-x86_64.zip ryolune-linux-x86_64.tar.gz ryolune-linux-x86_64 ryolune-Afterglow-demo.zip)
 for asset in "${assets[@]}" SHA256SUMS SHA256SUMS.sig; do
   test -s "dist/$asset" || { echo "Missing release asset: $asset" >&2; exit 1; }
 done

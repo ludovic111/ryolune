@@ -10,14 +10,14 @@
 <h1 align="center">ryolune</h1>
 
 <p align="center"><strong>The open-source DAW your AI can drive.</strong> (beta)<br/>
-Native Rust app (GPUI) · drivable by your AI (MCP, CLI, built-in agent) · macOS, Windows and Linux.<br/>
+Native Rust app (GPUI) · drivable by your AI (MCP, CLI, built-in agent) · beta for Linux; macOS and Windows coming soon.<br/>
 Part of <a href="https://lsuite.xyz">lsuite</a>, the free, open-source creative suite your AI can drive.</p>
 
 ---
 
 ## What it does
 
-A complete digital audio workstation for macOS, Windows and Linux in which every action, from
+A complete digital audio workstation (in beta for Linux; macOS and Windows coming soon) in which every action, from
 adding a track to mixing a plugin's parameters, is a command that you, the built-in agent, a
 script or any MCP client (Claude Code, Codex, Cursor…) can run on the same song, with the same
 undo.
@@ -63,20 +63,18 @@ Download the file for your computer from the
 [latest release](https://github.com/ludovic111/ryolune/releases/latest) or
 [lsuite.xyz/ryolune](https://lsuite.xyz/ryolune):
 
+While lsuite is in beta, ryolune is built for **Linux** (x86_64) only. **macOS and Windows are
+coming soon**: the code is there and builds from source, but no ready-made builds are published.
+
 | Computer | File |
 | --- | --- |
-| Mac with Apple silicon | `ryolune-macos-arm64.zip` |
-| Mac with Intel | `ryolune-macos-x86_64.zip` |
-| Windows | `ryolune-windows-x86_64.zip`, or `ryolune-windows-x86_64.exe` for the app alone |
 | Linux | `ryolune-linux-x86_64.zip` (or `.tar.gz`), or `ryolune-linux-x86_64` for the app alone |
+| Mac, Windows | Coming soon |
 
-**macOS**: unzip and drag `ryolune.app` to Applications. The app is signed with a Developer ID
-and notarized by Apple, so it opens like any other app.
-**Windows and Linux**: the `.zip` (and the Linux `.tar.gz`) holds all three executables
-(`ryolune`, `ryolune-cli`, `ryolune-mcp`); extract them into one folder. The single
-`ryolune-windows-x86_64.exe` and `ryolune-linux-x86_64` files are the app alone, without the CLI
-and the MCP server: put the file in a folder of its own and run it (on Linux, make it executable
-first with `chmod +x`); the first update adds `ryolune-cli` and `ryolune-mcp` beside it.
+The `.zip` (and the `.tar.gz`) holds all three executables (`ryolune`, `ryolune-cli`,
+`ryolune-mcp`); extract them into one folder. The single `ryolune-linux-x86_64` file is the app
+alone, without the CLI and the MCP server: put it in a folder of its own, make it executable with
+`chmod +x` and run it; the first update adds `ryolune-cli` and `ryolune-mcp` beside it.
 The demo song is `ryolune-Afterglow-demo.zip` on the same page.
 
 Or install it with the [lsuite launcher](https://lsuite.xyz/launcher).
@@ -95,7 +93,7 @@ old app (Help > Set Up ryolune… shows it again). Then:
 1. File > New Session: Drums, Bass and an audio track are ready.
 2. Double-click a loop in the browser, or draw a region with the Pencil tool (`2`) and click in
    the piano roll to add notes. Space plays.
-3. Mix in the inspector or the mixer (`X`), save with `⌘S`, export with `⌘B`.
+3. Mix in the inspector or the mixer (`X`), save with `Ctrl+S`, export with `Ctrl+B`.
 
 Or open File > Open Demo to explore a finished song, or File > Import from Another App… to bring
 in a DAWproject, a MIDI file or stems. The [user guide](docs/USER_GUIDE.md) walks through
@@ -113,7 +111,7 @@ directly.
 Add ryolune to Claude Code or any MCP client:
 
 ```sh
-claude mcp add ryolune -- /Applications/ryolune.app/Contents/MacOS/ryolune-mcp --live
+claude mcp add ryolune -- /path/to/ryolune/ryolune-mcp --live
 ```
 
 Settings shows a ready setup for Claude Code, Codex, Cursor, VS Code, Claude Desktop, Gemini CLI
@@ -141,7 +139,7 @@ See [AI_CONTROL.md](docs/AI_CONTROL.md) for the agent, the CLI, MCP, permissions
 ## Plugins
 
 - **35 stock instruments and effects** with front panels that draw what the audio does, plus
-  your own CLAP, VST3, Audio Unit (macOS) and lsuite plugins, all in one Plugins window with a
+  your own CLAP, VST3, Audio Unit (macOS, coming soon) and lsuite plugins, all in one Plugins window with a
   switch on each.
 - **Plugins you can ask for**: describe an effect or an instrument and your agent writes it in
   Rust on ryolune's SDK, builds it and loads it, without a restart (`plugin.guide`,
@@ -208,9 +206,10 @@ sudo apt-get install build-essential pkg-config libasound2-dev libudev-dev \
 ```
 
 Check with `cargo fmt --all --check`, `cargo clippy --workspace --all-targets --locked -- -D warnings`
-and `cargo test --workspace --locked`. `bash scripts/package-macos.sh` bundles `dist/ryolune.app`
-and its zip. A release is a version bump in `Cargo.toml`, notes in `docs/releases/X.Y.Z.md` and
-a `vX.Y.Z` tag; the Release workflow builds, signs and publishes every platform. Platform
+and `cargo test --workspace --locked`. A release is a version bump in `Cargo.toml`, notes in
+`docs/releases/X.Y.Z.md` and a `vX.Y.Z` tag; the Release workflow builds and signs the Linux build
+(macOS and Windows are not built during the beta; `bash scripts/package-macos.sh` still bundles
+`dist/ryolune.app` from source). Platform
 prerequisites, checks and the release process are in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: pull requests
@@ -220,9 +219,9 @@ need the checks in [DEVELOPMENT.md](docs/DEVELOPMENT.md) and agreement to the
 ## Limits
 
 No time stretching, comping or time signature changes inside a song yet, and buses do not feed
-other buses. Recording latency is not compensated automatically. External plugin windows open on macOS; elsewhere
-external plugins show their parameter list. VST2 and AAX are not supported. There is no MP3
-export. Windows builds are not code-signed. DAWproject does not carry clip gain, fade curves,
+other buses. Recording latency is not compensated automatically. On Linux, external plugins show their parameter list
+(their own windows open on macOS, coming soon). VST2 and AAX are not supported. There is no MP3
+export. DAWproject does not carry clip gain, fade curves,
 plugin automation or meter changes, and Ableton Live, Logic Pro, FL Studio, REAPER, Pro Tools
 and GarageBand exchange songs through MIDI and stems, not their own project files.
 
