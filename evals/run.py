@@ -118,7 +118,7 @@ def run_job(job, args, bins, claude, root):
     prompt = job["prompt"].replace("{work}", str(work))
     agent = run_agent(claude, args.model, prompt, mcp_config, work, env, args.timeout, args.budget)
     song = Song(cli, song_path)
-    ctx = {"before": before, "tools": agent["tools"], "work": str(work)}
+    ctx = {"before": before, "tools": agent["tools"], "reply": agent["reply"], "work": str(work)}
     checks = []
     for fn in job["checks"]:
         try:

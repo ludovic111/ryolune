@@ -249,7 +249,16 @@ def _export():
         folder = Path(ctx["work"]) / "out" / "stems"
         files = list(folder.glob("*")) if folder.exists() else []
         return ok(len(files) >= len([t for t in song.tracks if t["kind"] != "bus"]), f"{len(files)} files")
-    return [mix, stems, music_preserved, finished_with_eyes]
+    # Files are what this job makes, and every export measures what it wrote (peak, clipped
+    # samples, warnings): the skill's checks are reading those. The demo's mix clips, so a
+    # checked result reports it, or the agent measured before exporting.
+    @check("checked the files before finishing (finish routine)")
+    def checked(song, ctx):
+        reply = ctx.get("reply", "").lower()
+        reported = "clip" in reply and ("dbfs" in reply or "peak" in reply)
+        measured = finished_with_eyes(song, ctx)[0]
+        return ok(measured or reported, f"measured {measured}, reported peak/clipping {reported}")
+    return [mix, stems, music_preserved, checked]
 
 
 def _ritardando():

@@ -22,6 +22,9 @@ never saw the reminder.
 
 ### 2026-10-08 · opus · 12/13 jobs passed · 65/68 checks · $4.71
 
+The full release run (0.16.0). export-stems failed because no export could write into a folder
+that did not exist yet; fixed (exports make their folders) and re-run below.
+
 | Job | Skill | Result | Checks | Tool calls | Time | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | drums-house | drum-programming | pass | 6/6 | 6 | 49.1s | all checks passed |
@@ -37,3 +40,22 @@ never saw the reminder.
 | export-stems | stems-and-export | FAIL | 1/4 | 4 | 42.1s | a 44.1 kHz 16-bit WAV mix (no mix.wav); one stem per track (0 files); looked or measured before finishing (finish routine) (0 looks/measures) |
 | ritardando | arrangement | pass | 4/4 | 5 | 65.8s | all checks passed |
 | fade-out | automation-and-movement | pass | 3/3 | 3 | 92.7s | all checks passed |
+
+### 2026-10-08 · opus · 0/1 jobs passed · 3/4 checks · $0.08
+
+export-stems after the folder fix: the files are right; the agent read the exports' own peak and
+clipping report instead of `harness.measure`, which the job's check did not count yet.
+
+| Job | Skill | Result | Checks | Tool calls | Time | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| export-stems | stems-and-export | FAIL | 3/4 | 2 | 153.2s | looked or measured before finishing (finish routine) (0 looks/measures) |
+
+### 2026-10-08 · opus · 1/1 jobs passed · 4/4 checks · $0.08
+
+export-stems with its finish check counting the exports' own report (peak, clipping): the agent
+reported the mix clips at +1.7 dBFS and offered fixes without changing the song.
+Release result for 0.16.0 with Opus: 13/13 jobs.
+
+| Job | Skill | Result | Checks | Tool calls | Time | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| export-stems | stems-and-export | pass | 4/4 | 2 | 182.5s | all checks passed |
