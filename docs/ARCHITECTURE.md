@@ -344,7 +344,7 @@ song, a loop, a one-shot or an instrument note. The work is split:
 
 ## lsuite: discovery and hand-offs
 
-ryolune is part of lsuite with kimchi (video) and zenith (hub).
+ryolune is part of lsuite with kimchi (video).
 
 - **Discovery.** `desktop/src/discovery.rs` writes `~/.lsuite/apps/ryolune.json` (format 1,
   `engine/src/lsuite.rs`): version, paths to the app, CLI and MCP server, the data folder,

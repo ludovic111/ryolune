@@ -207,7 +207,7 @@ pub(crate) fn run_claude(turn: Turn) -> Result<()> {
 /// A CLI turn that the person can steer. `claude -p` reads its whole prompt before it
 /// starts and keeps no session here, so steering stops the run (its edits are already in
 /// the song and in Undo) and starts it again with the request, what it had answered so far
-/// and the steering. Codex and zenith steer their running turn instead.
+/// and the steering. Codex steers its running turn instead.
 fn run_steerable(
     command: &mut Command,
     turn: &Turn,

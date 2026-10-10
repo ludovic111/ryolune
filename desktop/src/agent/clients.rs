@@ -29,10 +29,6 @@ impl Server {
     fn mcp_servers(&self) -> String {
         pretty(&json!({ "mcpServers": { "ryolune": self.block() } }))
     }
-    /// The standard `.mcp.json` text, for a folder an agent works in (zenith's threads).
-    pub(crate) fn project_file(&self) -> String {
-        self.mcp_servers()
-    }
 }
 
 fn pretty(value: &Value) -> String {

@@ -171,7 +171,7 @@ pub const SPECS: &[Spec] = &[
     ]),
     query("agent.status", "The built-in agent: provider, model, whether a task is running, turn count and last reply.", &[]),
     edit("agent.configure", "Select the agent provider, model and reasoning effort together. Only while idle.", &[
-        req("provider", Kind::String, "lsuite (lsuite AI, after account.signIn), codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio, compatible or zenith."),
+        req("provider", Kind::String, "lsuite (lsuite AI, after account.signIn), codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio or compatible."),
         req("model", Kind::String, "Model ID; empty uses the provider default."),
         req("reasoningEffort", Kind::String, "Provider effort level; empty uses its default."),
     ]),

@@ -53,17 +53,6 @@
   --ls-kimchi-800: #742f23;
   --ls-kimchi-900: #4e2119;
   --ls-kimchi-950: #31130d;
-  --ls-zenith-50: #eaf6ff;
-  --ls-zenith-100: #d2e9ff;
-  --ls-zenith-200: #b0d5ff;
-  --ls-zenith-300: #8fbdff;
-  --ls-zenith-400: #72a6ff;
-  --ls-zenith-500: #5a8ff3;
-  --ls-zenith-600: #4777d2;
-  --ls-zenith-700: #355da9;
-  --ls-zenith-800: #28467d;
-  --ls-zenith-900: #1c2f53;
-  --ls-zenith-950: #101c34;
 }
 
 :root, [data-mode="dark"] {

@@ -61,7 +61,7 @@ the lsuite repo (ludovic111/lsuite); ryolune.com redirects there with the same p
 `/support` and `/download/<platform>` links keep working. The former standalone site (`site/`,
 no longer deployed) and the 0.12 launch-film pipeline (`marketing/`) were removed; they are in git
 history at 7fb6116.
-When v2 is released, update lsuite's DESIGN.md ("ryolune and zenith still wear v1") and the
+When v2 is released, update lsuite's DESIGN.md (it still says ryolune wears v1) and the
 captures on lsuite.xyz/ryolune.
 
 The owner requested a complete Rust rewrite on 2026-09-12, including the interface.
@@ -237,10 +237,7 @@ This supersedes the former Electron / TypeScript app (`legacy/`, removed; it is 
   (`desktop/src/conversations.rs`; `Session.id` keys them, added on load when absent), with project
   memory (32 KB, sent ahead of every request; `agent.setMemory` and `agent.deleteConversation` are
   refused to agents) and `agent.steer` (queued and joined at the next model call; Claude Code
-  restarts its run). `Provider::Zenith` (`desktop/src/agent/zenith.rs`) drives `zenith-cli` with
-  kimchi's contract (`project.add`, `thread.new/send/steer/get/interrupt`, `provider.list`;
-  `thread.steer` falls back to `thread.send` on older zenith), one zenith project per song holding
-  ryolune's MCP recipe. Diagnostics (`engine/src/diagnostics.rs`, `desktop/src/diagnostics.rs`):
+  restarts its run). Diagnostics (`engine/src/diagnostics.rs`, `desktop/src/diagnostics.rs`):
   `<data dir>/logs` (four runs, 8 MB each), `crashes/` (panic hook, recovered worker panics,
   unclean-exit marker), Settings › Diagnostics, `app.reportProblem` (refused to agents). What's New
   reads `docs/releases/*.md` built in by `engine/build.rs` (`release_notes.rs`; a test fails when
@@ -381,7 +378,7 @@ This supersedes the former Electron / TypeScript app (`legacy/`, removed; it is 
 ## lsuite: bring ryolune up to the suite standard (next session; notes updated 2026-10-01)
 
 ryolune is part of **lsuite** (lowercase), the free open-source creative suite with kimchi
-(video) and zenith (hub). Two documents in ludovic111/lsuite (locally `../lsuite/`) are the
+(video). Two documents in ludovic111/lsuite (locally `../lsuite/`) are the
 contract: `STANDARD.md` (every action a command, CLI + MCP + built-in agent on one registry,
 signed auto-update, apps that work together) and `design/DESIGN.md` (the shared design system,
 live at lsuite.xyz/design). ryolune is the reference implementation of the standard.
@@ -412,8 +409,7 @@ Still to do:
 - [x] **Agent harness** (0.16, lsuite's HARNESS.md parts 1-7): brief, 13 skills, `harness.*`,
       live context per model step, `harness.look`/`measure` (picture + LUFS/true peak), the
       finish routine, one undo per turn, `evals/`. Part 8 (the suite agent) belongs to the lsuite
-      app; zenith should append ryolune's brief to its threads (it can read `harness.brief` or
-      the MCP `instructions`).
+      app.
 - [x] **Distribution** (0.16, lsuite's DISTRIBUTION.md): updater on `<server>/api/apps/ryolune/
       releases/latest` with the account token; draft releases + `scripts/publish-build.sh`.
       `lsuite-builds` exists; 0.16.0 is published there by `scripts/publish-build.sh`. The

@@ -108,9 +108,6 @@ pub enum Provider {
     LmStudio,
     /// Any other OpenAI-compatible endpoint (local servers, other vendors).
     Compatible,
-    /// zenith, the lsuite agent hub: its agents (signed in there) work on the song through
-    /// ryolune's MCP server.
-    Zenith,
 }
 /// A service that speaks the OpenAI Chat Completions API at a fixed address.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -127,7 +124,7 @@ pub struct Hosted {
     pub strict: bool,
 }
 impl Provider {
-    pub const ALL: [Provider; 15] = [
+    pub const ALL: [Provider; 14] = [
         Provider::Lsuite,
         Provider::Codex,
         Provider::Claude,
@@ -142,7 +139,6 @@ impl Provider {
         Provider::Ollama,
         Provider::LmStudio,
         Provider::Compatible,
-        Provider::Zenith,
     ];
     pub fn label(self) -> &'static str {
         match self {
@@ -160,7 +156,6 @@ impl Provider {
             Provider::Ollama => "Ollama on this computer",
             Provider::LmStudio => "LM Studio on this computer",
             Provider::Compatible => "OpenAI-compatible endpoint",
-            Provider::Zenith => "zenith · lsuite",
         }
     }
     pub fn key(self) -> &'static str {
@@ -179,27 +174,21 @@ impl Provider {
             Provider::Ollama => "ollama",
             Provider::LmStudio => "lmstudio",
             Provider::Compatible => "compatible",
-            Provider::Zenith => "zenith",
         }
     }
     pub fn parse(key: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|p| p.key() == key)
     }
-    /// The installed command-line agents, which bring their own sign-in (zenith keeps its
-    /// agents' sign-ins too).
+    /// The installed command-line agents, which bring their own sign-in.
     pub fn is_cli(self) -> bool {
-        matches!(self, Provider::Codex | Provider::Claude | Provider::Zenith)
+        matches!(self, Provider::Codex | Provider::Claude)
     }
     /// Every provider that runs through the OpenAI Chat Completions client: OpenAI itself,
     /// the hosted and local services and the custom endpoint.
     pub fn speaks_openai(self) -> bool {
         !matches!(
             self,
-            Provider::Codex
-                | Provider::Claude
-                | Provider::Anthropic
-                | Provider::Zenith
-                | Provider::Lsuite
+            Provider::Codex | Provider::Claude | Provider::Anthropic | Provider::Lsuite
         )
     }
     /// The fixed address of a hosted or local OpenAI-compatible service.
@@ -288,8 +277,7 @@ impl Provider {
             | Provider::Xai
             | Provider::Ollama
             | Provider::LmStudio
-            | Provider::Compatible
-            | Provider::Zenith => "",
+            | Provider::Compatible => "",
         }
     }
 }
@@ -324,8 +312,6 @@ pub struct Agent {
     /// Extra standing instructions appended to the system prompt.
     pub instructions: String,
     pub permissions: Permissions,
-    /// `zenith-cli`; blank finds it ($RYOLUNE_ZENITH_CLI, the lsuite discovery entry, PATH).
-    pub zenith_executable: String,
     /// Claude Code runs on the lsuite AI subscription (`ANTHROPIC_BASE_URL` and
     /// `ANTHROPIC_AUTH_TOKEN` from the lsuite account) instead of its own sign-in.
     pub claude_through_lsuite: bool,
@@ -588,7 +574,6 @@ impl Default for Agent {
             max_tool_rounds: 48,
             instructions: String::new(),
             permissions: Permissions::default(),
-            zenith_executable: String::new(),
             claude_through_lsuite: false,
         }
     }
@@ -615,6 +600,19 @@ impl Default for Control {
 }
 
 /// Where an unreadable settings file is copied before defaults replace it.
+/// A file whose agent provider this version no longer offers, read with the default provider
+/// instead: the rest of the settings (keys, paths, permissions) stay as they were.
+fn without_retired_provider(text: &str) -> Option<Settings> {
+    let mut value: Value = serde_json::from_str(text).ok()?;
+    let agent = value.get_mut("agent")?.as_object_mut()?;
+    let key = agent.get("provider")?.as_str()?;
+    if Provider::parse(key).is_some() {
+        return None;
+    }
+    agent.remove("provider");
+    serde_json::from_value(value).ok()
+}
+
 pub fn invalid_copy(path: &Path) -> PathBuf {
     let mut name = path.file_name().unwrap_or_default().to_os_string();
     name.push(".invalid");
@@ -689,6 +687,7 @@ impl Settings {
                     return Err("Settings file exceeds 4 MiB".into());
                 }
                 let mut settings: Settings = serde_json::from_str(&text)
+                    .or_else(|e| without_retired_provider(&text).ok_or(e))
                     .map_err(|e| format!("Invalid settings file {}: {e}", path.display()))?;
                 settings.interface.migrate(&text);
                 settings.onboarding.migrate(&text);
@@ -738,11 +737,6 @@ impl Settings {
         }
         if self.agent.model.len() > 200 || self.agent.model.chars().any(char::is_control) {
             return Err("Model names must be printable and at most 200 characters".into());
-        }
-        if self.agent.zenith_executable.len() > 4096
-            || self.agent.zenith_executable.chars().any(char::is_control)
-        {
-            return Err("The zenith-cli path must be printable and under 4096 characters".into());
         }
         if !THEMES.contains(&self.interface.appearance.as_str()) {
             return Err(format!(
@@ -872,8 +866,7 @@ impl Settings {
             | Provider::Codex
             | Provider::Claude
             | Provider::Ollama
-            | Provider::LmStudio
-            | Provider::Zenith => return None,
+            | Provider::LmStudio => return None,
         };
         stored_or_env(stored, env)
     }
@@ -1271,5 +1264,30 @@ mod tests {
         let absent = dir.path().join("absent.json");
         assert_eq!(Settings::load_from(&absent), Settings::default());
         assert!(!invalid_copy(&absent).exists());
+    }
+
+    #[test]
+    fn a_provider_this_version_no_longer_offers_falls_back_to_the_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let mut settings = Settings::default();
+        settings.agent.provider = Provider::Codex;
+        settings.agent.anthropic_api_key = "sk-ant-keep-me".into();
+        settings.save_to(&path).unwrap();
+        let text = std::fs::read_to_string(&path)
+            .unwrap()
+            .replace("\"provider\": \"codex\"", "\"provider\": \"retired\"")
+            .replace(
+                "\"model\": \"\"",
+                "\"model\": \"\", \"retiredExecutable\": \"/opt/x\"",
+            );
+        std::fs::write(&path, &text).unwrap();
+        let loaded = Settings::read(&path).unwrap();
+        assert_eq!(loaded.agent.provider, Settings::default().agent.provider);
+        assert_eq!(loaded.agent.anthropic_api_key, "sk-ant-keep-me");
+        assert!(!invalid_copy(&path).exists());
+        // Any other unreadable value still makes the file unreadable.
+        std::fs::write(&path, text.replace("\"retired\"", "7")).unwrap();
+        assert!(Settings::read(&path).is_err());
     }
 }

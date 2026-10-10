@@ -2,7 +2,7 @@
 //!
 //! **Discovery.** Every lsuite app writes `~/.lsuite/apps/<app>.json` when it starts and
 //! clears its `running` part when it quits (`$LSUITE_HOME` replaces `~/.lsuite`). The format
-//! (format 1, as kimchi and zenith write it too; lsuite's STANDARD.md) is small on purpose:
+//! (format 1, as kimchi writes it too; lsuite's STANDARD.md) is small on purpose:
 //!
 //! ```json
 //! { "format": 1, "app": "ryolune", "version": "0.13.0", "kind": "music",

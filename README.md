@@ -128,7 +128,7 @@ ryolune-cli --file song.ryolune session.exportAudio --path mix.flac
 ```
 
 The built-in agent runs on lsuite AI, Codex, Claude Code, Anthropic, OpenAI, Gemini, OpenRouter,
-Mistral, Groq, DeepSeek, xAI, Ollama, LM Studio, zenith or any compatible server.
+Mistral, Groq, DeepSeek, xAI, Ollama, LM Studio or any compatible server.
 
 **lsuite AI**: sign in once and the agent works, with no Claude Code to install and no key to
 paste; the account is shared by every lsuite app. A demo for now: no payment is taken. Bringing
@@ -150,8 +150,8 @@ Hosting is described in [PLUGINS.md](docs/PLUGINS.md), writing plugins in Rust i
 
 ## Works with the rest of lsuite
 
-Send a mix or stems onto a kimchi video project, score a cut that comes back from kimchi, use
-zenith's agents as ryolune's agent, and find the other apps through `~/.lsuite`.
+Send a mix or stems onto a kimchi video project, score a cut that comes back from kimchi, and
+find the other apps through `~/.lsuite`.
 
 ## Documentation
 

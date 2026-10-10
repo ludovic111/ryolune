@@ -2094,7 +2094,7 @@ Release notes built into this copy, newest first, in Markdown: this version's by
 
 ### `app.suite`
 
-The lsuite apps installed on this computer (ryolune, kimchi, zenith…) from their discovery files in ~/.lsuite/apps: version, paths of each app and its CLI and MCP server, whether it is running and on which bridge port, and the hand-offs it accepts.
+The lsuite apps installed on this computer (ryolune, kimchi…) from their discovery files in ~/.lsuite/apps: version, paths of each app and its CLI and MCP server, whether it is running and on which bridge port, and the hand-offs it accepts.
 
 ### `app.onboarding`
 
@@ -2144,7 +2144,7 @@ Select the agent provider, model and reasoning effort together. Only while idle.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `provider` | string | yes | lsuite (lsuite AI, after account.signIn), codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio, compatible or zenith. |
+| `provider` | string | yes | lsuite (lsuite AI, after account.signIn), codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio or compatible. |
 | `model` | string | yes | Model ID; empty uses the provider default. |
 | `reasoningEffort` | string | yes | Provider effort level; empty uses its default. |
 

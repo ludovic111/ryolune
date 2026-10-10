@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 use std::{path::PathBuf, sync::Arc};
 
 pub const SPECS: &[Spec] = &[
-    query("app.suite", "The lsuite apps installed on this computer (ryolune, kimchi, zenith…) from their discovery files in ~/.lsuite/apps: version, paths of each app and its CLI and MCP server, whether it is running and on which bridge port, and the hand-offs it accepts.", &[]),
+    query("app.suite", "The lsuite apps installed on this computer (ryolune, kimchi…) from their discovery files in ~/.lsuite/apps: version, paths of each app and its CLI and MCP server, whether it is running and on which bridge port, and the hand-offs it accepts.", &[]),
     edit("export.toKimchi", "Render the mix (or one stem per track) and put it on a kimchi video project, on a new audio track, ready to cut picture to. When kimchi is open, kimchi places them on its open project itself (its handoff.fromRyolune, one undo step there); when it is closed, they are added to the project file (the previous one is kept as a backup). Runs as a job in the app.", &[
         opt("project", Kind::String, "When kimchi is closed: the project id or name (default: the one changed most recently). When it is open, its open project."),
         opt("stems", Kind::Boolean, "One file and one kimchi track per ryolune track instead of the mix (default false)."),

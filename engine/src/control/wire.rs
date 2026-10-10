@@ -397,8 +397,8 @@ impl Client {
     pub fn connect() -> Result<Self> {
         let path = discovery_path();
         match Self::connect_at(&path) {
-            // Started by another lsuite app (the agents of a zenith thread) without ryolune's
-            // environment: the window's lsuite entry says where its control file is.
+            // Started by another lsuite app without ryolune's environment: the window's
+            // lsuite entry says where its control file is.
             Err(error)
                 if !path.exists()
                     && std::env::var_os("RYOLUNE_CONTROL").is_none_or(|p| p.is_empty()) =>

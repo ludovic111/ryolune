@@ -45,9 +45,6 @@ pub(crate) fn discover(settings: &Settings) -> Vec<Group> {
                     super::discover_claude(&settings.agent.claude_executable).is_file()
                 }
                 Provider::Compatible => !settings.agent.compatible_base_url.is_empty(),
-                Provider::Zenith => {
-                    super::zenith::executable(&settings.agent.zenith_executable).is_some()
-                }
                 // A local server is asked only when it is the one in use: probing every
                 // address on each open would list servers that are not even installed.
                 Provider::Ollama | Provider::LmStudio => *p == settings.agent.provider,
@@ -59,9 +56,6 @@ pub(crate) fn discover(settings: &Settings) -> Vec<Group> {
                     scope.spawn(move || match provider {
                         Provider::Lsuite => lsuite_models(),
                         Provider::Codex | Provider::Claude => cli_models(settings, provider),
-                        Provider::Zenith => {
-                            super::zenith::models(&settings.agent.zenith_executable)
-                        }
                         _ => api_models(settings, provider),
                     }),
                 )

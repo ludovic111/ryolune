@@ -26,9 +26,6 @@ Open the Agent panel and choose **Set up agent**, or use its settings button. Bo
 - **Other compatible server:** enter the running server's address and its model name, add a key
   only if the server requires one, and choose **Save connection**. The model must support tool
   calls. Prompts go to that configured server, which may be local or remote.
-- **Zenith · lsuite:** the agents you use in zenith, lsuite's agent hub, with the sign-ins you
-  made there. Open zenith once so ryolune finds it; **Check connection** asks zenith for its
-  providers and sends no prompt.
 
 **Account connected** means the CLI reports a successful sign-in. **Ready to try** means an
 API key or server configuration is available; it does not claim that network access, model
@@ -63,7 +60,6 @@ Settings > Agent chooses how the agent thinks:
 | Ollama | none | `127.0.0.1:11434` on this computer |
 | LM Studio | none | `127.0.0.1:1234` on this computer |
 | Other compatible server | base URL and optional key | your server |
-| Zenith · lsuite | the agents' sign-ins in zenith | zenith, then the agent chosen there |
 
 The CLI providers run in their own process group and receive this window's ryolune tools.
 Codex streams through app-server dynamic tools; Claude Code uses the local MCP bridge.
@@ -72,19 +68,6 @@ stream replies and tool calls directly; keys live in `settings.json` (mode 0600)
 masked everywhere, including `settings.get`. Every service after Anthropic speaks the OpenAI
 Chat Completions API; Mistral and DeepSeek get the older `max_tokens` field and no stream-usage
 option, which they would refuse.
-
-**Zenith** runs through `zenith-cli` (found through `$RYOLUNE_ZENITH_CLI`, the path in Settings,
-zenith's lsuite discovery entry `~/.lsuite/apps/zenith.json`, then PATH). Each song gets a folder,
-`<data dir>/agent-workspaces/<song id>`, added to zenith as a project (`project.add`) and holding
-ryolune's MCP recipe (`.mcp.json`). A conversation's first request starts a zenith thread
-(`thread.new`) whose id ryolune chooses beforehand, so Stop can always interrupt it
-(`thread.interrupt`, then ryolune waits until the thread has stopped); follow-ups go to the same
-thread (`thread.send`). ryolune follows the thread (`thread.get`) and shows its reply as it grows;
-when zenith waits for an approval or has a question, the status line says so: answer in zenith.
-zenith's agent edits the song with ryolune's own MCP server (zenith hands its agents the server
-named in ryolune's lsuite entry, and the song's folder has the same recipe), so every edit is an
-undo step, listed in Changes and in the chat. The model picker lists zenith's models as
-`provider/model` (`provider.list`); zenith keeps its own approval mode.
 
 ## Use another agent
 
@@ -142,9 +125,6 @@ not thrown away. How each service takes it:
 - **Claude Code** reads its whole request when it starts and keeps no session here, so ryolune
   stops the run (its edits stay in the song and in Undo) and starts it again with the request,
   what it had answered so far and your steering.
-- **Zenith** steers its running turn (`thread.steer`). An older zenith without it, or a turn that
-  waits on an approval or a question, gets the steering as its next turn (`thread.send`) once the
-  turn ends; the status line says so.
 
 Steering that arrives after the agent has finished is not lost silently: the chat says it was not
 read, so you can send it as a new request.

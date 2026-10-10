@@ -111,16 +111,6 @@ pub(crate) fn providers_json(settings: &Settings) -> Value {
                             && !settings.agent.model.trim().is_empty(),
                         settings.agent.compatible_base_url.clone(),
                     ),
-                    Provider::Zenith => {
-                        let exe = zenith::executable(&settings.agent.zenith_executable);
-                        (
-                            exe.is_some(),
-                            exe.map_or_else(
-                                || "zenith-cli not found".into(),
-                                |p| p.display().to_string(),
-                            ),
-                        )
-                    }
                 };
                 json!({
                     "id": provider.key(),
@@ -142,7 +132,6 @@ pub(crate) mod clients;
 pub(crate) mod codex;
 pub(crate) mod connection;
 pub(crate) mod openai;
-pub(crate) mod zenith;
 
 use ryolune_engine::{control, Result};
 use std::{
@@ -369,13 +358,6 @@ pub(crate) fn memory_prefix(memory: &str) -> String {
     }
 }
 
-/// zenith's thread for the conversation, so follow-ups continue it.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Remote {
-    pub provider: String,
-    pub id: String,
-}
-
 /// A tool the model asked for; answered on the interface thread.
 pub(crate) struct ToolCall {
     pub name: String,
@@ -401,9 +383,6 @@ pub(crate) enum Event {
         input: u64,
         output: u64,
     },
-    /// The provider's own thread for this conversation (zenith), chosen before it is
-    /// started so Stop can always reach it.
-    Remote(Remote),
     /// The provider read the steering: say so in the status line.
     Steered,
     /// The provider asks for the live context before its next step (`harness.context`).
@@ -427,10 +406,6 @@ pub(crate) struct Turn {
     pub cancel: Arc<AtomicBool>,
     pub events: mpsc::SyncSender<Event>,
     pub steer: Steer,
-    /// The song: its stable id (zenith's workspace folder) and its name.
-    pub song: (String, String),
-    /// zenith's thread from an earlier turn of this conversation.
-    pub remote: Option<String>,
 }
 
 #[cfg(test)]
@@ -447,8 +422,6 @@ impl Turn {
             cancel: Arc::new(AtomicBool::new(false)),
             events,
             steer: Steer::default(),
-            song: ("song-1".into(), "Test song".into()),
-            remote: None,
         }
     }
 }
@@ -478,8 +451,6 @@ pub(crate) struct Runtime {
     pub turns: u32,
     pub last_reply: String,
     pub scroll_to_end: bool,
-    /// zenith's thread for this conversation, once a turn started one.
-    pub remote: Option<Remote>,
 }
 
 impl Runtime {
@@ -534,7 +505,6 @@ impl Runtime {
                     ryolune_engine::settings::Provider::Lsuite => anthropic::run_lsuite(turn),
                     ryolune_engine::settings::Provider::Codex => codex::run(turn),
                     ryolune_engine::settings::Provider::Claude => cli::run_claude(turn),
-                    ryolune_engine::settings::Provider::Zenith => zenith::run(turn),
                     // OpenAI, the hosted and local services and the custom endpoint.
                     _ => openai::run(turn),
                 });
@@ -633,7 +603,6 @@ impl Runtime {
         self.status.clear();
         self.tokens = (0, 0);
         self.turns = 0;
-        self.remote = None;
     }
     /// Drain worker events into the transcript. Tool calls come back for the interface
     /// thread to execute.
@@ -712,7 +681,6 @@ impl Runtime {
                     self.tokens.0 += input;
                     self.tokens.1 += output;
                 }
-                Ok(Event::Remote(remote)) => self.remote = Some(remote),
                 Ok(Event::Steered) => {
                     self.status = "Following your steering…".into();
                 }

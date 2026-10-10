@@ -255,10 +255,8 @@ Project memory goes ahead of every request for every provider as `Project memory
 (user-maintained context):\n…\n\nCurrent request:\n…`, and is taken out again of the history
 the next request carries. Steering reaches API providers after the tool results of the step in
 progress (or as one more round when the answer was being written); Codex through `turn/steer`;
-zenith through `thread.steer` (or, for an older zenith or a turn waiting on an approval,
-`thread.send` once the turn ends); Claude Code, which reads its whole request at start,
-by stopping the run and starting it again with the request, what it had answered and the
-steering. `agent.status` reports the open conversation and `steeringPending`.
+Claude Code, which reads its whole request at start, by stopping the run and starting it again
+with the request, what it had answered and the steering. `agent.status` reports the open conversation and `steeringPending`.
 
 ```sh
 ryolune-cli agent.send --prompt "Add a bass line"
@@ -302,7 +300,7 @@ ryolune imports works; a result may be up to 200 MB.
 
 ## The lsuite: other apps
 
-ryolune is part of [lsuite](https://lsuite.xyz) with kimchi (video) and zenith (code). Each
+ryolune is part of [lsuite](https://lsuite.xyz) with kimchi (video). Each
 app writes `~/.lsuite/apps/<app>.json` when it starts: its version, where its CLI and MCP
 server are, its data folder, the hand-offs it takes and, while it runs, its pid and bridge
 port (never a token). `app.suite` lists them, so an agent working in ryolune knows which other
@@ -320,15 +318,8 @@ apps it can drive and how.
   audio on a new track at bar 1, each marker on the ruler at the bar where it falls, and the
   cycle over the cut, in one undo step. Without a manifest, give `path`, `markers` (`time` in
   seconds, `label`) and `durationSeconds` yourself.
-- **zenith as the agent.** With **Zenith · lsuite** chosen in Settings > Agent (`agent.configure
-  provider=zenith`), the panel's requests go to a zenith thread through `zenith-cli`
-  (`$RYOLUNE_ZENITH_CLI`, the path in Settings, zenith's lsuite entry, then PATH). Each song has a
-  folder, `<data dir>/agent-workspaces/<song id>`, registered as a zenith project and holding
-  ryolune's MCP recipe; zenith hands its agents ryolune's MCP server from ryolune's lsuite entry,
-  and `ryolune-mcp --live` started that way finds the window's control file there. The edits
-  come back as MCP edits: undo steps, in Changes and in the chat. Models are zenith's
-  `provider/model` pairs (`provider.list`); an approval or a question zenith waits on shows in
-  the status line, to answer in zenith; Stop runs `thread.interrupt` and waits for the thread.
+- **Agents of other apps.** `ryolune-mcp --live` started by another lsuite app, without
+  `RYOLUNE_CONTROL`, finds the window's control file in ryolune's lsuite entry.
 - **Shared names.** Commands that every lsuite app has keep one name across the suite:
   `app.version`, `project.overview`, `export.audio`, `export.stems`, `export.midi` and
   `app.restart` work here too and run `app.info`, `session.overview`, `session.export*` and
