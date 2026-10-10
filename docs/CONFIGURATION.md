@@ -152,7 +152,7 @@ The permissions themselves are listed under [`agent.permissions`](#agentpermissi
 
 | Path | Type | Default | What it does |
 |---|---|---|---|
-| `agent.provider` | string | `"lsuite"` | Which provider the built-in agent uses (table below). Settings written before 0.15 keep theirs (they defaulted to `"codex"`). |
+| `agent.provider` | string | `"codex"` | Which provider the built-in agent uses (table below). A provider this version no longer offers (`"lsuite"`, `"zenith"`) reads as the default; the rest of the file is kept. |
 | `agent.model` | string | `""` | Model name, at most 200 printable characters. Empty uses the provider's default. |
 | `agent.reasoningEffort` | string | `""` | Provider effort level (letters, digits, `_`, `-`; at most 40). Empty leaves it to the provider. |
 | `agent.anthropicApiKey` | string, secret | `""` | |
@@ -172,14 +172,12 @@ The permissions themselves are listed under [`agent.permissions`](#agentpermissi
 | `agent.maxOutputTokens` | integer 256-128000 | `4096` | Largest reply per turn. |
 | `agent.maxToolRounds` | integer 1-500 | `48` | Tool calls allowed in one task before the agent must answer. |
 | `agent.instructions` | string | `""` | Standing instructions appended to the system prompt, at most 20,000 characters. |
-| `agent.claudeThroughLsuite` | bool | `false` | Claude Code runs on the lsuite AI plan: ryolune starts it with `ANTHROPIC_BASE_URL=<server>/api/ai` and `ANTHROPIC_AUTH_TOKEN` from the lsuite account (and without `ANTHROPIC_API_KEY`). Needs a signed-in account. |
 | `agent.permissions` | object | see below | |
 
 Providers (`settings::Provider`):
 
 | Value | Service | Default model | Key from settings, then environment |
 |---|---|---|---|
-| `lsuite` | lsuite AI: the Anthropic Messages API at `<server>/api/ai`, for the plan's models | the plan's Sonnet, else its first model | the lsuite account's token (`~/.lsuite/account.json`, not settings) |
 | `codex` | Codex CLI, its own sign-in | (CLI's own) | none |
 | `claude` | Claude Code CLI, its own sign-in | (CLI's own) | none |
 | `anthropic` | Anthropic Messages API | `claude-sonnet-5` | `agent.anthropicApiKey`, `ANTHROPIC_API_KEY` |
@@ -256,6 +254,8 @@ The service `generate.audio` uses.
 | `RYOLUNE_CONTROL` | `engine/src/control/wire.rs` | Path of the live control file, for the window that writes it and for the clients that read it. Ignored when empty. |
 | `RYOLUNE_PLUGIN_PATH` | `engine/src/host/scan.rs` | Extra native plugin folders, in the system's path-list form, searched first. |
 | `RYOLUNE_NO_UPDATE` | `desktop/src/main.rs` | Any non-empty value skips the update check at start (like `--no-update-check`). |
+| `LSUITE_SERVER` | `desktop/src/update.rs` | The lsuite server updates come from (default `https://lsuite.xyz`): `<server>/api/apps/ryolune/releases/latest`, no account and no token. |
+| `RYOLUNE_UPDATE_URL` | `desktop/src/update.rs` | Read the release document from this address instead (tests); its server's file route is trusted for downloads. |
 | `RYOLUNE_PRETEND_VERSION` | `desktop/src/update.rs` | Report this version instead of the real one, to exercise the update flow against a real release. |
 | `RYOLUNE_BLESS` | `desktop/src/ui/dialogs/help.rs`, `tools/tests/command_docs.rs` | In tests: regenerate `docs/SHORTCUTS.md` and `docs/COMMANDS.md` instead of comparing them. |
 | `RYOLUNE_AGENT_FIXTURE`, `RYOLUNE_AGENT_TAB`, `RYOLUNE_AGENT_TOP`, `RYOLUNE_AGENT_DRAFT`, `RYOLUNE_AGENT_MODELS` | `desktop/src/ui/agent_panel/fixture.rs` | Debug builds only: put the agent panel in sample states for screenshots (a sample conversation; open tab `generate`, `changes` or `takes`; stay at the top; a draft message; the model menu open). |
@@ -316,14 +316,10 @@ From `desktop/src/main.rs`:
 | `--release-keygen <file>`, `--sign-release <key> <file>`, `--verify-release <file>` | Release signing tools (see `DEVELOPMENT.md`). |
 | `--version`, `-V`; `--help`, `-h` | |
 
-## The lsuite account (`~/.lsuite/account.json`)
+## `~/.lsuite`
 
-Not a setting: the lsuite AI account every lsuite app on this computer shares (lsuite's AI.md),
-written by `account.signIn` and removed by `account.signOut`, 0600, atomically.
-`$LSUITE_HOME` replaces `~/.lsuite`. Fields: `format` (1), `server`, `email`, `name`, `plan`,
-`token` (a secret: never shown by a command or written to the log), `signedInAt`.
-`$LSUITE_ACCOUNT_SERVER` sets the server a new sign-in goes to (default `https://lsuite.xyz`); a
-signed-in account keeps the server that issued its token.
+Shared with the other lsuite apps (`$LSUITE_HOME` replaces `~/.lsuite`). There is no lsuite
+account: an `account.json` an older version wrote there is ignored, and left in place.
 
 Plugin sources an agent writes live in `~/.lsuite/plugins-src/ryolune/<name>/`, installed lsuite
 plugin bundles in `~/.lsuite/plugins/ryolune/<id>/`. `$RYOLUNE_PLUGIN_TARGET_DIR` moves the shared

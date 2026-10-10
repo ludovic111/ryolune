@@ -53,7 +53,7 @@ same song, and every edit it makes is one undo away.
 
 **Your files**
 
-- **Offline and private**: no account needed (lsuite AI is optional), no telemetry. Songs are single `.ryolune`
+- **Offline and private**: no account, no telemetry. Songs are single `.ryolune`
   files with the audio inside. Logs and crash reports stay on your computer (Settings >
   Diagnostics); Help > Report a Problem opens a GitHub issue for you to read before sending.
 
@@ -127,12 +127,10 @@ ryolune-cli history.undo
 ryolune-cli --file song.ryolune session.exportAudio --path mix.flac
 ```
 
-The built-in agent runs on lsuite AI, Codex, Claude Code, Anthropic, OpenAI, Gemini, OpenRouter,
-Mistral, Groq, DeepSeek, xAI, Ollama, LM Studio or any compatible server.
-
-**lsuite AI**: sign in once and the agent works, with no Claude Code to install and no key to
-paste; the account is shared by every lsuite app. A demo for now: no payment is taken. Bringing
-your own provider stays free.
+The built-in agent runs on the agent you bring: Codex or Claude Code with their own sign-in, an
+API key (Anthropic, OpenAI, Gemini, OpenRouter, Mistral, Groq, DeepSeek, xAI), or a model on your
+computer (Ollama, LM Studio or any compatible server). Everything in ryolune is free, with no
+lsuite account.
 
 See [AI_CONTROL.md](docs/AI_CONTROL.md) for the agent, the CLI, MCP, permissions and recipes.
 

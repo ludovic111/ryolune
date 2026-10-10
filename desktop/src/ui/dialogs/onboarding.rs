@@ -121,67 +121,18 @@ impl Dialogs {
             cx,
         ));
         if ai {
-            // lsuite AI first (lsuite's AI.md): signing in is the whole setup.
-            let account = &app.account;
-            let signed_in = account.signed_in();
-            let waiting = account.waiting_for_browser();
-            let detail = if signed_in {
-                let summary = account.summary();
-                format!(
-                    "lsuite AI · {}",
-                    if summary.is_empty() {
-                        "signed in".into()
-                    } else {
-                        summary
-                    }
-                )
-            } else if waiting {
-                "Finish signing in in your browser.".to_string()
-            } else {
-                "lsuite AI: no setup. Sign in and your agent works. Or use Codex, Claude Code, an API key or a local model.".to_string()
-            };
-            let lsuite_chosen =
-                app.settings.agent.provider == ryolune_engine::settings::Provider::Lsuite;
-            let row = div()
-                .flex()
-                .gap(px(8.0))
-                .when(!signed_in || !lsuite_chosen, |d| {
-                    d.child(
-                        Button::new(
-                            "onboarding-lsuite",
-                            if signed_in {
-                                "Use lsuite AI"
-                            } else {
-                                "Sign in"
-                            },
-                        )
-                        .primary()
-                        .disabled(waiting)
-                        .on_click({
-                            let daw = daw.clone();
-                            move |_, _, cx| {
-                                daw.update(cx, |d, cx| {
-                                    d.run(
-                                        "settings.set",
-                                        json!({ "path": "agent.provider", "value": "lsuite" }),
-                                        cx,
-                                    );
-                                    if !d.app.account.signed_in() {
-                                        d.run("account.signIn", json!({}), cx);
-                                    }
-                                    cx.notify();
-                                })
-                            }
-                        }),
+            body = body.child(modal::field_row(
+                "Agent provider",
+                Some(
+                    format!(
+                        "Now: {provider}. Use an installed Codex or Claude Code, add an API key, or run a local model with Ollama."
                     )
-                })
-                .child(
-                    Button::new("onboarding-provider", "Other services…")
-                        .ghost()
-                        .on_click(click(&daw, Start::Settings("agent"))),
-                );
-            let _ = provider;
-            body = body.child(modal::field_row("Agent", Some(detail.into()), row, cx));
+                    .into(),
+                ),
+                Button::new("onboarding-provider", "Connect…")
+                    .on_click(click(&daw, Start::Settings("agent"))),
+                cx,
+            ));
         }
         body = body.child(modal::field_row(
             "Sound",

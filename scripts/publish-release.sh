@@ -2,7 +2,7 @@
 # Upload only to a draft; published releases and their checksums are immutable.
 # Since 0.16 (lsuite's DISTRIBUTION.md) the release stays a draft here: the builds are no longer
 # public. `scripts/publish-build.sh <version>` copies the draft to ludovic111/lsuite-builds,
-# which lsuite.xyz serves to signed-in lsuite accounts, and deletes the draft.
+# which lsuite.xyz serves to everyone (free, no account), and deletes the draft.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 bash scripts/verify-release.sh

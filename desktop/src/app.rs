@@ -7,7 +7,7 @@ use ryolune_engine::{
     plugin::Descriptor,
     render::Renderer,
     session_file::SessionFileLock,
-    settings::{Provider, Settings},
+    settings::Settings,
     store::{self, Command, Store},
     Result,
 };
@@ -181,8 +181,6 @@ pub struct Ryolune {
     pub(crate) bridge_wanted: bool,
     /// The What's New sheet is open (by itself once after an update, or on request).
     pub(crate) whats_new: Option<crate::diagnostics::WhatsNew>,
-    /// lsuite AI: the shared lsuite account as the window last heard of it.
-    pub(crate) account: crate::account::AccountState,
     /// The plugin build or install running now (`plugin.build`, `plugin.publishLocal`…).
     pub(crate) plugin_job: Option<String>,
     /// What the last one answered, for the Plugins window.
@@ -243,10 +241,6 @@ impl Ryolune {
         }
         if settings.plugins.scan_on_start && !screenshot_run {
             app.scan_plugins();
-        }
-        if !screenshot_run {
-            // Signed in to lsuite AI: the plan and allowance for Settings and the agent.
-            app.refresh_account();
         }
         if !screenshot_run {
             app.attach_conversations(host::scan::data_dir().join(crate::conversations::FILE));
@@ -378,7 +372,6 @@ impl Ryolune {
             monitor_speakers_ok: false,
             bridge_wanted: false,
             whats_new: None,
-            account: Default::default(),
             plugin_job: None,
             plugin_result: None,
             show_plugins: None,
@@ -1611,13 +1604,6 @@ impl Ryolune {
     }
     pub(crate) fn poll_agent(&mut self) {
         self.run_agent_tools();
-        // An lsuite AI turn spent part of the allowance: ask how much is left.
-        let running = self.agents.runtime.running();
-        if self.account.turn_running && !running && self.settings.agent.provider == Provider::Lsuite
-        {
-            self.refresh_account();
-        }
-        self.account.turn_running = running;
         if !self.agents.runner_busy() && self.job.is_none() && self.control_job.is_none() {
             if let Some(intent) = self.after_agent.take() {
                 // The runner joins its MCP children before becoming idle. Reject commands

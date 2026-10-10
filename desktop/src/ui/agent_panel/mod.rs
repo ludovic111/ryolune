@@ -79,7 +79,7 @@ pub struct AgentPanel {
     connection: Option<Connection>,
     checking: bool,
     connection_error: String,
-    connection_key: Option<(bool, &'static str, String)>,
+    connection_key: Option<(bool, &'static str)>,
     _connection_task: Option<Task<()>>,
 
     /// The body's scroll, shared by the tabs (each starts at the top, Chat at the end).
@@ -244,19 +244,11 @@ impl AgentPanel {
         cx.notify();
     }
 
-    /// Check the connection when the service changes, Settings opens or closes, or the
-    /// lsuite account signs in, out or changes plan (another lsuite app can do it too).
+    /// Check the connection when the service changes or Settings opens or closes.
     fn follow_connection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let app = &self.daw.read(cx).app;
-        let account = app.account.status.as_ref().map_or_else(String::new, |s| {
-            format!("{}/{}/{}", s["signedIn"], s["plan"], s["exhausted"])
-        });
-        let key = (
-            app.settings_ui.open,
-            app.settings.agent.provider.key(),
-            account,
-        );
-        if self.connection_key.as_ref() != Some(&key) {
+        let key = (app.settings_ui.open, app.settings.agent.provider.key());
+        if self.connection_key != Some(key) {
             self.connection_key = Some(key);
             cx.defer_in(window, |this, _, cx| this.check_connection(cx));
         }

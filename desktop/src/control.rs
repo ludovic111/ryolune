@@ -229,10 +229,6 @@ impl Ryolune {
                     control::call(&mut scratch, &method_owned, &params_owned, agent)
                 }));
             }
-            if ryolune_engine::control_account::serves(method) {
-                // lsuite AI: the account server (or the browser) answers on a worker.
-                return self.start_account(method, params, source);
-            }
             if matches!(
                 method,
                 "session.new" | "session.open" | "session.importFrom" | "app.openRecent"
@@ -731,9 +727,6 @@ impl Ryolune {
             let job = self.live_jobs.remove(index);
             if self.attach_live.is_some_and(|waiting| waiting >= index) {
                 self.attach_live = None;
-            }
-            if job.method.starts_with("account.") {
-                self.account_finished(&job.method, &result);
             }
             if job.method.starts_with("plugin.") {
                 self.plugin_finished(&job.method, &result);

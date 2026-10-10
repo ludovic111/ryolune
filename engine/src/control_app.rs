@@ -150,7 +150,7 @@ pub const SPECS: &[Spec] = &[
     ]),
     query("ui.status", "Window state: open panels, tool, musical typing, plugin panels, status line and any error being shown.", &[]),
     query("app.info", "Version, platform, executable, data and settings paths, the control discovery file and the host mode.", &[]),
-    edit("app.checkUpdates", "Check GitHub for a newer release and report it.", &[]),
+    edit("app.checkUpdates", "Check lsuite for a newer release (free, no account) and report it.", &[]),
     edit("app.installUpdate", "Download, verify and install the available update. Relaunching is confirmed in the window.", &[]),
     edit("app.quit", "Ask the window to quit. Unsaved changes prompt in the window unless discard is true.", &[
         opt("discard", Kind::Boolean, "Quit without saving (default false)."),
@@ -171,7 +171,7 @@ pub const SPECS: &[Spec] = &[
     ]),
     query("agent.status", "The built-in agent: provider, model, whether a task is running, turn count and last reply.", &[]),
     edit("agent.configure", "Select the agent provider, model and reasoning effort together. Only while idle.", &[
-        req("provider", Kind::String, "lsuite (lsuite AI, after account.signIn), codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio or compatible."),
+        req("provider", Kind::String, "codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio or compatible."),
         req("model", Kind::String, "Model ID; empty uses the provider default."),
         req("reasoningEffort", Kind::String, "Provider effort level; empty uses its default."),
     ]),
@@ -290,9 +290,6 @@ pub fn denied_for_agent(name: &str, permissions: &settings::Permissions) -> Opti
         ))
     };
     if let Some(denied) = crate::control_interop::denied_for_agent(name, permissions) {
-        return Some(denied);
-    }
-    if let Some(denied) = crate::control_account::denied_for_agent(name, permissions) {
         return Some(denied);
     }
     if let Some(denied) = crate::plugin_dev::denied_for_agent(name, permissions) {

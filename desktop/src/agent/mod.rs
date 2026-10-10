@@ -78,10 +78,6 @@ pub(crate) fn providers_json(settings: &Settings) -> Value {
             .into_iter()
             .map(|provider| {
                 let (configured, detail) = match provider {
-                    Provider::Lsuite => match ryolune_engine::account::load() {
-                        Some(account) => (true, format!("Signed in as {}", account.email)),
-                        None => (false, "Sign in with account.signIn".into()),
-                    },
                     Provider::Codex => {
                         let exe = discover_codex(&settings.agent.codex_executable);
                         (exe.is_file(), exe.display().to_string())
@@ -270,8 +266,7 @@ pub(crate) fn split_images(
 pub(crate) fn sees_images(provider: Provider) -> bool {
     matches!(
         provider,
-        Provider::Lsuite
-            | Provider::Anthropic
+        Provider::Anthropic
             | Provider::OpenAi
             | Provider::Gemini
             | Provider::OpenRouter
@@ -502,7 +497,6 @@ impl Runtime {
             .spawn(move || {
                 let outcome = ryolune_engine::diagnostics::catch("agent turn", || match provider {
                     ryolune_engine::settings::Provider::Anthropic => anthropic::run(turn),
-                    ryolune_engine::settings::Provider::Lsuite => anthropic::run_lsuite(turn),
                     ryolune_engine::settings::Provider::Codex => codex::run(turn),
                     ryolune_engine::settings::Provider::Claude => cli::run_claude(turn),
                     // OpenAI, the hosted and local services and the custom endpoint.

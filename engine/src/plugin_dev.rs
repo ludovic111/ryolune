@@ -911,7 +911,7 @@ pub const SPECS: &[Spec] = &[
     edit("plugin.new", "Start a plugin crate from the SDK template in ~/.lsuite/plugins-src/ryolune/<name>/: a working effect or instrument, its plugin.toml and tests. Returns its path and files.", &[
         req("name", Kind::String, "Plugin display name, for example Warm Drive."),
         req("kind", Kind::String, "effect or instrument."),
-        opt("vendor", Kind::String, "Your name or label, default the person's lsuite name or My Studio."),
+        opt("vendor", Kind::String, "Your name or label, default My Studio."),
     ]),
     edit("plugin.writeSource", "Write one whole file of a plugin crate made by plugin.new (src/lib.rs, a new module, plugin.toml). Paths outside the crate are refused.", &[
         req("name", Kind::String, "The plugin's name or crate name from plugin.new."),
@@ -1002,16 +1002,8 @@ pub(crate) fn call(host: &mut dyn Host, name: &str, a: &Args) -> Result<Value> {
         ),
         "plugin.toolchain" => Ok(toolchain()),
         "plugin.new" => {
-            let vendor = a
-                .opt_str("vendor")
-                .map(str::to_string)
-                .or_else(|| {
-                    crate::account::load()
-                        .map(|acc| acc.name)
-                        .filter(|n| !n.trim().is_empty())
-                })
-                .unwrap_or_else(|| "My Studio".into());
-            new_plugin(a.str("name")?, a.str("kind")?, &vendor)
+            let vendor = a.opt_str("vendor").unwrap_or("My Studio");
+            new_plugin(a.str("name")?, a.str("kind")?, vendor)
         }
         "plugin.writeSource" => write_source(a.str("name")?, a.str("path")?, a.str("contents")?),
         "plugin.build" => build(a.str("name")?),

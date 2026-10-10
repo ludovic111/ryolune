@@ -263,7 +263,7 @@ click its automation button to open that parameter's lane.
 The first time ryolune starts, a short setup asks which app you made music in (Ableton Live,
 Logic Pro, FL Studio, Bitwig Studio, REAPER, Cubase, Studio One, Pro Tools or GarageBand, each
 with its logo), whether you want the AI features (the agent and sound generation; nothing is
-hidden either way), lets you sign in to lsuite AI or connect another agent provider, check the
+hidden either way), lets you connect an agent provider (Codex, Claude Code, an API key or a local model), check the
 sound output, and starts you on the demo song, an empty song or
 a song from your old app. Help > Set Up ryolune… shows it again. If you used ryolune before this
 setup existed, it counts as done.
@@ -305,19 +305,10 @@ set the tempo they were made at before editing to the grid.
 
 ## The agent
 
-The panel at the right edge is a music assistant that works inside your song. The simplest
-service is **lsuite AI**, first in Settings > Agent and in the first-run setup: press Sign in,
-sign in or create your lsuite account in the browser, press Connect ryolune, and the agent works,
-with no other setup. Signing in once signs in every lsuite app on this computer. Settings > Agent
-shows your plan and how much of this month's allowance is used (`Pro · 38 % used · resets 1 Nov`),
-Manage plan and Sign out. When the allowance runs out the agent says so in one line with Manage
-plan, and never moves to another service by itself. Without a browser, paste the key from your
-account page. (lsuite AI is a demo for now: no payment is taken.)
-
-You can also bring your own: Codex or Claude Code (they use their own sign-in, or Claude Code can
-run on your lsuite AI plan: Run on lsuite AI); an API key for Anthropic,
+The panel at the right edge is a music assistant that works inside your song, on the agent you
+bring (Settings > Agent): Codex or Claude Code, with their own sign-in; an API key for Anthropic,
 OpenAI, Google Gemini, OpenRouter, Mistral, Groq, DeepSeek or xAI; Ollama or LM Studio running on
-this computer; or any OpenAI-compatible server.
+this computer; or any OpenAI-compatible server. ryolune itself needs no account.
 Then describe what you want in your own words and
 language: "a busier bass line in the second verse", "glue the drums a little", "why is the keys
 track silent?".
@@ -409,12 +400,12 @@ third export, and never again. It counts exports in `settings.json` only; nothin
 
 ## Updates, what's new and problems
 
-- **Updates**: ryolune asks GitHub for a newer release when it starts and again every six hours
+- **Updates**: ryolune asks lsuite for a newer release when it starts and again every six hours
   while it stays open (Settings > Updates turns this off; so do `--no-update-check` and
   `RYOLUNE_NO_UPDATE=1`). An update is offered in a sheet with its notes; while the song plays,
   the offer waits until you stop. Installing downloads the release and checks its signature
   before anything is replaced; **Restart now** (in the sheet or Settings > Updates) starts the
-  new version, asking to save first. Every update is free.
+  new version, asking to save first. Every update is free, with no account.
 - **What's new**: the first time a new version starts, a sheet lists what changed in every
   release since the one you had. Help > What's New, the command palette and Settings > Updates
   open it again; Earlier versions lists every release this copy carries.

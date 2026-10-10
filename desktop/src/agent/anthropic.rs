@@ -49,82 +49,12 @@ fn wire(messages: &[Message]) -> Vec<Value> {
         .collect()
 }
 
-/// Where the Messages API is and how to reach it: Anthropic with the person's key, or the
-/// lsuite AI endpoint (the same API at `<server>/api/ai`) with the lsuite account's token.
-struct Endpoint {
-    url: String,
-    key: String,
-    /// Errors are named after it ("Anthropic API", "lsuite AI").
-    label: &'static str,
-    lsuite: bool,
-}
-
 pub(crate) fn run(turn: Turn) -> Result<()> {
     let key = turn
         .settings
         .api_key(Provider::Anthropic)
         .ok_or("No Anthropic API key. Add one in Settings > Agent or set ANTHROPIC_API_KEY.")?;
     let model = turn.settings.model();
-    run_on(
-        turn,
-        Endpoint {
-            url: ENDPOINT.into(),
-            key,
-            label: "Anthropic API",
-            lsuite: false,
-        },
-        model,
-    )
-}
-
-/// lsuite AI: the Anthropic provider on the subscription's endpoint, with the account that
-/// every lsuite app shares. Never falls back to another provider.
-pub(crate) fn run_lsuite(turn: Turn) -> Result<()> {
-    let account = ryolune_engine::account::load().ok_or(
-        "Sign in to lsuite AI first: Settings › Agent › lsuite AI › Sign in. No other setup is needed.",
-    )?;
-    let mut model = turn.settings.agent.model.trim().to_string();
-    if model.is_empty() {
-        let _ = turn.events.send(Event::Status(
-            "Asking lsuite AI for your plan's models…".into(),
-        ));
-        model = lsuite_model(&account)?;
-    }
-    run_on(
-        turn,
-        Endpoint {
-            url: format!("{}/v1/messages", account.ai_base()),
-            key: account.token.clone(),
-            label: "lsuite AI",
-            lsuite: true,
-        },
-        model,
-    )
-}
-
-/// The plan's model to use when none is chosen: the plan's default as the server names it,
-/// else a Sonnet when the plan has one, else the first the server lists.
-pub(crate) fn lsuite_model(account: &ryolune_engine::account::Account) -> Result<String> {
-    use ryolune_engine::account::Failure;
-    // The plan names its default (`defaultModel` in /api/account/me); else pick from the list.
-    if let Ok(me) = ryolune_engine::account::me(&account.server, &account.token) {
-        if let Some(model) = me["defaultModel"].as_str().filter(|m| !m.is_empty()) {
-            return Ok(model.to_string());
-        }
-    }
-    let models = ryolune_engine::account::models(account).map_err(|f| match f {
-        Failure::Unauthorized => f.message(),
-        other => format!("lsuite AI: {}", other.message()),
-    })?;
-    let ids: Vec<&str> = models.iter().filter_map(|m| m["id"].as_str()).collect();
-    ids.iter()
-        .find(|id| id.contains("sonnet"))
-        .or_else(|| ids.first())
-        .map(|id| id.to_string())
-        .ok_or_else(|| "Your lsuite AI plan has no models. Manage plan to choose one.".into())
-}
-
-fn run_on(turn: Turn, endpoint: Endpoint, model: String) -> Result<()> {
     let mut history = turn.history.clone();
     history.push(Message {
         role: "user",
@@ -168,27 +98,17 @@ fn run_on(turn: Turn, endpoint: Endpoint, model: String) -> Result<()> {
             body["output_config"] = json!({"effort":turn.settings.agent.reasoning_effort});
         }
         let mut response = agent
-            .post(&endpoint.url)
-            .header("x-api-key", &endpoint.key)
+            .post(ENDPOINT)
+            .header("x-api-key", &key)
             .header("anthropic-version", VERSION)
             .header("content-type", "application/json")
             .send(body.to_string())
-            .map_err(|e| format!("Could not reach the {}: {e}", endpoint.label))?;
+            .map_err(|e| format!("Could not reach the Anthropic API: {e}"))?;
         if response.status() != 200 {
-            let status = response.status().as_u16();
             let text = response.body_mut().read_to_string().unwrap_or_default();
-            if endpoint.lsuite {
-                if ryolune_engine::account::allowance_error(status, &text) {
-                    // One line, with Manage plan in the panel; never another provider.
-                    return Err(ryolune_engine::account::ALLOWANCE_MESSAGE.into());
-                }
-                if status == 401 {
-                    return Err(ryolune_engine::account::Failure::Unauthorized.message());
-                }
-            }
             return Err(format!(
-                "{} error {status}: {}",
-                endpoint.label,
+                "Anthropic API error {}: {}",
+                response.status(),
                 api_error(&text)
             ));
         }
@@ -293,13 +213,10 @@ fn run_on(turn: Turn, endpoint: Endpoint, model: String) -> Result<()> {
                     break;
                 }
                 "error" => {
-                    let message = event["error"]["message"].as_str().unwrap_or("unknown");
-                    if endpoint.lsuite
-                        && ryolune_engine::account::allowance_error(429, &event.to_string())
-                    {
-                        return Err(ryolune_engine::account::ALLOWANCE_MESSAGE.into());
-                    }
-                    return Err(format!("{} error: {message}", endpoint.label));
+                    return Err(format!(
+                        "Anthropic API error: {}",
+                        event["error"]["message"].as_str().unwrap_or("unknown")
+                    ));
                 }
                 _ => {}
             }
@@ -410,84 +327,4 @@ fn api_error(text: &str) -> String {
         .ok()
         .and_then(|v| v["error"]["message"].as_str().map(str::to_string))
         .unwrap_or_else(|| bounded(text, 600))
-}
-
-#[cfg(test)]
-mod lsuite_tests {
-    use super::*;
-    use ryolune_engine::account::{self, mock, Account};
-
-    fn events(rx: &mpsc::Receiver<Event>) -> (String, Option<String>) {
-        let mut text = String::new();
-        let mut error = None;
-        while let Ok(event) = rx.recv_timeout(std::time::Duration::from_secs(10)) {
-            match event {
-                Event::Text { text: t, .. } => text.push_str(&t),
-                Event::Done { error: e, .. } => {
-                    error = e;
-                    break;
-                }
-                _ => {}
-            }
-        }
-        (text, error)
-    }
-
-    #[test]
-    fn lsuite_ai_answers_on_the_plan_and_says_when_the_allowance_is_used_up() {
-        // The account file is the test process's scratch one (no LSUITE_HOME to race on).
-        let _account = crate::ACCOUNT_TEST_LOCK
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        let server = mock::start();
-        account::save(&Account {
-            format: 1,
-            server: server.url.clone(),
-            email: "ada@example.com".into(),
-            name: "Ada".into(),
-            plan: "pro".into(),
-            token: mock::TOKEN.into(),
-            signed_in_at: String::new(),
-        })
-        .unwrap();
-        let mut settings = ryolune_engine::settings::Settings::default();
-        assert_eq!(
-            settings.agent.provider,
-            Provider::Lsuite,
-            "lsuite AI comes first"
-        );
-        settings.agent.max_tool_rounds = 2;
-
-        let (tx, rx) = mpsc::sync_channel(64);
-        let worker = std::thread::spawn(move || run_lsuite(Turn::test("Hi", settings, tx)));
-        let (text, error) = events(&rx);
-        worker.join().unwrap().unwrap();
-        assert_eq!(text, "Hello from lsuite AI.");
-        assert_eq!(error, None);
-        let requests = server.requests.lock().unwrap().clone();
-        // No model chosen: the plan's list picks a Sonnet, then the Messages API.
-        assert!(
-            requests.contains(&"GET /api/ai/v1/models".to_string()),
-            "{requests:?}"
-        );
-        assert!(
-            requests.contains(&"POST /api/ai/v1/messages".to_string()),
-            "{requests:?}"
-        );
-
-        server
-            .exhausted
-            .store(true, std::sync::atomic::Ordering::Release);
-        let mut settings = ryolune_engine::settings::Settings::default();
-        settings.agent.model = "claude-sonnet-5".into();
-        let (tx, _rx) = mpsc::sync_channel(64);
-        let error = run_lsuite(Turn::test("Hi", settings, tx)).unwrap_err();
-        assert_eq!(error, account::ALLOWANCE_MESSAGE);
-        assert!(crate::ui::agent_panel::connection::allowance_used(&error));
-
-        account::remove().unwrap();
-        let (tx, _rx) = mpsc::sync_channel(64);
-        let error = run_lsuite(Turn::test("Hi", Default::default(), tx)).unwrap_err();
-        assert!(error.starts_with("Sign in to lsuite AI"), "{error}");
-    }
 }

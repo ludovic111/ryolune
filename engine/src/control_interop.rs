@@ -31,7 +31,7 @@ pub const SPECS: &[Spec] = &[
     edit("app.finishOnboarding", "Finish (or skip) the first-run setup with the person's choices: the app they come from (it decides which steps the import shows first), whether they want AI features, and the agent provider to use. Saved in settings.onboarding. Only a person can do this, from the window or the CLI.", &[
         req("comingFrom", Kind::String, "App id from session.formats (ableton, logic, fl, bitwig, reaper, cubase, studioone, protools, garageband), or none."),
         req("ai", Kind::Boolean, "Whether they want AI features (the agent and sound generation)."),
-        opt("agentProvider", Kind::String, "Agent provider to select when ai is true (agent.providers): lsuite, codex, claude, anthropic, openai, gemini…"),
+        opt("agentProvider", Kind::String, "Agent provider to select when ai is true (agent.providers): codex, claude, anthropic, openai, gemini…"),
         opt("skipped", Kind::Boolean, "They skipped the setup; the choices given still apply."),
     ]),
     query("app.recent", "Songs opened recently, newest first: name, folder, path, and whether the file is still there.", &[]),
@@ -295,7 +295,7 @@ mod tests {
         finish(&mut other, "none", false, Some("openai")).unwrap();
         assert_eq!(
             other.agent.provider,
-            Provider::Lsuite,
+            Provider::Codex,
             "no AI, no provider change"
         );
         assert!(finish(&mut other, "protools2", false, None).is_err());

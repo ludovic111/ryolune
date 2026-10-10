@@ -79,7 +79,6 @@ fn fingerprint(app: &Ryolune) -> u64 {
     app.settings_ui.notice.as_ref().map(|n| &n.0).hash(&mut h);
     app.settings_ui.error.hash(&mut h);
     app.whats_new.hash(&mut h);
-    app.account.fingerprint().hash(&mut h);
     (&app.plugin_job, app.show_plugins).hash(&mut h);
     app.plugin_toolchain
         .as_ref()
