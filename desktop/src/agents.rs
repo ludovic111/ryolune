@@ -201,9 +201,7 @@ impl Ryolune {
         let provider = self.settings.agent.provider;
         let needs_bridge = matches!(
             provider,
-            ryolune_engine::settings::Provider::Codex
-                | ryolune_engine::settings::Provider::Claude
-                | ryolune_engine::settings::Provider::Zenith
+            ryolune_engine::settings::Provider::Codex | ryolune_engine::settings::Provider::Claude
         );
         let connection = self.connection();
         if needs_bridge && !self.settings.control.enable_bridge {
@@ -231,21 +229,6 @@ impl Ryolune {
         // The song's project memory goes ahead of the request, for every provider.
         let memory = agent::memory_prefix(&self.agents.conversations.memory);
         let request = format!("{memory}{prompt}");
-        let song = (
-            self.store.session().id.clone(),
-            self.store.session().name.clone(),
-        );
-        let remote = self
-            .agents
-            .runtime
-            .remote
-            .as_ref()
-            .filter(|r| r.provider == provider.key())
-            .map(|r| r.id.clone());
-        if provider == ryolune_engine::settings::Provider::Zenith {
-            // zenith hands its agents ryolune's MCP server from the lsuite entry.
-            self.publish_discovery(true);
-        }
         self.agents
             .runtime
             .start(prompt, memory, move |cancel, events, steer| Turn {
@@ -258,8 +241,6 @@ impl Ryolune {
                 cancel,
                 events,
                 steer,
-                song,
-                remote,
             })?;
         // One undo for the whole turn: a checkpoint before its first edit, and the agent's
         // mark so its live context reports only what the person changes meanwhile.

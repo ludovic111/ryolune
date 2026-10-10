@@ -317,7 +317,7 @@ account page. (lsuite AI is a demo for now: no payment is taken.)
 You can also bring your own: Codex or Claude Code (they use their own sign-in, or Claude Code can
 run on your lsuite AI plan: Run on lsuite AI); an API key for Anthropic,
 OpenAI, Google Gemini, OpenRouter, Mistral, Groq, DeepSeek or xAI; Ollama or LM Studio running on
-this computer; any OpenAI-compatible server; or **Zenith · lsuite**, the agents you use in zenith.
+this computer; or any OpenAI-compatible server.
 Then describe what you want in your own words and
 language: "a busier bass line in the second verse", "glue the drums a little", "why is the keys
 track silent?".
@@ -356,7 +356,7 @@ ryolune has one theme, in a dark and a light mode. Settings > Interface shows ea
 miniature: **Dark** (white ink on black, for long sessions), **Light** (black ink on paper, for
 daylight) and **Auto**, which follows the system while the window is open.
 
-ryolune wears the lsuite design system (v2), shared with kimchi and zenith: black and white,
+ryolune wears the lsuite design system (v2), shared with kimchi: black and white,
 cut square, with grain. The chrome (title bar, transport, browser, inspector, agent panel) sits
 on a page of film grain and dithered light; the work (arrangement, editors, mixer strips) stays
 solid. The accent is the ink of the mode, white in the dark and black in the light: it marks the

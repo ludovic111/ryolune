@@ -6,7 +6,7 @@
 //!     "name": "Nightfall", "current": "<thread id>", "memory": "Keep it in D minor…",
 //!     "threads": [ { "id": "…", "title": "Add a bass line", "updatedAt": "2026-10-06T10:00:00Z",
 //!                    "transcript": [ …chat entries… ], "conversation": [ …model messages… ],
-//!                    "firstId": 0, "remote": { "provider": "zenith", "id": "…" } } ] } } }
+//!                    "firstId": 0 } ] } } }
 //! ```
 //!
 //! A song is found by its stable id (`Session::id`; "welcome" when it has none). Opening
@@ -18,7 +18,7 @@
 //! history, so nothing from an earlier run of the app can revert an unrelated edit.
 
 use crate::{
-    agent::{Entry, Message, Remote, Role},
+    agent::{Entry, Message, Role},
     app::Ryolune,
 };
 use ryolune_engine::Result;
@@ -40,8 +40,8 @@ const SONGS: usize = 500;
 const SAVED_RESULT: usize = 4000;
 pub(crate) const FILE: &str = "agent-conversations.json";
 
-/// A song's key in the file: its id when it is a plain one, a digest of it otherwise (the
-/// key also names the song's zenith workspace folder), "welcome" without one.
+/// A song's key in the file: its id when it is a plain one, a digest of it otherwise,
+/// "welcome" without one.
 pub(crate) fn song_key(id: &str) -> String {
     if id.is_empty() {
         "welcome".into()
@@ -94,8 +94,6 @@ pub(crate) struct Thread {
     pub conversation: Vec<Message>,
     #[serde(default)]
     pub first_id: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub remote: Option<Remote>,
 }
 impl Thread {
     fn requests(&self) -> usize {
@@ -383,7 +381,6 @@ impl Ryolune {
         runtime.transcript = thread.transcript;
         settle(&mut runtime.transcript);
         runtime.history = thread.conversation;
-        runtime.remote = thread.remote;
         runtime.scroll_to_end = true;
         self.agents.conversations.thread = thread.info;
     }
@@ -402,7 +399,6 @@ impl Ryolune {
             transcript: compact(&runtime.transcript),
             conversation: runtime.history.clone(),
             first_id: runtime.first_id,
-            remote: runtime.remote.clone(),
         };
         let keep = !thread.transcript.is_empty() || thread.info.title != NEW_TITLE;
         let conversations = &mut self.agents.conversations;
