@@ -165,11 +165,12 @@ The `Release` workflow builds Linux, writes and signs
 builds are not public (lsuite's DISTRIBUTION.md). `scripts/publish-build.sh X.Y.Z` (needs `gh`
 with access to both repositories) checks the draft's files against `SHA256SUMS`, copies them and
 the notes to the private `ludovic111/lsuite-builds` as `ryolune-vX.Y.Z`, and deletes the draft.
-lsuite.xyz serves that release to signed-in lsuite accounts: the updater reads
-`<server>/api/apps/ryolune/releases/latest` with the account's token and downloads through the
-server's file route. Installed apps verify the signature, the download location and the new
-binaries' versions before replacing themselves. `RYOLUNE_UPDATE_URL` points the updater at
-another release document (tests). A new key pair comes from `ryolune --release-keygen <file>`.
+lsuite.xyz serves that release to everyone, free and without an account: the updater reads
+`<server>/api/apps/ryolune/releases/latest` (no token, no `Authorization` header) and downloads
+through the server's file route. `<server>` is `LSUITE_SERVER`, else `https://lsuite.xyz`.
+Installed apps verify the signature, the download location and the new binaries' versions
+before replacing themselves. `RYOLUNE_UPDATE_URL` points the updater at another release document
+(tests). A new key pair comes from `ryolune --release-keygen <file>`.
 Windows binaries, when they are built again, are unsigned.
 
 ### Signing and notarizing for macOS

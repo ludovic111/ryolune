@@ -343,7 +343,7 @@ fn parity_commands_cover_view_regions_tracks_inserts_presets_and_settings() {
     call(&mut host, "settings.reset", json!({}));
     assert_eq!(
         call(&mut host, "settings.get", json!({"path":"agent.provider"})),
-        json!("lsuite")
+        json!("codex")
     );
     let info = call(&mut host, "app.info", json!({}));
     assert_eq!(info["mode"], "headless");

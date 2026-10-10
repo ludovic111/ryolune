@@ -70,41 +70,7 @@ impl AgentPanel {
                 }))
         });
 
-        let allowance = connection::allowance_used(&error);
-        let allowance_box = allowance.then(|| {
-            // One line and the one thing to do; the agent never moves to another provider.
-            div()
-                .id("agent-allowance")
-                .mb(px(8.0))
-                .p(px(10.0))
-                .bg(theme.well)
-                .border_1()
-                .border_color(theme.line)
-                .flex()
-                .items_center()
-                .justify_between()
-                .gap(px(8.0))
-                .child(
-                    div()
-                        .flex_1()
-                        .text_size(px(size::SM))
-                        .line_height(px(18.0))
-                        .text_color(theme.text)
-                        .child(SharedString::from(error.clone())),
-                )
-                .child(
-                    Button::new("allowance-manage", "Manage plan")
-                        .compact()
-                        .primary()
-                        .with_icon("external")
-                        .on_click(cx.listener(|this, _, _, cx| {
-                            this.daw.update(cx, |daw, cx| {
-                                daw.run("account.manage", serde_json::json!({}), cx);
-                            })
-                        })),
-                )
-        });
-        let error_box = (!error.is_empty() && !allowance).then(|| {
+        let error_box = (!error.is_empty()).then(|| {
             let unsent = !self.composer_error.is_empty();
             div()
                 .id("agent-error")
@@ -401,7 +367,6 @@ impl AgentPanel {
             .border_t_1()
             .border_color(theme.hairline)
             .child(status_row)
-            .children(allowance_box)
             .children(error_box)
             .child(card)
             .into_any_element()

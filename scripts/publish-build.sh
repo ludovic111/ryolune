@@ -2,7 +2,7 @@
 # Publish a ryolune build to lsuite (lsuite's DISTRIBUTION.md): the release workflow leaves a
 # complete draft release `v<version>` in ludovic111/ryolune; this copies its files and notes to
 # the private ludovic111/lsuite-builds as `ryolune-v<version>`, which lsuite.xyz serves to
-# signed-in lsuite accounts, then deletes the draft (the tag stays). Signatures are unchanged:
+# everyone (free, no account), then deletes the draft (the tag stays). Signatures are unchanged:
 # the app checks SHA256SUMS.sig against the key built into it, whoever serves the files.
 #
 #   scripts/publish-build.sh 0.16.0

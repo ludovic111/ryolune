@@ -78,9 +78,6 @@ pub struct Interface {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
-    /// lsuite AI: the lsuite subscription, signed in once for every lsuite app
-    /// (`~/.lsuite/account.json`). Anthropic's Messages API at `<server>/api/ai`.
-    Lsuite,
     /// The installed Codex CLI with its own sign-in.
     Codex,
     /// The installed Claude Code CLI with its own sign-in.
@@ -124,8 +121,7 @@ pub struct Hosted {
     pub strict: bool,
 }
 impl Provider {
-    pub const ALL: [Provider; 14] = [
-        Provider::Lsuite,
+    pub const ALL: [Provider; 13] = [
         Provider::Codex,
         Provider::Claude,
         Provider::Anthropic,
@@ -142,7 +138,6 @@ impl Provider {
     ];
     pub fn label(self) -> &'static str {
         match self {
-            Provider::Lsuite => "lsuite AI (lsuite account)",
             Provider::Codex => "Codex CLI (OpenAI sign-in)",
             Provider::Claude => "Claude Code CLI (Anthropic sign-in)",
             Provider::Anthropic => "Anthropic API key",
@@ -160,7 +155,6 @@ impl Provider {
     }
     pub fn key(self) -> &'static str {
         match self {
-            Provider::Lsuite => "lsuite",
             Provider::Codex => "codex",
             Provider::Claude => "claude",
             Provider::Anthropic => "anthropic",
@@ -188,7 +182,7 @@ impl Provider {
     pub fn speaks_openai(self) -> bool {
         !matches!(
             self,
-            Provider::Codex | Provider::Claude | Provider::Anthropic | Provider::Lsuite
+            Provider::Codex | Provider::Claude | Provider::Anthropic
         )
     }
     /// The fixed address of a hosted or local OpenAI-compatible service.
@@ -270,8 +264,7 @@ impl Provider {
             Provider::Mistral => "mistral-large-latest",
             Provider::DeepSeek => "deepseek-chat",
             Provider::Gemini => "gemini-flash-latest",
-            Provider::Lsuite
-            | Provider::Codex
+            Provider::Codex
             | Provider::Claude
             | Provider::Groq
             | Provider::Xai
@@ -312,9 +305,6 @@ pub struct Agent {
     /// Extra standing instructions appended to the system prompt.
     pub instructions: String,
     pub permissions: Permissions,
-    /// Claude Code runs on the lsuite AI subscription (`ANTHROPIC_BASE_URL` and
-    /// `ANTHROPIC_AUTH_TOKEN` from the lsuite account) instead of its own sign-in.
-    pub claude_through_lsuite: bool,
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -552,8 +542,7 @@ impl Interface {
 impl Default for Agent {
     fn default() -> Self {
         Self {
-            // lsuite AI first (AI.md): signing in is the only setup.
-            provider: Provider::Lsuite,
+            provider: Provider::Codex,
             model: String::new(),
             reasoning_effort: String::new(),
             anthropic_api_key: String::new(),
@@ -574,7 +563,6 @@ impl Default for Agent {
             max_tool_rounds: 48,
             instructions: String::new(),
             permissions: Permissions::default(),
-            claude_through_lsuite: false,
         }
     }
 }
@@ -862,11 +850,9 @@ impl Settings {
             Provider::DeepSeek => (&a.deepseek_api_key, &["DEEPSEEK_API_KEY"]),
             Provider::Xai => (&a.xai_api_key, &["XAI_API_KEY"]),
             Provider::Compatible => (&a.compatible_api_key, &[]),
-            Provider::Lsuite
-            | Provider::Codex
-            | Provider::Claude
-            | Provider::Ollama
-            | Provider::LmStudio => return None,
+            Provider::Codex | Provider::Claude | Provider::Ollama | Provider::LmStudio => {
+                return None
+            }
         };
         stored_or_env(stored, env)
     }
@@ -1289,5 +1275,29 @@ mod tests {
         // Any other unreadable value still makes the file unreadable.
         std::fs::write(&path, text.replace("\"retired\"", "7")).unwrap();
         assert!(Settings::read(&path).is_err());
+    }
+
+    #[test]
+    fn settings_saved_with_lsuite_ai_still_load() {
+        // Up to 0.16, lsuite AI was a provider and Claude Code could run on it: such a file
+        // loads with the default provider and keeps everything else.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let mut settings = Settings::default();
+        settings.agent.anthropic_api_key = "sk-ant-keep-me".into();
+        settings.save_to(&path).unwrap();
+        let text = std::fs::read_to_string(&path)
+            .unwrap()
+            .replace("\"provider\": \"codex\"", "\"provider\": \"lsuite\"")
+            .replace(
+                "\"model\": \"\"",
+                "\"model\": \"\", \"claudeThroughLsuite\": true",
+            );
+        assert!(text.contains("\"lsuite\"") && text.contains("claudeThroughLsuite"));
+        std::fs::write(&path, &text).unwrap();
+        let loaded = Settings::read(&path).unwrap();
+        assert_eq!(loaded.agent.provider, Provider::Codex);
+        assert_eq!(loaded.agent.anthropic_api_key, "sk-ant-keep-me");
+        assert!(!invalid_copy(&path).exists());
     }
 }

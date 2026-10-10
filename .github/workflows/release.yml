@@ -2,7 +2,7 @@ name: Release
 # Builds Linux (the only platform while lsuite is in beta; macOS and Windows are coming soon) from
 # a `vX.Y.Z` tag into a DRAFT GitHub release plus SHA256SUMS(.sig). The builds are not public (lsuite's DISTRIBUTION.md):
 # `scripts/publish-build.sh X.Y.Z` copies the draft to ludovic111/lsuite-builds, which
-# lsuite.xyz serves to signed-in lsuite accounts and the app's updater reads.
+# lsuite.xyz serves to everyone (free, no account) and the app's updater reads.
 on:
   push:
     tags: ['v*']

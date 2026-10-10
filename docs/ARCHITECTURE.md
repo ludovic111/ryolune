@@ -359,8 +359,8 @@ ryolune is part of lsuite with kimchi (video).
 ## Updates
 
 `desktop/src/update.rs` asks lsuite.xyz on a worker
-(`<server>/api/apps/ryolune/releases/latest`, GitHub-API-shaped, with the lsuite account's
-token; signed out it reports "Sign in to lsuite (in the lsuite app) to get updates"). A release
+(`<server>/api/apps/ryolune/releases/latest`, GitHub-API-shaped, public: no account and no
+token; `<server>` is `LSUITE_SERVER`, else `https://lsuite.xyz`). A release
 (built by `.github/workflows/release.yml` from a `vX.Y.Z` tag, copied to `lsuite-builds` by
 `scripts/publish-build.sh`) carries the platform's zip (`update::asset_name`:
 `ryolune-linux-x86_64.zip`; the macOS and Windows names stay in the code, but only Linux is

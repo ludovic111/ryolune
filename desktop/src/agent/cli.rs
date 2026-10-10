@@ -182,17 +182,6 @@ pub(crate) fn run_claude(turn: Turn) -> Result<()> {
     if !turn.settings.agent.reasoning_effort.is_empty() {
         command.args(["--effort", &turn.settings.agent.reasoning_effort]);
     }
-    if turn.settings.agent.claude_through_lsuite {
-        // Claude Code on the lsuite AI subscription: its Anthropic client goes to the plan's
-        // endpoint with the account's token, never to a key of its own.
-        let account = ryolune_engine::account::load().ok_or(
-            "Claude Code is set to run on lsuite AI: sign in to lsuite AI in Settings › Agent, or turn that off.",
-        )?;
-        command
-            .env("ANTHROPIC_BASE_URL", account.ai_base())
-            .env("ANTHROPIC_AUTH_TOKEN", &account.token)
-            .env_remove("ANTHROPIC_API_KEY");
-    }
     command
         .current_dir(&workspace)
         .stdin(Stdio::piped())

@@ -249,23 +249,9 @@ This supersedes the former Electron / TypeScript app (`legacy/`, removed; it is 
   pre-0.14 settings count as done), `app.recent`/`app.openRecent`. Docs index `docs/README.md`,
   `ARCHITECTURE.md`, `CONFIGURATION.md`, `SESSION_FORMAT.md`. kimchi pins `ryolune-engine` at a rev:
   keep the engine's public API additive.
-- 0.15 (2026-10-07, overnight lsuite work, owner asleep; decisions mine): **lsuite AI**
-  (lsuite's AI.md). `engine/src/account.rs` is the shared account (`~/.lsuite/account.json`,
-  0600, token masked everywhere and added to the log's secrets), the server calls (ureq, now an
-  engine dependency, 15 s budget), the loopback sign-in (`sign_in_browser`: 127.0.0.1 random
-  port, `state` checked, code traded at `/api/account/token`) and a mock server
-  (`account::mock`, used by engine and desktop tests). Commands `account.status/signIn/signOut/
-  plans/manage` (`control_account.rs`); the window runs them on workers (`desktop/src/account.rs`
-  keeps the last status for Settings, setup and the panel; refreshed at start when signed in, when
-  Settings › Agent opens and after each lsuite turn). `Provider::Lsuite` is first in
-  `Provider::ALL` and the new default for fresh settings; it is `anthropic::run_lsuite` (the
-  Anthropic client on `<server>/api/ai/v1/messages`, model blank = the plan's Sonnet from
-  `/v1/models`); an allowance error becomes `account::ALLOWANCE_MESSAGE`, shown as one line with
-  Manage plan (`connection::allowance_used`), never a provider switch.
-  `agent.claudeThroughLsuite` runs Claude Code with `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`.
-  The lsuite mark (`assets/providers/lsuite.svg`) is the site's grain tile. Decided: the server
-  in the file wins over `LSUITE_ACCOUNT_SERVER` once signed in (a token never goes to another
-  server); signing in, out and the account page are refused to agents.
+- 0.15 (2026-10-07, overnight lsuite work, owner asleep; decisions mine): lsuite AI (the shared
+  lsuite account, `account.*` commands, the `lsuite` provider, Claude Code on the plan) came in
+  here and went out when lsuite went fully free (2026-10-10, see the lsuite section below).
   **Plugins** (lsuite's PLUGINS.md): `engine/src/plugin_dev.rs` holds the bundle manifest
   (`plugin.toml`, toml crate), `plugin.info/enable/disable/remove/guide/toolchain/new/
   writeSource/build/publishLocal`, `plugin.rescan` is an alias of `plugin.scan`, and
@@ -319,12 +305,10 @@ This supersedes the former Electron / TypeScript app (`legacy/`, removed; it is 
   because Claude Code shows that instead of the text. The CLI prints a look's path, not its base64.
   `docs/HARNESS.md` is generated (command_docs test). Evals: `evals/` (Python runner, 13 jobs,
   Claude Code + `ryolune-mcp --file`, `RESULTS.md`). **Updates through lsuite**:
-  `desktop/src/update.rs` reads `<server>/api/apps/ryolune/releases/latest` with the account's
-  Bearer token (`source()`; server = `LSUITE_ACCOUNT_SERVER`, else the account's, else
-  lsuite.xyz; the token goes only to its own server, decided, so an env server other than the
-  account's reads as signed out), downloads through the server's file route (ureq never forwards
-  Authorization on the redirect), keeps the signature checks, `RYOLUNE_UPDATE_URL` for tests;
-  signed out is `SIGNED_OUT`, a status, not an error. Release workflow makes a draft;
+  `desktop/src/update.rs` reads `<server>/api/apps/ryolune/releases/latest` (public since
+  2026-10-10: no account, no token, no Authorization header; `release_url()`, server =
+  `LSUITE_SERVER`, else lsuite.xyz), downloads through the server's file route, keeps the
+  signature checks, `RYOLUNE_UPDATE_URL` for tests. Release workflow makes a draft;
   `scripts/publish-build.sh <version>` copies it to `ludovic111/lsuite-builds` as
   `ryolune-v<version>` and deletes the draft (tests in `scripts/tests/release_workflow.py`).
 - Tests: a cargo test binary resolves settings, data, the control file, `~/.lsuite` and the kimchi
@@ -342,9 +326,8 @@ This supersedes the former Electron / TypeScript app (`legacy/`, removed; it is 
   is sold or locked, so copy says donate or sponsor, never pay, price or checkout. The app asks once,
   after the third export (`SUPPORT_AFTER_EXPORTS`); a quiet Sponsor key sits at the right of the
   title bar (`app.openGuide guide=support`), and `.github/FUNDING.yml` shows GitHub's Sponsor button.
-  Since 2026-10-06 (owner's decision, lsuite's AI.md) lsuite sells one thing, lsuite AI (AI in
-  the apps without setup), a demo for now; ryolune itself stays free and unlocked. Only the lsuite
-  AI parts of the window speak of a plan (Manage plan, the allowance); nothing else is sold.
+  Since 2026-10-10 (owner's decision) the whole suite is free: no lsuite account, no lsuite AI,
+  no plan; agents are the person's own (Codex, Claude Code, API keys, Ollama).
 - Every persistent UI edit dispatches `store::Command`. Keep drag previews local and group
   continuous edits with `Store::set_gesture`. Preserve undo and source/clip alignment.
 - No allocations, deallocations, blocking, I/O or logging in the audio callback. Compile graphs
@@ -411,7 +394,8 @@ Still to do:
       finish routine, one undo per turn, `evals/`. Part 8 (the suite agent) belongs to the lsuite
       app.
 - [x] **Distribution** (0.16, lsuite's DISTRIBUTION.md): updater on `<server>/api/apps/ryolune/
-      releases/latest` with the account token; draft releases + `scripts/publish-build.sh`.
+      releases/latest` (public, no token since the suite went free); draft releases +
+      `scripts/publish-build.sh`.
       `lsuite-builds` exists; 0.16.0 is published there by `scripts/publish-build.sh`. The
       coordinator turns the old public releases into drafts once all five apps are out.
 - [x] **Linux only for the beta** (owner's decision, 2026-10-08, via the lsuite coordinator):
@@ -422,6 +406,16 @@ Still to do:
       deleted from every existing ryolune release (public GitHub releases and `ryolune-v*` in
       lsuite-builds); their signed `SHA256SUMS` stay as they were. README, USER_GUIDE,
       DEVELOPMENT and the 0.16.0 notes say "beta for Linux, macOS and Windows coming soon".
+- [x] **lsuite is fully free** (owner's decision, 2026-10-10, via the lsuite coordinator): no
+      lsuite Pass, lsuite AI, lsuite account, Cloud or Marketplace. Removed here: `account.rs`,
+      `control_account.rs` and the `account.*` commands, `Provider::Lsuite` (old settings with
+      `"lsuite"` load with the default, Codex, through `without_retired_provider`), Claude Code's
+      `claudeThroughLsuite` (an old field is ignored), the window's account state, the lsuite AI
+      card and the allowance line. The updater fetches `<server>/api/apps/ryolune/releases/latest`
+      and `SHA256SUMS(.sig)` with no Authorization header (`LSUITE_SERVER`, else lsuite.xyz;
+      `LSUITE_ACCOUNT_SERVER` is gone). An old `~/.lsuite/account.json` is ignored, never
+      deleted. Plugins (PLUGINS.md) stay. Agents are the person's own: Codex, Claude Code, API
+      keys, Ollama, LM Studio, compatible servers.
 - [ ] Harness gaps: a picture of the window is only on macOS (`ui.screenshot`); the Codex
       provider gets the numbers of a look, not the picture; evals run through MCP (Claude Code),
       not through the built-in agent's own loop.

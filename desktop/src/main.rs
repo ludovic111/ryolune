@@ -1,5 +1,4 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-mod account;
 mod agent;
 mod agents;
 mod app;
@@ -17,9 +16,9 @@ mod settings;
 mod ui;
 mod update;
 
-/// Tests that sign in or out share the process's scratch `~/.lsuite/account.json`.
+/// Tests that point the updater at another server through `LSUITE_SERVER` take turns.
 #[cfg(test)]
-pub(crate) static ACCOUNT_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub(crate) static SERVER_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Asks the window to run its next tick soon. Called from any thread: the control bridge,
 /// workers and the agent use it so a waiting request is answered at once.

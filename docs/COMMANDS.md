@@ -2,7 +2,7 @@
 
 <!-- Generated from the command registry by tools/tests/command_docs.rs. Do not edit by hand: run `RYOLUNE_BLESS=1 cargo test -p ryolune-tools --test command_docs`. -->
 
-ryolune has 250 commands. The window, `ryolune-cli`, `ryolune-mcp` and the built-in agent all run these same commands, with the same undo history. On the CLI a command is `ryolune-cli <name> --param value`; in MCP it is the tool `<name>` with the dot replaced by an underscore (`track.add` is `track_add`); the agent sees the same tools.
+ryolune has 245 commands. The window, `ryolune-cli`, `ryolune-mcp` and the built-in agent all run these same commands, with the same undo history. On the CLI a command is `ryolune-cli <name> --param value`; in MCP it is the tool `<name>` with the dot replaced by an underscore (`track.add` is `track_add`); the agent sees the same tools.
 
 Conventions: bars and beats are zero-based; note `start` and `length` are beats relative to their clip; pitch 60 is C4; velocity is 1–127; a fader value of 0.75 is unity gain. Strip commands accept a track id or `master`, `bus-a`, `bus-b`; insert slots are 0–7.
 
@@ -38,7 +38,6 @@ Names shared across the lsuite apps are accepted too, and run the ryolune comman
 - [generate](#generate) — `generate.services`, `generate.audio`, `generate.list`, `generate.preview`, `generate.place`, `generate.delete`
 - [export](#export) — `export.toKimchi`
 - [handoff](#handoff) — `handoff.inbox`
-- [account](#account) — `account.status`, `account.signIn`, `account.signOut`, `account.plans`, `account.manage`
 - [harness](#harness) — `harness.brief`, `harness.skills`, `harness.skill`, `harness.context`, `harness.look`, `harness.measure`, `harness.checkpoint`, `harness.checkpoints`, `harness.changes`, `harness.revert`
 
 ## session
@@ -425,7 +424,7 @@ Start a plugin crate from the SDK template in ~/.lsuite/plugins-src/ryolune/<nam
 |---|---|---|---|
 | `name` | string | yes | Plugin display name, for example Warm Drive. |
 | `kind` | string | yes | effect or instrument. |
-| `vendor` | string |  | Your name or label, default the person's lsuite name or My Studio. |
+| `vendor` | string |  | Your name or label, default My Studio. |
 
 ### `plugin.writeSource`
 
@@ -2005,7 +2004,7 @@ Version, platform, executable, data and settings paths, the control discovery fi
 
 *Edits · Needs the app*
 
-Check GitHub for a newer release and report it.
+Check lsuite for a newer release (free, no account) and report it.
 
 ### `app.installUpdate`
 
@@ -2110,7 +2109,7 @@ Finish (or skip) the first-run setup with the person's choices: the app they com
 |---|---|---|---|
 | `comingFrom` | string | yes | App id from session.formats (ableton, logic, fl, bitwig, reaper, cubase, studioone, protools, garageband), or none. |
 | `ai` | boolean | yes | Whether they want AI features (the agent and sound generation). |
-| `agentProvider` | string |  | Agent provider to select when ai is true (agent.providers): lsuite, codex, claude, anthropic, openai, gemini… |
+| `agentProvider` | string |  | Agent provider to select when ai is true (agent.providers): codex, claude, anthropic, openai, gemini… |
 | `skipped` | boolean |  | They skipped the setup; the choices given still apply. |
 
 ### `app.recent`
@@ -2144,7 +2143,7 @@ Select the agent provider, model and reasoning effort together. Only while idle.
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
-| `provider` | string | yes | lsuite (lsuite AI, after account.signIn), codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio or compatible. |
+| `provider` | string | yes | codex, claude, anthropic, openai, gemini, openrouter, mistral, groq, deepseek, xai, ollama, lmstudio or compatible. |
 | `model` | string | yes | Model ID; empty uses the provider default. |
 | `reasoningEffort` | string | yes | Provider effort level; empty uses its default. |
 
@@ -2401,42 +2400,6 @@ Render the mix (or one stem per track) and put it on a kimchi video project, on 
 ### `handoff.inbox`
 
 Hand-offs other lsuite apps left for ryolune (a cut from kimchi to score), oldest first, from ~/.lsuite/handoff/ryolune (kimchi's handoff.toRyolune writes `<name>.kimchi-cut.json` there). Pass a manifest to session.scoreCut.
-
-## account
-
-### `account.status`
-
-The lsuite account this computer is signed in to (shared by every lsuite app): email, plan, the allowance used this month (`summary` reads like "Pro · 38 % used · resets 1 Nov"), the plan's models and where to manage it. Asks the lsuite server unless check is false. Never shows the token.
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `check` | boolean |  | Ask the server for the plan and allowance (default true); false reads only the account file. |
-
-### `account.signIn`
-
-*Edits*
-
-Sign in to lsuite AI so the agent works without any other setup, for every lsuite app on this computer. Without key, the window opens the browser to sign in (or create the account and pick a plan) and waits for it; with key, uses the key shown on the account page (lsk_…), which also works from ryolune-cli. Only a person can do this.
-
-| Parameter | Type | Required | Description |
-|---|---|---|---|
-| `key` | string |  | The key from your lsuite account page (lsk_…), for the CLI and headless use. |
-
-### `account.signOut`
-
-*Edits*
-
-Sign out of lsuite AI on this computer (every lsuite app): the server forgets the token and the account file is removed. Only a person can do this.
-
-### `account.plans`
-
-The lsuite AI plans as the server offers them: prices, models and monthly allowances (a demo for now: no payment is taken).
-
-### `account.manage`
-
-*Edits*
-
-Open the lsuite account page (plan, allowance, key) in the web browser; headless, returns its address. Only a person can do this.
 
 ## harness
 

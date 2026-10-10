@@ -69,7 +69,7 @@ app's suite agent), it works from the same harness (lsuite's HARNESS.md), all in
   plugins and buses included) and draws a picture: the waveform with the bar grid and sections
   (clipping in red), the short-term loudness, the average spectrum against a pink slope and a
   piano roll of the notes in track colours, with the numbers. The picture reaches the model as an
-  image: an image block for the built-in agent's vision providers (lsuite AI, Anthropic, OpenAI,
+  image: an image block for the built-in agent's vision providers (Anthropic, OpenAI,
   Gemini, OpenRouter, xAI), MCP image content outside (and the PNG is at `image.path`; the CLI
   prints the path, not the bytes). `view=notes` draws only the piano roll (no render),
   `view=mix` leaves it out, `trackId` solos a track, `targetLufs` draws a target.
@@ -189,27 +189,6 @@ memory and its saved conversations are the person's too: an agent may read the m
 (`agent.memory`), list, open, start and rename conversations, and steer the built-in agent, but
 `agent.setMemory` and `agent.deleteConversation` are refused to agents (the memory goes ahead of
 every later request, like the standing instructions in Settings; a deleted conversation is gone).
-
-## lsuite AI
-
-lsuite AI is the subscription that makes the agent work without setup (lsuite's AI.md). The
-account is shared by every lsuite app on the computer (`~/.lsuite/account.json`):
-
-```sh
-ryolune-cli account.status                 # plan, allowance used, models; never the token
-ryolune-cli account.plans                  # the plans the server offers (a demo: no payment)
-ryolune-cli account.signIn key=lsk_…       # the key from the account page (headless use)
-ryolune-cli account.signIn                 # in the window: opens the browser and waits
-ryolune-cli account.signOut                # signs out every lsuite app here
-```
-
-Agents may read `account.status` and `account.plans`; `account.signIn`, `account.signOut` and
-`account.manage` are the person's. The provider `lsuite` is Anthropic's Messages API at
-`<server>/api/ai` with the account's token, so Claude Code can run on it too
-(`agent.claudeThroughLsuite`, which sets `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`). When
-the plan's allowance is used up, the turn ends with one line saying so; ryolune never switches
-provider by itself. `LSUITE_ACCOUNT_SERVER` points a new sign-in at another server (a local
-demo).
 
 ## Plugins an agent builds
 
@@ -464,7 +443,7 @@ prefilled GitHub issue in their browser, and nothing is ever sent by itself.
 
 ## What only a person does
 
-A few things deliberately have no command for agents: signing in to an AI service or to lsuite AI and changing the agent's
+A few things deliberately have no command for agents: signing in to an AI service and changing the agent's
 connection or permissions or the generation service, opening a GitHub issue
 (`app.reportProblem` is refused to agents), answering the first-run setup, the menu bar itself, the agent panel's own composer, and pure layout
 (vertical track scroll, folding a browser folder). The reasons are listed in
