@@ -396,7 +396,7 @@ Still to do:
 - [x] **Distribution** (0.16, lsuite's DISTRIBUTION.md): updater on `<server>/api/apps/ryolune/
       releases/latest` (public, no token since the suite went free); draft releases +
       `scripts/publish-build.sh`.
-      `lsuite-builds` exists; 0.16.0 is published there by `scripts/publish-build.sh`. The
+      `lsuite-builds` exists; 0.16.0 and 0.17.0 are published there by `scripts/publish-build.sh`. The
       coordinator turns the old public releases into drafts once all five apps are out.
 - [x] **Linux only for the beta** (owner's decision, 2026-10-08; replaced by Linux and macOS, below):
       while lsuite is in beta, ryolune is built and shipped for Linux only; macOS and Windows are
@@ -420,6 +420,8 @@ Still to do:
       and `cleanup-apple-signing.sh` (always) restores it and deletes the throwaway keychain.
       The runner's `.env` holds its own `RUSTUP_HOME`/`CARGO_HOME`, so the ludodesktop
       "own Rust install" step is Linux only. The Mac's Python is 3.9 (scripts must stay 3.9).
+      0.17.0 (2026-10-11) is the first release built this way: both Mac zips signed with the
+      Developer ID, notarized and stapled on the Mac mini, published to lsuite-builds.
 - [x] **lsuite is fully free** (owner's decision, 2026-10-10, via the lsuite coordinator): no
       lsuite Pass, lsuite AI, lsuite account, Cloud or Marketplace. Removed here: `account.rs`,
       `control_account.rs` and the `account.*` commands, `Provider::Lsuite` (old settings with
