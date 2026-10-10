@@ -30,10 +30,13 @@ security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$APPLE_CERTIF
   -f pkcs12 -T /usr/bin/codesign
 rm -f "$RUNNER_TEMP/developer-id.p12"
 security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
-# Search the new keychain first, keeping the runner's own keychains after it.
-existing=$(security list-keychains -d user | sed -e 's/^ *"//' -e 's/"$//')
-# shellcheck disable=SC2086
-security list-keychains -d user -s "$keychain" $existing
+# Search the new keychain first, keeping the user's own keychains after it. On the self-hosted
+# Mac the runner is the owner's account: the list is saved exactly as it was, and
+# scripts/cleanup-apple-signing.sh puts it back (the default keychain is never touched).
+security list-keychains -d user | sed -e 's/^ *"//' -e 's/"$//' > "$RUNNER_TEMP/keychains-before"
+existing=()
+while IFS= read -r line; do existing+=("$line"); done < "$RUNNER_TEMP/keychains-before"
+security list-keychains -d user -s "$keychain" ${existing[@]+"${existing[@]}"}
 if ! security find-identity -v -p codesigning "$keychain" | grep -qF "$APPLE_SIGNING_IDENTITY"; then
   echo "The certificate does not hold the identity \"$APPLE_SIGNING_IDENTITY\"." >&2
   security find-identity -v -p codesigning "$keychain" >&2

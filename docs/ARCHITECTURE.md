@@ -363,8 +363,8 @@ ryolune is part of lsuite with kimchi (video).
 token; `<server>` is `LSUITE_SERVER`, else `https://lsuite.xyz`). A release
 (built by `.github/workflows/release.yml` from a `vX.Y.Z` tag, copied to `lsuite-builds` by
 `scripts/publish-build.sh`) carries the platform's zip (`update::asset_name`:
-`ryolune-linux-x86_64.zip`; the macOS and Windows names stay in the code, but only Linux is
-built while lsuite is in beta), a `SHA256SUMS` file and its Ed25519 signature
+`ryolune-linux-x86_64.zip`, `ryolune-macos-arm64.zip`, `ryolune-macos-x86_64.zip`; the Windows
+name stays in the code, Windows is coming soon), a `SHA256SUMS` file and its Ed25519 signature
 `SHA256SUMS.sig`. The app checks that every URL is the server's file route (or the
 repository's releases), verifies the signature against the public key compiled in from
 `desktop/assets/update-signing.pub`, verifies the asset's checksum, checks that the new

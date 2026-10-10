@@ -153,11 +153,19 @@ callback.
 4. Merge to `main`, then push a matching tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 5. When the workflow is done, publish the build to lsuite: `scripts/publish-build.sh X.Y.Z`.
 
-While lsuite is in beta (owner's decision, 2026-10-08) ryolune is built and shipped for **Linux
-only**; macOS and Windows are coming soon. Their code stays and builds from source, but the
-`Release` workflow's matrix and the `Native Rust` CI run `ubuntu-22.04` alone (the comments in
-`release.yml` and `native.yml` list what to add back: the matrix entries, the files in the
-Checksums step, `scripts/publish-release.sh` and `resume-release.yml`).
+ryolune is built and shipped for **Linux and macOS** (owner's decision, 2026-10-10); Windows is
+coming soon (its code stays and builds from source; the comments in `release.yml` and
+`native.yml` list what to add back: the matrix entry, the files in the Checksums step,
+`scripts/publish-release.sh` and `resume-release.yml`). The macOS rows run on the Mac mini's
+self-hosted runner (`vars.MAC_RUNNER`, default `ludovics-mac-mini`; `macos-latest` sends them to
+GitHub): `macos-arm64` builds, tests and packages natively, `macos-x86_64` cross-compiles
+(`cargo build --release --workspace --target x86_64-apple-darwin`, then
+`RYOLUNE_TARGET=x86_64-apple-darwin bash scripts/package-macos.sh`). The `Native Rust` CI runs
+Linux on every push and pull request, and macOS (both architectures) only when started by hand:
+`gh workflow run "Native Rust" --ref <branch>`. The Mac runner is the owner's own account: the
+workflows never write global git config, `~/.ssh` or shell profiles, and
+`scripts/cleanup-apple-signing.sh` deletes the signing keychain and restores the keychain search
+list exactly as `scripts/prepare-apple-signing.sh` found it.
 
 The `Release` workflow builds Linux, writes and signs
 `SHA256SUMS` (Ed25519, repository secret `RYOLUNE_SIGNING_KEY`, public key in

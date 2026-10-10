@@ -18,12 +18,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Linux only, on ludodesktop: while lsuite is in beta, macOS and Windows are not built
-        # (coming soon). To check them again, set this to
-        # [macos-14, macos-15-intel, ubuntu-22.04, windows-latest].
-        os: [ubuntu-22.04]
-    runs-on: ${{ (matrix.os == 'ubuntu-22.04' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && (vars.LINUX_RUNNER || 'ludodesktop') || matrix.os }}
-    timeout-minutes: 45
+        # Linux on ludodesktop for every push and pull request. macOS (Apple Silicon, and Intel
+        # cross-compiled) on the Mac mini only when started by hand:
+        #   gh workflow run "Native Rust" --ref <branch>
+        # Windows is coming soon: add "windows-latest" to the dispatch list to check it.
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["macos", "ubuntu-22.04"]' || '["ubuntu-22.04"]') }}
+    # Self-hosted runners never take a pull request from a fork: those run on GitHub's machines.
+    # MAC_RUNNER=macos-latest (or LINUX_RUNNER=ubuntu-22.04) sends a platform back to GitHub.
+    runs-on: ${{ (matrix.os == 'ubuntu-22.04' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && (vars.LINUX_RUNNER || 'ludodesktop') || (matrix.os == 'macos' && ((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (vars.MAC_RUNNER || 'ludovics-mac-mini') || 'macos-latest')) || matrix.os }}
+    timeout-minutes: 90  # the ThinkPad (4 threads) builds from cold in ~40 min
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,7 +47,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-dev libx11-xcb-dev libxcb1-dev libfontconfig1-dev libfreetype6-dev libvulkan-dev libdbus-1-dev libssl-dev libzstd-dev
       - name: Own Rust install per repo on ludodesktop
         # The runners of several repos run at once; a shared ~/.rustup makes their installs collide.
-        if: runner.environment == 'self-hosted'
+        # (The Mac mini's runners set their own RUSTUP_HOME and CARGO_HOME in the runner's .env.)
+        if: runner.environment == 'self-hosted' && runner.os == 'Linux'
         run: |
           echo "RUSTUP_HOME=$HOME/.rustup-${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
           echo "CARGO_HOME=$HOME/.cargo-${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"
@@ -53,12 +57,13 @@ jobs:
         with:
           toolchain: '1.88.0'
           components: rustfmt, clippy
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin, x86_64-apple-darwin' || '' }}
       - uses: Swatinem/rust-cache@v2
         if: runner.environment == 'github-hosted'
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
-        timeout-minutes: 15
+        timeout-minutes: 40
       - run: cargo build --release --locked --workspace
       - name: Complete song through MCP and CLI
         run: python3 scripts/verify-song.py
@@ -67,9 +72,14 @@ jobs:
         with:
           name: Song-verification-${{ matrix.os }}
           path: artifacts/song-verification/verification.json
-      - name: Package macOS app
+      - name: Package macOS app (Apple Silicon)
         if: runner.os == 'macOS'
         run: bash scripts/package-macos.sh
+      - name: Build and package macOS app (Intel, cross-compiled)
+        if: runner.os == 'macOS'
+        run: |
+          cargo build --release --locked --workspace --target x86_64-apple-darwin
+          RYOLUNE_TARGET=x86_64-apple-darwin bash scripts/package-macos.sh
       - name: Upload macOS app
         if: runner.os == 'macOS'
         uses: actions/upload-artifact@v4

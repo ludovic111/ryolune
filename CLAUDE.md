@@ -398,7 +398,7 @@ Still to do:
       `scripts/publish-build.sh`.
       `lsuite-builds` exists; 0.16.0 is published there by `scripts/publish-build.sh`. The
       coordinator turns the old public releases into drafts once all five apps are out.
-- [x] **Linux only for the beta** (owner's decision, 2026-10-08, via the lsuite coordinator):
+- [x] **Linux only for the beta** (owner's decision, 2026-10-08; replaced by Linux and macOS, below):
       while lsuite is in beta, ryolune is built and shipped for Linux only; macOS and Windows are
       "coming soon". The platform code stays and builds from source; `release.yml`'s matrix,
       the Checksums step, `scripts/publish-release.sh`, `resume-release.yml` and `native.yml`
@@ -406,6 +406,20 @@ Still to do:
       deleted from every existing ryolune release (public GitHub releases and `ryolune-v*` in
       lsuite-builds); their signed `SHA256SUMS` stay as they were. README, USER_GUIDE,
       DEVELOPMENT and the 0.16.0 notes say "beta for Linux, macOS and Windows coming soon".
+- [x] **Linux and macOS** (owner's decision, 2026-10-10, via the lsuite coordinator): the
+      beta ships for Linux and macOS (Apple Silicon and Intel); Windows stays "coming soon"
+      (its matrix lines stay out). Both macOS builds run on the Mac mini's self-hosted runner
+      (`vars.MAC_RUNNER || 'ludovics-mac-mini'`, labels `self-hosted, macOS, ARM64`):
+      `release.yml` rows `macos-arm64` (native: fmt, clippy, tests, song check, package) and
+      `macos-x86_64` (`cross: true`: `--target x86_64-apple-darwin`, build and package only);
+      `native.yml` runs macOS only on `workflow_dispatch`, both architectures in one job.
+      `scripts/package-macos.sh` takes `RYOLUNE_TARGET=<triple>` (`target/<triple>/release`);
+      an Intel binary the Mac cannot run (no Rosetta on the mini) is checked by `lipo` and its
+      embedded version. The runner is the owner's account: no global git config, no `~/.ssh`,
+      no profiles; `prepare-apple-signing.sh` saves the keychain search list in `$RUNNER_TEMP`
+      and `cleanup-apple-signing.sh` (always) restores it and deletes the throwaway keychain.
+      The runner's `.env` holds its own `RUSTUP_HOME`/`CARGO_HOME`, so the ludodesktop
+      "own Rust install" step is Linux only. The Mac's Python is 3.9 (scripts must stay 3.9).
 - [x] **lsuite is fully free** (owner's decision, 2026-10-10, via the lsuite coordinator): no
       lsuite Pass, lsuite AI, lsuite account, Cloud or Marketplace. Removed here: `account.rs`,
       `control_account.rs` and the `account.*` commands, `Provider::Lsuite` (old settings with

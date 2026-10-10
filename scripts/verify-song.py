@@ -19,6 +19,34 @@ import time
 import wave
 
 
+def read_wav(path):
+    """(channels, bytes per sample, sample rate, PCM bytes) of a WAV file, PCM or
+    WAVE_FORMAT_EXTENSIBLE (the `wave` module reads the latter only from Python 3.12; the
+    Mac runner's Python is 3.9)."""
+    data = Path(path).read_bytes()
+    if data[:4] != b'RIFF' or data[8:12] != b'WAVE':
+        raise ValueError(f'{path} is not a WAV file')
+    fmt = pcm = None
+    offset = 12
+    while offset + 8 <= len(data):
+        chunk, size = data[offset:offset + 4], struct.unpack('<I', data[offset + 4:offset + 8])[0]
+        body = data[offset + 8:offset + 8 + size]
+        if chunk == b'fmt ':
+            fmt = body
+        elif chunk == b'data':
+            pcm = body
+        offset += 8 + size + (size & 1)
+    if fmt is None or pcm is None:
+        raise ValueError(f'{path} has no fmt or data chunk')
+    tag, channels, rate = struct.unpack('<HHI', fmt[:8])
+    bits = struct.unpack('<H', fmt[14:16])[0]
+    if tag == 0xFFFE:  # WAVE_FORMAT_EXTENSIBLE: the sub-format GUID starts with the real tag
+        tag = struct.unpack('<H', fmt[24:26])[0]
+    if tag != 1:
+        raise ValueError(f'{path} is not integer PCM (format {tag})')
+    return channels, bits // 8, rate, pcm
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--bin-dir', type=Path, default=Path('target/release'))
@@ -27,8 +55,6 @@ def main():
     parser.add_argument('--instrument', help='Installed external instrument descriptor ID')
     parser.add_argument('--effect', help='Installed external effect descriptor ID')
     args = parser.parse_args()
-    if sys.version_info < (3, 12):
-        parser.error('Song verification requires Python 3.12+ to read 24-bit WAVE_FORMAT_EXTENSIBLE PCM. No session has been changed.')
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=True)
     bins = args.bin_dir.resolve()
@@ -215,8 +241,7 @@ def main():
         stem_files = list(stem_dir.glob('*.wav'))
         assert len(stem_files) == len(after['tracks']), stems
         for stem in stem_files:
-            with wave.open(str(stem), 'rb') as wav:
-                assert (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) == (2, 2, 44100)
+            assert read_wav(stem)[:3] == (2, 2, 44100), stem
         call('session.save', path=str(project))
         # A file-backed MCP host owns its project until exit. The native app keeps
         # ownership, so verify that window through --live instead of opening a
@@ -231,10 +256,9 @@ def main():
         assert restored['clips'] == after['clips']
         validated = subprocess.run([str(bins / ('ryolune' + suffix)), '--validate', str(project)],
                                    capture_output=True, text=True, encoding="utf-8", check=True)
-        with wave.open(str(mix), 'rb') as wav:
-            assert (wav.getnchannels(), wav.getsampwidth(), wav.getframerate()) == (2, 3, 48000)
-            frames = wav.getnframes()
-            pcm = wav.readframes(frames)
+        channels, width, rate, pcm = read_wav(mix)
+        assert (channels, width, rate) == (2, 3, 48000)
+        frames = len(pcm) // (channels * width)
         samples = [int.from_bytes(pcm[i:i+3], 'little', signed=True) / 8388608 for i in range(0, len(pcm), 3)]
         peak = max(map(abs, samples))
         rms = math.sqrt(sum(x*x for x in samples) / len(samples))

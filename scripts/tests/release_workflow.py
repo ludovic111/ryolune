@@ -17,8 +17,9 @@ sys.dont_write_bytecode = True
 PACKAGE_SPEC = importlib.util.spec_from_file_location("package_portable", ROOT / "scripts/package-portable.py")
 PACKAGE = importlib.util.module_from_spec(PACKAGE_SPEC)
 PACKAGE_SPEC.loader.exec_module(PACKAGE)
-# Linux only while lsuite is in beta (macOS and Windows are coming soon).
+# Linux and macOS (Apple Silicon and Intel); Windows is coming soon.
 ASSETS = [
+    "ryolune-macos-arm64.zip", "ryolune-macos-x86_64.zip",
     "ryolune-linux-x86_64.zip", "ryolune-linux-x86_64.tar.gz",
     "ryolune-linux-x86_64", "ryolune-Afterglow-demo.zip",
 ]

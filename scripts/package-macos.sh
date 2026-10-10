@@ -1,27 +1,46 @@
 #!/usr/bin/env bash
-# Wrap target/release/ryolune into dist/ryolune.app and zip it as dist/ryolune-macos-<arch>.zip,
-# the asset name the in-app updater downloads. The bundle's version follows Cargo.toml.
+# Wrap the release build into dist/ryolune.app and zip it as dist/ryolune-macos-<arch>.zip
+# (ryolune-macos-arm64.zip, ryolune-macos-x86_64.zip), the asset name the in-app updater
+# downloads. The bundle's version follows Cargo.toml.
+#
+#   scripts/package-macos.sh                                    # target/release, this Mac's arch
+#   RYOLUNE_TARGET=x86_64-apple-darwin scripts/package-macos.sh # target/<triple>/release
+#
+# Intel builds are cross-compiled on Apple Silicon (cargo build --release --workspace --target
+# x86_64-apple-darwin). Without APPLE_SIGNING_IDENTITY the bundle is ad-hoc signed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-test -x target/release/ryolune || { echo 'Run cargo build --release --workspace first.' >&2; exit 1; }
 version=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
-case "$(uname -m)" in
+if [ -n "${RYOLUNE_TARGET:-}" ]; then
+  release="target/$RYOLUNE_TARGET/release"
+  machine=${RYOLUNE_TARGET%%-*}
+else
+  release=target/release
+  machine=$(uname -m)
+fi
+case "$machine" in
   arm64|aarch64) arch=arm64 ;;
   x86_64) arch=x86_64 ;;
-  *) echo "Unsupported architecture $(uname -m)" >&2; exit 1 ;;
+  *) echo "Unsupported architecture $machine" >&2; exit 1 ;;
 esac
-# Validate every companion before replacing an existing local package.
+test -x "$release/ryolune" || { echo "Run cargo build --release --workspace${RYOLUNE_TARGET:+ --target $RYOLUNE_TARGET} first." >&2; exit 1; }
+# Validate every companion before replacing an existing local package. A binary this Mac cannot
+# run (Intel without Rosetta) is checked by its architecture and the version string inside it.
 for binary in ryolune ryolune-cli ryolune-mcp; do
-  test -x "target/release/$binary" || { echo "Missing $binary; build the workspace first." >&2; exit 1; }
-  actual=$("target/release/$binary" --version)
-  test "$actual" = "$binary $version" || { echo "$binary has stale version: $actual (expected $version)" >&2; exit 1; }
-  lipo "target/release/$binary" -verify_arch "$arch"
+  test -x "$release/$binary" || { echo "Missing $binary; build the workspace first." >&2; exit 1; }
+  lipo "$release/$binary" -verify_arch "$arch"
+  if actual=$("$release/$binary" --version 2>/dev/null); then
+    test "$actual" = "$binary $version" || { echo "$binary has stale version: $actual (expected $version)" >&2; exit 1; }
+  else
+    grep -qaF "$version" "$release/$binary" || { echo "$binary does not carry version $version" >&2; exit 1; }
+    echo "$binary ($arch) cannot run on this Mac; checked its architecture and embedded version."
+  fi
 done
 bundle='dist/ryolune.app'
 rm -rf "$bundle"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 for binary in ryolune ryolune-cli ryolune-mcp; do
-  cp "target/release/$binary" "$bundle/Contents/MacOS/$binary"
+  cp "$release/$binary" "$bundle/Contents/MacOS/$binary"
 done
 sed -e "s|<string>0\.0\.0</string>|<string>$version</string>|" desktop/Info.plist > "$bundle/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $version" "$bundle/Contents/Info.plist"
