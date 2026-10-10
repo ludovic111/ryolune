@@ -142,13 +142,20 @@ pub fn directories(format: Format) -> Vec<PathBuf> {
         dirs.extend(std::env::split_paths(&var));
     }
     dirs.extend(crate::settings::Settings::load().extra_plugin_paths(format));
+    if format == Format::Native {
+        // lsuite plugin bundles (PLUGINS.md): `~/.lsuite/plugins/ryolune/<id>/`, the library
+        // beside its `plugin.toml`.
+        dirs.push(crate::plugin_dev::installed_dir());
+        dirs.push(data_dir().join("plugins"));
+    }
+    // From here, the system's and the person's own plugin folders. A test binary probes in its
+    // own process, without a timeout: it never loads the plugins installed on the machine that
+    // runs it (a licensed plugin's copy protection can wait forever on a CI Mac), only those a
+    // test points it at.
+    let standard = dirs.len();
     let home = home();
     match format {
         Format::Native => {
-            // lsuite plugin bundles (PLUGINS.md): `~/.lsuite/plugins/ryolune/<id>/`, the
-            // library beside its `plugin.toml`.
-            dirs.push(crate::plugin_dev::installed_dir());
-            dirs.push(data_dir().join("plugins"));
             // Folders under the former name stay scanned, after the new ones.
             for name in ["ryolune", LEGACY_NAME] {
                 #[cfg(target_os = "macos")]
@@ -229,6 +236,9 @@ pub fn directories(format: Format) -> Vec<PathBuf> {
         _ => {}
     }
     let _ = home;
+    if test_sandbox().is_some() {
+        dirs.truncate(standard);
+    }
     dirs.retain(|d| !d.as_os_str().is_empty());
     dirs
 }
