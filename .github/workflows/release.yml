@@ -1,6 +1,7 @@
 name: Release
-# Builds Linux (the only platform while lsuite is in beta; macOS and Windows are coming soon) from
-# a `vX.Y.Z` tag into a DRAFT GitHub release plus SHA256SUMS(.sig). The builds are not public (lsuite's DISTRIBUTION.md):
+# Builds Linux and macOS (Apple Silicon, and Intel cross-compiled, both on the Mac mini; Windows is
+# coming soon) from a `vX.Y.Z` tag into a DRAFT GitHub release plus SHA256SUMS(.sig). The builds
+# are not public (lsuite's DISTRIBUTION.md):
 # `scripts/publish-build.sh X.Y.Z` copies the draft to ludovic111/lsuite-builds, which
 # lsuite.xyz serves to everyone (free, no account) and the app's updater reads.
 on:
@@ -31,21 +32,32 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        # Linux only while lsuite is in beta (owner's decision, 2026-10-08): macOS and Windows are
-        # coming soon. Their packaging steps below stay; to ship them again, add back
-        #   { os: macos-14, asset/archive: ryolune-macos-arm64.zip }
-        #   { os: macos-15-intel, asset/archive: ryolune-macos-x86_64.zip }
+        # Linux and macOS (owner's decision, 2026-10-10). The macOS rows run on the Mac mini
+        # (vars.MAC_RUNNER=macos-latest sends them to GitHub): Apple Silicon natively, Intel
+        # cross-compiled (`cross`: built and packaged only; its code is the Apple Silicon row's).
+        # Windows is coming soon; its packaging steps below stay. To ship it again, add back
         #   { os: windows-latest, asset: ryolune-windows-x86_64.exe, archive: ryolune-windows-x86_64.zip }
-        # and their files in the Checksums step, scripts/publish-release.sh and resume-release.yml.
+        # and its files in the Checksums step, scripts/publish-release.sh and resume-release.yml.
         include:
+          - os: macos-arm64
+            asset: ryolune-macos-arm64.zip
+            archive: ryolune-macos-arm64.zip
+          - os: macos-x86_64
+            target: x86_64-apple-darwin
+            cross: true
+            asset: ryolune-macos-x86_64.zip
+            archive: ryolune-macos-x86_64.zip
           - os: ubuntu-22.04
             asset: ryolune-linux-x86_64
             archive: ryolune-linux-x86_64.zip
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ startsWith(matrix.os, 'macos') && (vars.MAC_RUNNER || 'ludovics-mac-mini') || matrix.os }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
       - uses: actions/setup-python@v5
+        if: runner.environment == 'github-hosted'
         with:
           python-version: '3.12'
       - name: Bound Linux compiler memory
@@ -55,20 +67,26 @@ jobs:
           echo 'CARGO_PROFILE_DEV_DEBUG=0' >> "$GITHUB_ENV"
           echo 'CARGO_PROFILE_TEST_DEBUG=0' >> "$GITHUB_ENV"
       - name: Linux native libraries
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-dev libx11-xcb-dev libxcb1-dev libfontconfig1-dev libfreetype6-dev libvulkan-dev libdbus-1-dev libssl-dev libzstd-dev
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: '1.88.0'
           components: rustfmt, clippy
+          targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+        if: runner.environment == 'github-hosted'
       - run: cargo fmt --all --check
+        if: ${{ !matrix.cross }}
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        if: ${{ !matrix.cross }}
       - run: cargo test --workspace --locked
+        if: ${{ !matrix.cross }}
         timeout-minutes: 15
-      - run: cargo build --release --locked --workspace
+      - run: cargo build --release --locked --workspace ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
       - name: Complete song through MCP and CLI
+        if: ${{ !matrix.cross }}
         run: python3 scripts/verify-song.py
       - name: Prepare Developer ID signing and notarization
         if: runner.os == 'macOS'
@@ -82,12 +100,12 @@ jobs:
         run: bash scripts/prepare-apple-signing.sh
       - name: Package macOS app
         if: runner.os == 'macOS'
+        env:
+          RYOLUNE_TARGET: ${{ matrix.target }}
         run: bash scripts/package-macos.sh
-      - name: Remove signing keychain
+      - name: Remove signing keychain and restore the keychain search list
         if: always() && runner.os == 'macOS'
-        run: |
-          if [ -f "$RUNNER_TEMP/signing.keychain-db" ]; then security delete-keychain "$RUNNER_TEMP/signing.keychain-db"; fi
-          rm -f "$RUNNER_TEMP/notary.p8"
+        run: bash scripts/cleanup-apple-signing.sh
       - name: Package Linux binary
         if: runner.os == 'Linux'
         run: |
@@ -130,7 +148,7 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Checksums
-        run: cd dist && sha256sum ryolune-linux-x86_64.zip ryolune-linux-x86_64.tar.gz ryolune-linux-x86_64 ryolune-Afterglow-demo.zip > SHA256SUMS
+        run: cd dist && sha256sum ryolune-macos-arm64.zip ryolune-macos-x86_64.zip ryolune-linux-x86_64.zip ryolune-linux-x86_64.tar.gz ryolune-linux-x86_64 ryolune-Afterglow-demo.zip > SHA256SUMS
       - name: Install signing binary runtime
         run: sudo apt-get update && sudo apt-get install -y libasound2 libudev1 libxkbcommon0 libxkbcommon-x11-0 libwayland-client0 libx11-xcb1 libfontconfig1 libvulkan1 mesa-vulkan-drivers
       - name: Sign checksums

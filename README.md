@@ -10,14 +10,14 @@
 <h1 align="center">ryolune</h1>
 
 <p align="center"><strong>The open-source DAW your AI can drive.</strong> (beta)<br/>
-Native Rust app (GPUI) · drivable by your AI (MCP, CLI, built-in agent) · beta for Linux; macOS and Windows coming soon.<br/>
+Native Rust app (GPUI) · drivable by your AI (MCP, CLI, built-in agent) · beta for Linux and macOS; Windows coming soon.<br/>
 Part of <a href="https://lsuite.xyz">lsuite</a>, the free, open-source creative suite your AI can drive.</p>
 
 ---
 
 ## What it does
 
-A complete digital audio workstation (in beta for Linux; macOS and Windows coming soon) in which every action, from
+A complete digital audio workstation (in beta for Linux and macOS; Windows coming soon) in which every action, from
 adding a track to mixing a plugin's parameters, is a command that you, the built-in agent, a
 script or any MCP client (Claude Code, Codex, Cursor…) can run on the same song, with the same
 undo.
@@ -63,13 +63,15 @@ Download the file for your computer from the
 [latest release](https://github.com/ludovic111/ryolune/releases/latest) or
 [lsuite.xyz/ryolune](https://lsuite.xyz/ryolune):
 
-While lsuite is in beta, ryolune is built for **Linux** (x86_64) only. **macOS and Windows are
+ryolune is built for **Linux** (x86_64) and **macOS** (Apple Silicon and Intel). **Windows is
 coming soon**: the code is there and builds from source, but no ready-made builds are published.
 
 | Computer | File |
 | --- | --- |
 | Linux | `ryolune-linux-x86_64.zip` (or `.tar.gz`), or `ryolune-linux-x86_64` for the app alone |
-| Mac, Windows | Coming soon |
+| Mac with Apple Silicon | `ryolune-macos-arm64.zip`: drag `ryolune.app` into Applications |
+| Mac with Intel | `ryolune-macos-x86_64.zip`: drag `ryolune.app` into Applications |
+| Windows | Coming soon |
 
 The `.zip` (and the `.tar.gz`) holds all three executables (`ryolune`, `ryolune-cli`,
 `ryolune-mcp`); extract them into one folder. The single `ryolune-linux-x86_64` file is the app
@@ -137,7 +139,7 @@ See [AI_CONTROL.md](docs/AI_CONTROL.md) for the agent, the CLI, MCP, permissions
 ## Plugins
 
 - **35 stock instruments and effects** with front panels that draw what the audio does, plus
-  your own CLAP, VST3, Audio Unit (macOS, coming soon) and lsuite plugins, all in one Plugins window with a
+  your own CLAP, VST3, Audio Unit (macOS) and lsuite plugins, all in one Plugins window with a
   switch on each.
 - **Plugins you can ask for**: describe an effect or an instrument and your agent writes it in
   Rust on ryolune's SDK, builds it and loads it, without a restart (`plugin.guide`,
@@ -218,7 +220,7 @@ need the checks in [DEVELOPMENT.md](docs/DEVELOPMENT.md) and agreement to the
 
 No time stretching, comping or time signature changes inside a song yet, and buses do not feed
 other buses. Recording latency is not compensated automatically. On Linux, external plugins show their parameter list
-(their own windows open on macOS, coming soon). VST2 and AAX are not supported. There is no MP3
+(their own windows open on macOS). VST2 and AAX are not supported. There is no MP3
 export. DAWproject does not carry clip gain, fade curves,
 plugin automation or meter changes, and Ableton Live, Logic Pro, FL Studio, REAPER, Pro Tools
 and GarageBand exchange songs through MIDI and stems, not their own project files.

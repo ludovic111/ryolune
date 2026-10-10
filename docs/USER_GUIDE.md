@@ -6,8 +6,8 @@ clients can do the same things: see [AI_CONTROL.md](AI_CONTROL.md) and the gener
 [command reference](COMMANDS.md). Keyboard shortcuts are listed in [SHORTCUTS.md](SHORTCUTS.md)
 and in the app under Help > Shortcuts and Help (⌘/). ⌘ is Ctrl on Windows and Linux.
 
-ryolune is in beta for **Linux**; ready-made builds for macOS and Windows are coming soon (the
-guide still describes their few differences, such as Audio Units on macOS).
+ryolune is in beta for **Linux** and **macOS** (Apple Silicon and Intel); ready-made builds for
+Windows are coming soon (the guide still describes its few differences).
 
 ## Contents
 
@@ -428,5 +428,4 @@ third export, and never again. It counts exports in `settings.json` only; nothin
 - Recording latency is not measured or compensated automatically.
 - External plugin windows open on macOS; on Windows and Linux external plugins show their
   parameter list.
-- While lsuite is in beta, builds are published for Linux only; macOS and Windows are coming
-  soon.
+- Builds are published for Linux and macOS (Apple Silicon and Intel); Windows is coming soon.

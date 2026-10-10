@@ -2,6 +2,12 @@
 
 Changes since 0.16.0, for the next release's notes.
 
+## macOS is back
+
+- **ryolune ships for Linux and macOS**: Macs with Apple Silicon (`ryolune-macos-arm64.zip`) and
+  with Intel (`ryolune-macos-x86_64.zip`) get ready-made builds again, through the lsuite app and
+  the in-app updater like Linux. Windows is coming soon.
+
 ## lsuite is fully free
 
 - **No lsuite account any more**: everything in ryolune is free, with nothing to sign in to.
