@@ -18,19 +18,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Linux on ludodesktop for every push and pull request. macOS (Apple Silicon, and Intel
-        # cross-compiled) on the Mac mini only when started by hand:
+        # Linux on the maintainer's self-hosted Linux runner for every push and pull request.
+        # macOS (Apple Silicon, and Intel cross-compiled) on the self-hosted Mac only when started
+        # by hand:
         #   gh workflow run "Native Rust" --ref <branch>
         # Windows is coming soon: add "windows-latest" to the dispatch list to check it.
         os: ${{ fromJSON(github.event_name == 'workflow_dispatch' && '["macos", "ubuntu-22.04"]' || '["ubuntu-22.04"]') }}
     # Self-hosted runners never take a pull request from a fork: those run on GitHub's machines.
     # MAC_RUNNER=macos-latest (or LINUX_RUNNER=ubuntu-22.04) sends a platform back to GitHub.
     runs-on: ${{ (matrix.os == 'ubuntu-22.04' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)) && (vars.LINUX_RUNNER || 'ludodesktop') || (matrix.os == 'macos' && ((github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (vars.MAC_RUNNER || 'ludovics-mac-mini') || 'macos-latest')) || matrix.os }}
-    timeout-minutes: 90  # the ThinkPad (4 threads) builds from cold in ~40 min
+    timeout-minutes: 90  # a 4-thread self-hosted runner builds from cold in ~40 min
     steps:
       - uses: actions/checkout@v4
         with:
-          # On ludodesktop, keep target/ between runs (incremental builds).
+          # On the self-hosted runners, keep target/ between runs (incremental builds).
           clean: ${{ runner.environment == 'github-hosted' }}
       - uses: actions/setup-python@v5
         if: runner.environment == 'github-hosted'
@@ -45,9 +46,9 @@ jobs:
       - name: Linux native libraries
         if: runner.os == 'Linux' && runner.environment == 'github-hosted'
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libx11-dev libx11-xcb-dev libxcb1-dev libfontconfig1-dev libfreetype6-dev libvulkan-dev libdbus-1-dev libssl-dev libzstd-dev
-      - name: Own Rust install per repo on ludodesktop
+      - name: Own Rust install per repo on the self-hosted Linux runner
         # The runners of several repos run at once; a shared ~/.rustup makes their installs collide.
-        # (The Mac mini's runners set their own RUSTUP_HOME and CARGO_HOME in the runner's .env.)
+        # (The self-hosted Mac's runners set their own RUSTUP_HOME and CARGO_HOME in the runner's .env.)
         if: runner.environment == 'self-hosted' && runner.os == 'Linux'
         run: |
           echo "RUSTUP_HOME=$HOME/.rustup-${GITHUB_REPOSITORY#*/}" >> "$GITHUB_ENV"

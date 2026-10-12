@@ -318,7 +318,7 @@ This supersedes the former Electron / TypeScript app (`legacy/`, removed; it is 
 - Parallel worktrees must not share `CARGO_TARGET_DIR`: cargo can link another worktree's
   `ryolune-engine` into yours. The public page is lsuite.xyz/ryolune (`ryolune/index.html` in
   ludovic111/lsuite); each release updates its "New in" section, changelog and captures (the
-  version is filled in from the latest GitHub release).
+  version is filled in from the latest published build).
 - Money (owner's decision, 2026-09-29): ryolune is MIT and free forever, every update included; the
   only income is optional donations, once or monthly, through GitHub Sponsors behind
   lsuite.xyz/ryolune/support (`SUPPORT_URL` in desktop control.rs, since 2026-10-01; the retired
@@ -347,14 +347,14 @@ This supersedes the former Electron / TypeScript app (`legacy/`, removed; it is 
 - Work on a branch. Do not merge or publish a release without the owner's request.
 - Releases: bump the workspace `version` in `Cargo.toml`, add `docs/releases/X.Y.Z.md`, run the
   evals (`python3 evals/run.py --record`), then push a matching `vX.Y.Z` tag.
-  `.github/workflows/release.yml` builds Linux (the only platform during the lsuite beta), writes and signs `SHA256SUMS` (Ed25519,
+  `.github/workflows/release.yml` builds Linux and macOS (Apple Silicon and Intel), writes and signs `SHA256SUMS` (Ed25519,
   secret `RYOLUNE_SIGNING_KEY`, public key in `desktop/assets/update-signing.pub`) and leaves a
   draft release; `scripts/publish-build.sh X.Y.Z` publishes it to lsuite-builds, which lsuite.xyz
   serves to `desktop/src/update.rs`, which installs after verifying the signature, the download
   location and the new binaries' versions.
   Keep the asset names in `update::asset_name` and the workflow in sync. The secret key stays in
-  `~/.ryolune/keys/update-signing.key` on the owner's machine; never commit it. Builds are ad-hoc
-  signed, not notarized.
+  `~/.ryolune/keys/update-signing.key` on the maintainer's machine; never commit it. Since 0.17.0 the
+  macOS builds are signed with the Developer ID, notarized and stapled.
 - The former Electron / TypeScript app and the retired site are in git history at 7fb6116,
   the parent of the commit that removed them; they are reference only.
 
@@ -385,7 +385,7 @@ Still to do:
       `export.audio`, `export.stems`, `export.midi`.)
 - [x] **Site** (0.12 page done 2026-10-01): keep updating lsuite.xyz/ryolune
       (`../lsuite/ryolune/index.html`) with every release: what's new, features, captures
-      (`../lsuite/assets/img/ryolune/`). The version shown comes from the latest GitHub release.
+      (`../lsuite/assets/img/ryolune/`). The version shown comes from the latest published build.
 - [x] Point `SUPPORT_URL` (desktop/src/control.rs) at `https://lsuite.xyz/ryolune/support` in the
       next release.
 
@@ -408,20 +408,20 @@ Still to do:
       DEVELOPMENT and the 0.16.0 notes say "beta for Linux, macOS and Windows coming soon".
 - [x] **Linux and macOS** (owner's decision, 2026-10-10, via the lsuite coordinator): the
       beta ships for Linux and macOS (Apple Silicon and Intel); Windows stays "coming soon"
-      (its matrix lines stay out). Both macOS builds run on the Mac mini's self-hosted runner
-      (`vars.MAC_RUNNER || 'ludovics-mac-mini'`, labels `self-hosted, macOS, ARM64`):
+      (its matrix lines stay out). Both macOS builds run on the maintainer's self-hosted Mac runner
+      (`vars.MAC_RUNNER`, else the default label in the workflow; labels `self-hosted, macOS, ARM64`):
       `release.yml` rows `macos-arm64` (native: fmt, clippy, tests, song check, package) and
       `macos-x86_64` (`cross: true`: `--target x86_64-apple-darwin`, build and package only);
       `native.yml` runs macOS only on `workflow_dispatch`, both architectures in one job.
       `scripts/package-macos.sh` takes `RYOLUNE_TARGET=<triple>` (`target/<triple>/release`);
-      an Intel binary the Mac cannot run (no Rosetta on the mini) is checked by `lipo` and its
-      embedded version. The runner is the owner's account: no global git config, no `~/.ssh`,
+      an Intel binary the Mac cannot run (no Rosetta on the runner) is checked by `lipo` and its
+      embedded version. The runner runs as the maintainer's own account: no global git config, no `~/.ssh`,
       no profiles; `prepare-apple-signing.sh` saves the keychain search list in `$RUNNER_TEMP`
       and `cleanup-apple-signing.sh` (always) restores it and deletes the throwaway keychain.
-      The runner's `.env` holds its own `RUSTUP_HOME`/`CARGO_HOME`, so the ludodesktop
+      The runner's `.env` holds its own `RUSTUP_HOME`/`CARGO_HOME`, so the self-hosted Linux
       "own Rust install" step is Linux only. The Mac's Python is 3.9 (scripts must stay 3.9).
       0.17.0 (2026-10-11) is the first release built this way: both Mac zips signed with the
-      Developer ID, notarized and stapled on the Mac mini, published to lsuite-builds.
+      Developer ID, notarized and stapled on the self-hosted Mac, published to lsuite-builds.
 - [x] **lsuite is fully free** (owner's decision, 2026-10-10, via the lsuite coordinator): no
       lsuite Pass, lsuite AI, lsuite account, Cloud or Marketplace. Removed here: `account.rs`,
       `control_account.rs` and the `account.*` commands, `Provider::Lsuite` (old settings with
@@ -432,6 +432,17 @@ Still to do:
       `LSUITE_ACCOUNT_SERVER` is gone). An old `~/.lsuite/account.json` is ignored, never
       deleted. Plugins (PLUGINS.md) stay. Agents are the person's own: Codex, Claude Code, API
       keys, Ollama, LM Studio, compatible servers.
+- [ ] Open engineering items (carried over from the 0.10 hand-off notes; recheck before relying
+      on one): time signature changes (a meter map beside the tempo map); time stretching of audio
+      regions and take comping (both on the tempo map); buses feeding buses (needs delay
+      compensation per depth); CLAP preset discovery is not hosted (CLAP factory presets are
+      unreachable from commands); Audio Units that do not restore their preset name with their
+      state (Serum 2) report no current preset once reopened; some vendors' Audio Units (UAD,
+      Slate) do not load outside their own host environment (scanning isolates this, loading does
+      not); inserts never receive notes, and controllers to inserts are not delayed to match a
+      latent instrument; two interfaces on different clocks drift (an occasional monitor drop or underrun).
+      Still to try with real hardware: monitoring, count-in and takes with an audio interface, a
+      MIDI keyboard's controllers on stock and third-party instruments.
 - [ ] Harness gaps: a picture of the window is only on macOS (`ui.screenshot`); the Codex
       provider gets the numbers of a look, not the picture; evals run through MCP (Claude Code),
       not through the built-in agent's own loop.
