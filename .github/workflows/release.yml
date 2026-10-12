@@ -1,5 +1,5 @@
 name: Release
-# Builds Linux and macOS (Apple Silicon, and Intel cross-compiled, both on the Mac mini; Windows is
+# Builds Linux and macOS (Apple Silicon, and Intel cross-compiled, both on a self-hosted Mac; Windows is
 # coming soon) from a `vX.Y.Z` tag into a DRAFT GitHub release plus SHA256SUMS(.sig). The builds
 # are not public (lsuite's DISTRIBUTION.md):
 # `scripts/publish-build.sh X.Y.Z` copies the draft to ludovic111/lsuite-builds, which
@@ -32,7 +32,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        # Linux and macOS (owner's decision, 2026-10-10). The macOS rows run on the Mac mini
+        # Linux and macOS (owner's decision, 2026-10-10). The macOS rows run on the self-hosted Mac
         # (vars.MAC_RUNNER=macos-latest sends them to GitHub): Apple Silicon natively, Intel
         # cross-compiled (`cross`: built and packaged only; its code is the Apple Silicon row's).
         # Windows is coming soon; its packaging steps below stay. To ship it again, add back

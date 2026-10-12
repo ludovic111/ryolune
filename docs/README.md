@@ -38,8 +38,6 @@ Every document in `docs/`, one line each, with who it is for. The project overvi
   plugin hosts and window fit together. For contributors.
 - [NATIVE_PLUGINS.md](NATIVE_PLUGINS.md): writing a native plugin with the `ryolune-plugin`
   SDK and its C ABI. For plugin developers.
-- [NEXT_SESSION.md](NEXT_SESSION.md): a hand-off prompt from the 0.10 work, kept for its
-  open questions. For maintainers.
 
 ## Reference
 
@@ -50,7 +48,7 @@ Every document in `docs/`, one line each, with who it is for. The project overvi
 
 ## Releases and history
 
-- [releases/](releases/): release notes for every version from 0.2.0 to 0.13.0. For everyone.
+- [releases/](releases/): release notes for every version from 0.2.0 to 0.17.0. For everyone.
 - [RUST_MIGRATION.md](RUST_MIGRATION.md): the 2026-09-12 move from the Electron app to Rust.
   History, for contributors.
 - [VERIFICATION.md](VERIFICATION.md): what was checked by hand for 0.3.1, and the limits of

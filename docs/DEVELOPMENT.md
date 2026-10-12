@@ -156,18 +156,18 @@ callback.
 ryolune is built and shipped for **Linux and macOS** (owner's decision, 2026-10-10); Windows is
 coming soon (its code stays and builds from source; the comments in `release.yml` and
 `native.yml` list what to add back: the matrix entry, the files in the Checksums step,
-`scripts/publish-release.sh` and `resume-release.yml`). The macOS rows run on the Mac mini's
-self-hosted runner (`vars.MAC_RUNNER`, default `ludovics-mac-mini`; `macos-latest` sends them to
-GitHub): `macos-arm64` builds, tests and packages natively, `macos-x86_64` cross-compiles
+`scripts/publish-release.sh` and `resume-release.yml`). The macOS rows run on the maintainer's
+self-hosted Mac runner (the label is `vars.MAC_RUNNER`, with a default in the workflow;
+`macos-latest` sends them to GitHub): `macos-arm64` builds, tests and packages natively, `macos-x86_64` cross-compiles
 (`cargo build --release --workspace --target x86_64-apple-darwin`, then
 `RYOLUNE_TARGET=x86_64-apple-darwin bash scripts/package-macos.sh`). The `Native Rust` CI runs
 Linux on every push and pull request, and macOS (both architectures) only when started by hand:
-`gh workflow run "Native Rust" --ref <branch>`. The Mac runner is the owner's own account: the
+`gh workflow run "Native Rust" --ref <branch>`. The Mac runner runs as the maintainer's own user account: the
 workflows never write global git config, `~/.ssh` or shell profiles, and
 `scripts/cleanup-apple-signing.sh` deletes the signing keychain and restores the keychain search
 list exactly as `scripts/prepare-apple-signing.sh` found it.
 
-The `Release` workflow builds Linux, writes and signs
+The `Release` workflow builds Linux and macOS, writes and signs
 `SHA256SUMS` (Ed25519, repository secret `RYOLUNE_SIGNING_KEY`, public key in
 `desktop/assets/update-signing.pub`) and leaves a complete **draft** release: since 0.16 the
 builds are not public (lsuite's DISTRIBUTION.md). `scripts/publish-build.sh X.Y.Z` (needs `gh`
@@ -182,8 +182,6 @@ before replacing themselves. `RYOLUNE_UPDATE_URL` points the updater at another 
 Windows binaries, when they are built again, are unsigned.
 
 ### Signing and notarizing for macOS
-
-(Not used while macOS builds are paused for the beta.)
 
 Without Apple secrets the macOS app is ad-hoc signed and Gatekeeper blocks its first launch. With
 all six repository secrets set, `scripts/prepare-apple-signing.sh` imports the certificate into a

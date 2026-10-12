@@ -152,7 +152,7 @@ The permissions themselves are listed under [`agent.permissions`](#agentpermissi
 
 | Path | Type | Default | What it does |
 |---|---|---|---|
-| `agent.provider` | string | `"codex"` | Which provider the built-in agent uses (table below). A provider this version no longer offers (`"lsuite"`, `"zenith"`) reads as the default; the rest of the file is kept. |
+| `agent.provider` | string | `"codex"` | Which provider the built-in agent uses (table below). A provider this version no longer offers (such as `"lsuite"`) reads as the default; the rest of the file is kept. |
 | `agent.model` | string | `""` | Model name, at most 200 printable characters. Empty uses the provider's default. |
 | `agent.reasoningEffort` | string | `""` | Provider effort level (letters, digits, `_`, `-`; at most 40). Empty leaves it to the provider. |
 | `agent.anthropicApiKey` | string, secret | `""` | |
